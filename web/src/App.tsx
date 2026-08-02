@@ -186,14 +186,17 @@ function App() {
                       >
                         <span className="identifier">{issue.identifier}</span>
                         <h3>{issue.title}</h3>
-                        <select
-                          className={`status-select status-${issue.status}`}
-                          value={issue.status}
-                          aria-label={`Change status for ${issue.identifier}`}
-                          onChange={(event) => void moveIssue(issue.identifier, event.target.value as Status)}
-                        >
-                          {columns.map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}
-                        </select>
+                        <div className="status-control">
+                          <span className={`status-icon status-icon-${issue.status}`} aria-hidden="true" />
+                          <select
+                            className="status-select"
+                            value={issue.status}
+                            aria-label={`Change status for ${issue.identifier}`}
+                            onChange={(event) => void moveIssue(issue.identifier, event.target.value as Status)}
+                          >
+                            {columns.map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}
+                          </select>
+                        </div>
                       </article>
                     ))}
                   </div>
@@ -217,14 +220,17 @@ function App() {
                     {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
                     {grouped[column.status].map((issue) => (
                       <article className="list-row" key={issue.identifier}>
-                        <select
-                          className={`status-select status-${issue.status}`}
-                          value={issue.status}
-                          aria-label={`Change status for ${issue.identifier}`}
-                          onChange={(event) => void moveIssue(issue.identifier, event.target.value as Status)}
-                        >
-                          {columns.map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}
-                        </select>
+                        <div className="status-control">
+                          <span className={`status-icon status-icon-${issue.status}`} aria-hidden="true" />
+                          <select
+                            className="status-select"
+                            value={issue.status}
+                            aria-label={`Change status for ${issue.identifier}`}
+                            onChange={(event) => void moveIssue(issue.identifier, event.target.value as Status)}
+                          >
+                            {columns.map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}
+                          </select>
+                        </div>
                         <span className="identifier">{issue.identifier}</span>
                         <div className="list-copy">
                           <h3>{issue.title}</h3>
