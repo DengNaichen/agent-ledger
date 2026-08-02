@@ -28,6 +28,10 @@ input:focus, textarea:focus { border-color: #6d5ce8; box-shadow: 0 0 0 3px rgba(
 .composer > button:hover { background: #5947db; }
 .error { margin: -8px 0 16px; padding: 10px 12px; color: #8b1f2f; background: #fde8eb; border-radius: 10px; }
 
+.view-switch { display: inline-flex; gap: 4px; margin: 0 0 12px; padding: 4px; background: #dedcd5; border-radius: 10px; }
+.view-switch button { border: 0; border-radius: 7px; padding: 7px 13px; color: #686c75; background: transparent; font-size: 12px; font-weight: 750; }
+.view-switch button.active { color: #17191f; background: #fff; box-shadow: 0 1px 5px rgba(27, 29, 35, .12); }
+
 .board { display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 20px; }
 .column { min-height: 440px; padding: 12px; background: rgba(255, 255, 255, .42); border: 1px solid #d7d5ce; border-radius: 16px; }
 .column > header { display: flex; justify-content: space-between; gap: 12px; padding: 4px 4px 14px; border-bottom: 2px solid #c8c6bf; }
@@ -50,12 +54,37 @@ input:focus, textarea:focus { border-color: #6d5ce8; box-shadow: 0 0 0 3px rgba(
 .card footer button { display: grid; place-items: center; width: 28px; height: 25px; border: 1px solid #dddbe0; border-radius: 7px; background: #f8f7f9; }
 .card footer button:hover:not(:disabled) { color: white; border-color: #6d5ce8; background: #6d5ce8; }
 
+.list-view { overflow: hidden; background: #f8f7f2; border: 1px solid #d7d5ce; border-radius: 16px; box-shadow: 0 10px 30px rgba(27, 29, 35, .05); }
+.list-group + .list-group { border-top: 1px solid #d7d5ce; }
+.list-group > header { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 16px; background: #efeee9; }
+.list-group > header div { display: flex; align-items: center; gap: 9px; }
+.list-group > header h2 { margin: 0; font-size: 12px; }
+.list-group > header > span { color: #777b84; font-size: 11px; font-weight: 750; }
+.status-dot { width: 9px; height: 9px; background: #a5a6a3; border-radius: 50%; }
+.list-group-ready .status-dot { background: #e2a82c; }
+.list-group-in_progress .status-dot { background: #6d5ce8; }
+.list-group-in_review .status-dot { background: #268cbf; }
+.list-group-done .status-dot { background: #47a06a; }
+.list-row { display: grid; grid-template-columns: 132px 64px minmax(0, 1fr); gap: 14px; align-items: center; min-height: 58px; padding: 9px 16px; background: #fff; border-top: 1px solid #eceae4; }
+.list-row:hover { background: #fbfaf7; }
+.status-select { width: 100%; border: 1px solid #d8d6cf; border-radius: 999px; padding: 6px 28px 6px 10px; color: #555a65; background: #efeee9; font-size: 11px; font-weight: 750; outline: none; }
+.status-select:focus { border-color: #6d5ce8; box-shadow: 0 0 0 3px rgba(109, 92, 232, .12); }
+.status-ready { color: #74500a; background: #fff2d2; }
+.status-in_progress { color: #4d3cbc; background: #ebe7ff; }
+.status-in_review { color: #14678f; background: #e0f3fc; }
+.status-done { color: #277343; background: #e2f4e8; }
+.list-copy { min-width: 0; }
+.list-copy h3 { overflow: hidden; margin: 0; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.list-copy p { overflow: hidden; margin: 3px 0 0; color: #777b84; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.list-empty { margin: 0; padding: 14px 16px; color: #a0a29f; background: #fff; border-top: 1px solid #eceae4; font-size: 11px; }
+
 @media (max-width: 900px) {
   main { padding: 20px; }
   .masthead { align-items: start; }
   .composer { grid-template-columns: 1fr 1fr; }
   .composer-copy { grid-column: 1 / -1; }
   .board { grid-template-columns: repeat(5, minmax(270px, 78vw)); }
+  .list-row { grid-template-columns: 120px 58px minmax(0, 1fr); }
 }
 
 @media (max-width: 560px) {
@@ -64,10 +93,11 @@ input:focus, textarea:focus { border-color: #6d5ce8; box-shadow: 0 0 0 3px rgba(
   .summary { display: inline-block; margin-top: 20px; }
   .composer { grid-template-columns: 1fr; }
   .composer-copy { grid-column: auto; }
+  .list-row { grid-template-columns: 118px minmax(0, 1fr); gap: 10px; }
+  .list-row > .identifier { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .card, .composer > button { transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
   .card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(27, 29, 35, .08); }
 }
-

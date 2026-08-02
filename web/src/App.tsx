@@ -9,6 +9,7 @@ const columns = [
 ] as const;
 
 type Status = (typeof columns)[number]["status"];
+type ViewMode = "board" | "list";
 
 type Issue = {
   identifier: string;
@@ -26,6 +27,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [view, setView] = useState<ViewMode>("board");
 
   useEffect(() => {
     void loadIssues();
@@ -127,54 +129,95 @@ function App() {
 
       {error && <p className="error" role="alert">{error}</p>}
 
-      <section className="board" aria-label="Delivery board">
-        {columns.map((column) => (
-          <section
-            className={`column column-${column.status}`}
-            key={column.status}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              const identifier = event.dataTransfer.getData("text/plain");
-              if (identifier) void moveIssue(identifier, column.status);
-            }}
-          >
-            <header>
-              <div>
-                <h2>{column.label}</h2>
-                <p>{column.hint}</p>
+      <nav className="view-switch" aria-label="Issue view">
+        <button type="button" className={view === "board" ? "active" : ""} onClick={() => setView("board")}>Board</button>
+        <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>List</button>
+      </nav>
+
+      {view === "board" ? (
+        <section className="board" aria-label="Delivery board">
+          {columns.map((column) => (
+            <section
+              className={`column column-${column.status}`}
+              key={column.status}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                const identifier = event.dataTransfer.getData("text/plain");
+                if (identifier) void moveIssue(identifier, column.status);
+              }}
+            >
+              <header>
+                <div>
+                  <h2>{column.label}</h2>
+                  <p>{column.hint}</p>
+                </div>
+                <span>{grouped[column.status].length}</span>
+              </header>
+              <div className="cards">
+                {loading && <p className="empty">Loading…</p>}
+                {!loading && grouped[column.status].length === 0 && <p className="empty">Clear</p>}
+                {grouped[column.status].map((issue) => {
+                  const index = columns.findIndex((item) => item.status === issue.status);
+                  return (
+                    <article
+                      className="card"
+                      draggable
+                      key={issue.identifier}
+                      onDragStart={(event) => event.dataTransfer.setData("text/plain", issue.identifier)}
+                    >
+                      <span className="identifier">{issue.identifier}</span>
+                      <h3>{issue.title}</h3>
+                      {issue.description && <p>{issue.description}</p>}
+                      <footer>
+                        <button type="button" onClick={() => shift(issue, -1)} disabled={index === 0} aria-label={`Move ${issue.identifier} left`}>←</button>
+                        <span>Move</span>
+                        <button type="button" onClick={() => shift(issue, 1)} disabled={index === columns.length - 1} aria-label={`Move ${issue.identifier} right`}>→</button>
+                      </footer>
+                    </article>
+                  );
+                })}
               </div>
-              <span>{grouped[column.status].length}</span>
-            </header>
-            <div className="cards">
-              {loading && <p className="empty">Loading…</p>}
-              {!loading && grouped[column.status].length === 0 && <p className="empty">Clear</p>}
-              {grouped[column.status].map((issue) => {
-                const index = columns.findIndex((item) => item.status === issue.status);
-                return (
-                  <article
-                    className="card"
-                    draggable
-                    key={issue.identifier}
-                    onDragStart={(event) => event.dataTransfer.setData("text/plain", issue.identifier)}
-                  >
+            </section>
+          ))}
+        </section>
+      ) : (
+        <section className="list-view" aria-label="Issue list">
+          {columns.map((column) => (
+            <section className={`list-group list-group-${column.status}`} key={column.status}>
+              <header>
+                <div>
+                  <span className="status-dot" />
+                  <h2>{column.label}</h2>
+                </div>
+                <span>{grouped[column.status].length}</span>
+              </header>
+              <div className="list-rows">
+                {loading && <p className="list-empty">Loading…</p>}
+                {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
+                {grouped[column.status].map((issue) => (
+                  <article className="list-row" key={issue.identifier}>
+                    <select
+                      className={`status-select status-${issue.status}`}
+                      value={issue.status}
+                      aria-label={`Change status for ${issue.identifier}`}
+                      onChange={(event) => void moveIssue(issue.identifier, event.target.value as Status)}
+                    >
+                      {columns.map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}
+                    </select>
                     <span className="identifier">{issue.identifier}</span>
-                    <h3>{issue.title}</h3>
-                    {issue.description && <p>{issue.description}</p>}
-                    <footer>
-                      <button type="button" onClick={() => shift(issue, -1)} disabled={index === 0} aria-label={`Move ${issue.identifier} left`}>←</button>
-                      <span>Move</span>
-                      <button type="button" onClick={() => shift(issue, 1)} disabled={index === columns.length - 1} aria-label={`Move ${issue.identifier} right`}>→</button>
-                    </footer>
+                    <div className="list-copy">
+                      <h3>{issue.title}</h3>
+                      {issue.description && <p>{issue.description}</p>}
+                    </div>
                   </article>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </section>
+                ))}
+              </div>
+            </section>
+          ))}
+        </section>
+      )}
     </main>
   );
 }
 
 export default App;
-
