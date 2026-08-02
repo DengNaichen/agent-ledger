@@ -1,0 +1,32 @@
+package web
+
+import (
+	"embed"
+	"io/fs"
+	"net/http"
+	"strings"
+)
+
+//go:embed all:dist
+var files embed.FS
+
+func Handler() http.Handler {
+	root, err := fs.Sub(files, "dist")
+	if err != nil {
+		panic(err)
+	}
+	fileServer := http.FileServer(http.FS(root))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if _, err := fs.Stat(root, path); err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		clone := r.Clone(r.Context())
+		clone.URL.Path = "/"
+		fileServer.ServeHTTP(w, clone)
+	})
+}

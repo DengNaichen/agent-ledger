@@ -1,0 +1,6 @@
+agent-ledger
+agent-ledger.db*
+web/node_modules/
+internal/web/dist/*
+!internal/web/dist/.gitkeep
+
