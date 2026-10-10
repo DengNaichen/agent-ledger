@@ -22,6 +22,7 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/issues", s.listIssues)
 	mux.HandleFunc("POST /api/issues", s.createIssue)
 	mux.HandleFunc("PATCH /api/issues/{identifier}/status", s.moveIssue)
+	mux.HandleFunc("PATCH /api/issues/{identifier}", s.updateIssue)
 	for _, method := range []string{"GET", "POST", "DELETE"} {
 		mux.Handle(method+" /mcp", mcp)
 	}
@@ -67,6 +68,21 @@ func (s *server) moveIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	issue, err := s.service.Update(r.Context(), app.UpdateIssue{Identifier: r.PathValue("identifier"), Status: &input.Status})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, issue)
+}
+
+func (s *server) updateIssue(w http.ResponseWriter, r *http.Request) {
+	var input app.UpdateIssue
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	input.Identifier = r.PathValue("identifier")
+	issue, err := s.service.Update(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
 		return
