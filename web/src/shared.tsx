@@ -72,13 +72,13 @@ export function NavLink({ to, className, children }: { to: string; className?: s
 }
 
 const statusColors: Record<Status, string> = {
-  triage: "#6b6f76",
-  todo: "#a6a8b1",
+  triage: "#bec2c8",
+  todo: "#e2e2e2",
   agent_ready: "#b49bdd",
-  in_progress: "#6f78dd",
-  in_review: "#5a9bc0",
-  done: "#4e9b68",
-  canceled: "#9c626c",
+  in_progress: "#f2c94c",
+  in_review: "#4cb782",
+  done: "#5e6ad2",
+  canceled: "#95a2b3",
 };
 
 // Open states are rings, progress fills a pie inside the ring, and closed
