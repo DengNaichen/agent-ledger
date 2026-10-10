@@ -33,7 +33,7 @@ go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 永远不用 8700，也不要为了开发终止别人或维护者实例的进程。
 
-前端热更新另开终端运行 `npm --prefix web run dev`，访问 Vite 打印的地址。只有 `/api` 代理到 8787（写在 `web/vite.config.ts`），开发服务换了端口时这个代理不会跟着变；不要假设 Vite 提供 `/mcp`。默认开发无需 GitHub token；仅测试 GitHub 集成时才配置对应参数，行为边界见 [安全](rules/SECURITY.md)。
+前端热更新另开终端运行 `npm --prefix web run dev`，访问 Vite 打印的地址。只有 `/api` 代理（写在 `web/vite.config.ts`），目标默认是 `http://127.0.0.1:8787`；开发服务换了端口时用环境变量 `INFTASK_API_URL` 指向它，例如 `INFTASK_API_URL=http://127.0.0.1:8791 npm --prefix web run dev`；不要假设 Vite 提供 `/mcp`。默认开发无需 GitHub token；仅测试 GitHub 集成时才配置对应参数，行为边界见 [安全](rules/SECURITY.md)。
 
 页面看起来仍是旧版时，区分 Vite 与 Go 嵌入页面：后者需重新构建并重启自己启动的开发进程。数据库升级/恢复失败的处理见 [可靠性](rules/RELIABILITY.md)。
 

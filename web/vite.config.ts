@@ -9,7 +9,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:8787",
+      "/api": process.env.INFTASK_API_URL ?? "http://127.0.0.1:8787",
     },
   },
 });
