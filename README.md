@@ -1,4 +1,4 @@
-# Agent Ledger
+# InfTask
 
 A local, agent-first delivery board: one Go process, one SQLite file, one React Kanban.
 
@@ -7,10 +7,10 @@ A local, agent-first delivery board: one Go process, one SQLite file, one React 
 ```sh
 npm --prefix web install
 npm --prefix web run build
-go run ./cmd/agent-ledger
+go run ./cmd/inftask
 ```
 
-Open <http://localhost:8787>. Data is stored in `agent-ledger.db` by default. Identifiers use `AL-<id>`; pass `-prefix TOK` to use `TOK-<id>`.
+Open <http://localhost:8787>. Data is stored in `inftask.db` by default. Identifiers use `AL-<id>`; pass `-prefix TOK` to use `TOK-<id>`.
 
 New databases use the current schema directly. Existing databases use the append-only migration mechanism; the migration list is currently empty, so arbitrary legacy schemas are not automatically converted. Do not delete the database to apply a schema change. See [data reliability](docs/rules/RELIABILITY.md).
 
@@ -35,7 +35,7 @@ To restore, stop the server, delete the database's `-wal` and `-shm` files, copy
 The server can link GitHub pull requests to issues. It listens only on localhost, where GitHub webhooks cannot reach it, so it polls each repository once a minute:
 
 ```sh
-GITHUB_TOKEN=$(gh auth token) agent-ledger -github-repo owner/name -github-repo owner/other
+GITHUB_TOKEN=$(gh auth token) inftask -github-repo owner/name -github-repo owner/other
 ```
 
 - `-github-repo owner/name` turns on sync for a repository and can be repeated; without it nothing syncs. `GITHUB_TOKEN` must allow reading the repository's pull requests. When `-github-repo` is given without `GITHUB_TOKEN`, the server exits at startup.
@@ -67,8 +67,8 @@ Missing issues or Projects return not-found errors. SQLite constraints enforce u
 It is the only process that opens the database, so the page and every agent see the same data. Keep the server running while agents work:
 
 ```sh
-codex mcp add agent_ledger --url http://127.0.0.1:8787/mcp
-claude mcp add --transport http agent-ledger http://127.0.0.1:8787/mcp
+codex mcp add inftask --url http://127.0.0.1:8787/mcp
+claude mcp add --transport http inftask http://127.0.0.1:8787/mcp
 ```
 
 The server binds to loopback by default and wraps requests in Go cross-origin protection. There is no separate local `Host` allowlist or user authentication layer; see [security boundaries](docs/rules/SECURITY.md).
@@ -77,7 +77,7 @@ The server binds to loopback by default and wraps requests in Go cross-origin pr
 
 launchd can keep a long-lived instance running: it starts the server at login and restarts it when it exits. Give that instance a non-default port, such as 8700, and keep the default 8787 for development builds, so a development server never opens the instance's database. Register MCP clients with the instance's port, such as `http://127.0.0.1:8700/mcp`.
 
-Save the following as `~/Library/LaunchAgents/com.example.agent-ledger.plist`, replacing `/Users/you`, `owner/name`, and the label with your own. launchd does not expand `~` or `$HOME` and starts jobs with a minimal `PATH`, so every path is absolute, including `gh` (`which gh` prints it) and the `agent-ledger` binary.
+Save the following as `~/Library/LaunchAgents/com.example.inftask.plist`, replacing `/Users/you`, `owner/name`, and the label with your own. launchd does not expand `~` or `$HOME` and starts jobs with a minimal `PATH`, so every path is absolute, including `gh` (`which gh` prints it) and the `inftask` binary.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -85,21 +85,21 @@ Save the following as `~/Library/LaunchAgents/com.example.agent-ledger.plist`, r
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.example.agent-ledger</string>
+  <string>com.example.inftask</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>GITHUB_TOKEN="$(/opt/homebrew/bin/gh auth token)" exec /Users/you/.local/bin/agent-ledger -addr 127.0.0.1:8700 -data "/Users/you/Library/Application Support/agent-ledger/agent-ledger.db" -github-repo owner/name</string>
+    <string>GITHUB_TOKEN="$(/opt/homebrew/bin/gh auth token)" exec /Users/you/.local/bin/inftask -addr 127.0.0.1:8700 -data "/Users/you/Library/Application Support/inftask/inftask.db" -github-repo owner/name</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/you/Library/Logs/agent-ledger.log</string>
+  <string>/Users/you/Library/Logs/inftask.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/you/Library/Logs/agent-ledger.log</string>
+  <string>/Users/you/Library/Logs/inftask.log</string>
 </dict>
 </plist>
 ```
@@ -107,25 +107,25 @@ Save the following as `~/Library/LaunchAgents/com.example.agent-ledger.plist`, r
 The token is not written into the plist: `/bin/sh -c` asks `gh auth token` for it each time the job starts, and `exec` then replaces the shell with the server. Without GitHub sync, drop `GITHUB_TOKEN="$(…)"` and `-github-repo`. The server does not create the database's directory, so create it once, then load the job:
 
 ```sh
-mkdir -p ~/Library/"Application Support"/agent-ledger
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.agent-ledger.plist
+mkdir -p ~/Library/"Application Support"/inftask
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.inftask.plist
 ```
 
 After rebuilding, install the binary at the path the plist names and restart the job:
 
 ```sh
 make build
-install -m 755 agent-ledger /Users/you/.local/bin/agent-ledger
-launchctl kickstart -k gui/$(id -u)/com.example.agent-ledger
+install -m 755 inftask /Users/you/.local/bin/inftask
+launchctl kickstart -k gui/$(id -u)/com.example.inftask
 ```
 
 To stop the job and unload it:
 
 ```sh
-launchctl bootout gui/$(id -u)/com.example.agent-ledger
+launchctl bootout gui/$(id -u)/com.example.inftask
 ```
 
-`kickstart` does not reread the plist. After editing the plist, run `bootout` and then `bootstrap` again. A `bootstrap` right after `bootout` can fail with `Bootstrap failed: 5: Input/output error` while the old job is still shutting down; wait a few seconds and retry. Startup errors, such as a missing `GITHUB_TOKEN`, go to `~/Library/Logs/agent-ledger.log`.
+`kickstart` does not reread the plist. After editing the plist, run `bootout` and then `bootstrap` again. A `bootstrap` right after `bootout` can fail with `Bootstrap failed: 5: Input/output error` while the old job is still shutting down; wait a few seconds and retry. Startup errors, such as a missing `GITHUB_TOKEN`, go to `~/Library/Logs/inftask.log`.
 
 ## Validate
 

@@ -1,7 +1,7 @@
 .PHONY: build test web
 
 build: web
-	go build -o agent-ledger ./cmd/agent-ledger
+	go build -o inftask ./cmd/inftask
 
 test: web
 	go test ./...

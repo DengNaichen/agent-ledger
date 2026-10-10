@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 
-	"github.com/DengNaichen/agent-ledger/internal/app"
+	"github.com/DengNaichen/inftask/internal/app"
 	"net/http"
 	"net/http/httptest"
 	"strings"

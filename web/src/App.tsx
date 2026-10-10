@@ -102,8 +102,8 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">AL</span>
-          <strong>Agent Ledger</strong>
+          <span className="brand-mark">IT</span>
+          <strong>InfTask</strong>
         </div>
 
         <div className="sidebar-label">Workspace</div>
@@ -225,7 +225,7 @@ function App() {
                 onDrop={(event) => {
                   event.preventDefault();
                   setDropTarget(null);
-                  const identifier = event.dataTransfer.getData("application/x-agent-ledger-issue");
+                  const identifier = event.dataTransfer.getData("application/x-inftask-issue");
                   if (identifier) void moveIssue(identifier, column.status);
                 }}
               >
@@ -243,7 +243,7 @@ function App() {
                       draggable
                       key={issue.identifier}
                       onDragStart={(event) => {
-                        event.dataTransfer.setData("application/x-agent-ledger-issue", issue.identifier);
+                        event.dataTransfer.setData("application/x-inftask-issue", issue.identifier);
                         event.dataTransfer.effectAllowed = "move";
                       }}
                       onDragEnd={() => setDropTarget(null)}

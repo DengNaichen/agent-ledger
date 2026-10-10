@@ -32,7 +32,7 @@ for (const shot of shots) {
   }
 }
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "agent-ledger-chrome-"));
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), "inftask-chrome-"));
 const browser = spawn(chrome, [
   "--headless",
   `--user-data-dir=${profile}`,

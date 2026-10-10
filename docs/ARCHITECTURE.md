@@ -2,7 +2,7 @@
 
 ## 运行与依赖方向
 
-`cmd/agent-ledger/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务。`internal/httpapi` 挂载 `/api`、`/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
+`cmd/inftask/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务。`internal/httpapi` 挂载 `/api`、`/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
 
 `internal/app/service.go` 持有单连接 SQLite 访问、模型、输入校验和业务操作。它直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 

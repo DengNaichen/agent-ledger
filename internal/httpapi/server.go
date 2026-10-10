@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/DengNaichen/agent-ledger/internal/app"
+	"github.com/DengNaichen/inftask/internal/app"
 )
 
 type server struct{ service *app.Service }
