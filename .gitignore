@@ -1,4 +1,4 @@
-agent-ledger
+/agent-ledger
 agent-ledger.db*
 web/node_modules/
 internal/web/dist/*
