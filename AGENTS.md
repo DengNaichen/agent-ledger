@@ -1,57 +1,31 @@
-# Agent Ledger contributor guide
+# Agent Ledger 贡献入口
 
-Agent Ledger tracks its own development. Tickets live in the maintainer's running instance at `http://127.0.0.1:8700`, which agents reach through the `agent-ledger` MCP server configured in `.mcp.json` (Claude Code) and `.codex/config.toml` (Codex).
+为维护本地交付看板的 Agent 提供任务路由；产品背景见 [README](README.md)。
 
-## Working a ticket
+## 项目事实和现状
 
-Read the ticket with `get_issue`. Its description is the contract: scope, non-goals, and acceptance. Ask before going beyond it. Set it to `in_progress` when you start.
+一个 Go 进程承载 REST、MCP 和嵌入的 React 页面，SQLite 保存共享状态。前端源文件在 `web/src`，`internal/web/dist` 是构建输出，不手工修改。
 
-- [ticket](.agents/skills/ticket/SKILL.md): creating and updating tickets, statuses, and the `agent_ready` gate.
-- [git-workflow](.agents/skills/git-workflow/SKILL.md): branches, worktrees, commits, pull requests, merging, and cleanup.
+项目用自身跟踪开发：维护者实例在 `http://127.0.0.1:8700`，通过 `.mcp.json` 或 `.codex/config.toml` 配置的 `agent-ledger` MCP 访问。开发服务使用临时数据库和默认端口 8787，不得接触维护者实例的数据。
 
-Record decisions and evidence that should outlive the conversation as ticket comments with `add_comment`.
+## 工作策略
 
-Development builds must not touch the instance. Run them with a temporary database (`-data "$(mktemp -d)/dev.db"`) on the default port 8787.
+领取 ticket 时先用 `get_issue` 阅读描述；scope、non-goals 和 acceptance 是合同，超出范围先询问。开始时设为 `in_progress`，长期有效的决定和证据用 `add_comment` 记录。
 
-## Code
+- 创建、更新 ticket 或进入 agent 队列：先读 [ticket skill](.agents/skills/ticket/SKILL.md)。
+- 修改文件前检查分支、工作树和未提交或未推送改动；分支、提交、PR、合并和清理遵循 [git-workflow skill](.agents/skills/git-workflow/SKILL.md)。在独立工作树工作，主检出留在 main；合并需要用户授权。
+- 不确定模块归属或跨层数据流：读 [架构](docs/ARCHITECTURE.md)。
+- 遇到项目专有术语或同名概念：先读 [术语表](docs/GLOSSARY.md)。
+- 安装、运行、排障或合并后更新实例：读 [开发](docs/DEVELOPMENT.md)。
+- 修改代码：读 [编码规则](docs/rules/CODING.md)；禁止超出 ticket 的重构。
+- 修改 schema、事务、备份或同步：先读 [可靠性](docs/rules/RELIABILITY.md)。真实数据库不得靠删除重建升级，已交付迁移不得改写。
+- 修改 HTTP/MCP 入口、Markdown 或 GitHub 数据外发：读 [安全边界](docs/rules/SECURITY.md)。
+- 修改共享外观：读 [设计系统](docs/DESIGN_SYSTEM.md)；修改导航、保存或错误恢复：读 [交互](docs/INTERACTION_DESIGN.md)。
 
-Match the existing code. Check only inputs that can actually occur:
+## 验证入口
 
-- Validate external input (enum values, required fields, referenced records) once, in the service layer.
-- Let SQLite constraints (`CHECK`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`) hold data invariants.
+按 [验证指南](docs/VALIDATION.md) 选择真实检查，推送前遵循 git-workflow 的检查要求。报告实际执行的命令、结果和未覆盖范围；构建成功不能证明浏览器行为正确。
 
-Do not add:
+## 漂移处理
 
-- nil or empty checks for values that cannot be nil or empty
-- the same check in the MCP, service, and SQL layers
-- silent defaults or corrections for invalid input; return an error instead
-- retries, extra timeouts, `recover`, or panic guards
-- compatibility code for removed tools, states, or schemas
-- interfaces with a single implementation, repository layers, or mock layers
-- configuration flags the ticket does not ask for
-- error wrapping or logging at every layer
-- transactions around a single statement
-- tests for cases that cannot happen
-
-Before finishing, go through every new `if`, `try`/`catch`, `?.`, and `??` in the diff and remove the ones that guard against no input that can actually occur. Do not refactor code outside the ticket's scope.
-
-## Schema
-
-The instance holds real data, so no change may require deleting the database.
-
-- `internal/app/schema.sql` always describes the current shape. New databases are created from it and skip all migrations.
-- Add a new table there with `CREATE TABLE IF NOT EXISTS`.
-- To change an existing table, update `schema.sql` and append a migration to `migrations` in `internal/app/migrate.go` that upgrades an existing database. Never edit a migration that has shipped.
-- Changing a `CHECK` constraint, such as adding a status, means rebuilding the table: create the new table, copy the rows, drop the old one, rename. Foreign keys are off while migrations run, and a migration that leaves violations is rolled back.
-- The server copies the database to `backups/before-migration-<n>.db` before running migration `n`.
-
-## Updating the instance
-
-After a merge that changes the server:
-
-```sh
-git switch main && git pull
-make build
-install -m 755 agent-ledger ~/.local/bin/agent-ledger
-launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.agent-ledger
-```
+先核对 ticket、既有贡献约定，以及命令对应的 Makefile、package manifest、源码和测试。实现事实变化时修正所属文档；入口只更新路由和行动约束。实现与既有约定冲突时明确指出，不把缺陷升级为规则。新增或删除文档时同步已确认的产物清单。
