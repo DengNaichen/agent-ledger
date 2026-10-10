@@ -1,29 +1,31 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS projects (
-    name TEXT PRIMARY KEY,
+    name TEXT PRIMARY KEY NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    archived BOOLEAN NOT NULL DEFAULT FALSE
+    archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1))
 );
 
 CREATE TABLE IF NOT EXISTS issues (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     identifier TEXT UNIQUE,
-    title TEXT NOT NULL,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
     description TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL,
-    type TEXT,
+    status TEXT NOT NULL CHECK (status IN ('triage', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+    type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
     project TEXT REFERENCES projects(name),
-    parent TEXT REFERENCES issues(identifier),
+    parent TEXT REFERENCES issues(identifier) CHECK (parent <> identifier),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS relations (
     issue TEXT NOT NULL REFERENCES issues(identifier),
-    kind TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('blocks', 'related')),
     other TEXT NOT NULL REFERENCES issues(identifier),
-    PRIMARY KEY (issue, kind, other)
+    PRIMARY KEY (issue, kind, other),
+    CHECK (issue <> other),
+    CHECK (kind <> 'related' OR issue < other)
 );
 
 CREATE TABLE IF NOT EXISTS links (
@@ -43,7 +45,7 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('created', 'status_changed')),
     detail TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );

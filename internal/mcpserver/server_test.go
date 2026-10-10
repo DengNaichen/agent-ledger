@@ -164,6 +164,8 @@ func TestValidationOverHTTP(t *testing.T) {
 	session := connect(t)
 	var created issueOutput
 	call(t, session, "create_issue", map[string]any{"title": "Existing issue"}, &created)
+	var project app.Project
+	call(t, session, "create_project", map[string]any{"name": "Existing"}, &project)
 	for _, tc := range []struct {
 		name string
 		tool string
@@ -174,8 +176,20 @@ func TestValidationOverHTTP(t *testing.T) {
 		{"status", "create_issue", map[string]any{"title": "Invalid status", "status": "ready"}, app.ErrInvalidStatus.Error()},
 		{"type", "update_issue", map[string]any{"identifier": "AL-1", "type": "decision"}, app.ErrInvalidType.Error()},
 		{"kind", "add_relation", map[string]any{"identifier": "AL-1", "kind": "duplicate", "other": "AL-2"}, app.ErrInvalidKind.Error()},
-		{"self parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-1"}, app.ErrSelfParent.Error()},
-		{"self relation", "add_relation", map[string]any{"identifier": "AL-1", "kind": "related", "other": "AL-1"}, app.ErrSelfRelation.Error()},
+		{"self parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-1"}, "CHECK constraint failed"},
+		{"self relation", "add_relation", map[string]any{"identifier": "AL-1", "kind": "related", "other": "AL-1"}, "CHECK constraint failed"},
+		{"duplicate project", "create_project", map[string]any{"name": "Existing"}, "UNIQUE constraint failed"},
+		{"missing project", "create_issue", map[string]any{"title": "New issue", "project": "Missing"}, app.ErrProjectNotFound.Error()},
+		{"missing parent", "create_issue", map[string]any{"title": "New issue", "parent": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing updated project", "update_issue", map[string]any{"identifier": "AL-1", "project": "Missing"}, app.ErrProjectNotFound.Error()},
+		{"missing updated parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing relation target", "add_relation", map[string]any{"identifier": "AL-1", "kind": "blocks", "other": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing removal target", "remove_relation", map[string]any{"identifier": "AL-1", "kind": "blocks", "other": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing issue", "get_issue", map[string]any{"identifier": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing updated issue", "update_issue", map[string]any{"identifier": "AL-99", "title": "Updated"}, app.ErrNotFound.Error()},
+		{"missing comment issue", "add_comment", map[string]any{"identifier": "AL-99", "body": "Notes"}, app.ErrNotFound.Error()},
+		{"missing link issue", "add_link", map[string]any{"identifier": "AL-99", "title": "Design", "url": "design"}, app.ErrNotFound.Error()},
+		{"missing updated project name", "update_project", map[string]any{"name": "Missing", "archived": true}, app.ErrProjectNotFound.Error()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool, Arguments: tc.args})

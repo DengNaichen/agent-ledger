@@ -25,13 +25,12 @@ const (
 )
 
 var (
-	ErrNotFound      = errors.New("issue not found")
-	ErrInvalidTitle  = errors.New("title is required")
-	ErrInvalidStatus = errors.New("invalid status: use triage, todo, agent_ready, in_progress, in_review, done, or canceled")
-	ErrInvalidType   = errors.New("invalid type: use spec, feature, bug, improvement, chore, or an empty string")
-	ErrInvalidKind   = errors.New("invalid relation kind: use blocks, blocked_by, or related")
-	ErrSelfParent    = errors.New("an issue cannot be its own parent")
-	ErrSelfRelation  = errors.New("an issue cannot have a relation to itself")
+	ErrNotFound        = errors.New("issue not found")
+	ErrProjectNotFound = errors.New("project not found")
+	ErrInvalidTitle    = errors.New("title is required")
+	ErrInvalidStatus   = errors.New("invalid status: use triage, todo, agent_ready, in_progress, in_review, done, or canceled")
+	ErrInvalidType     = errors.New("invalid type: use spec, feature, bug, improvement, chore, or an empty string")
+	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
 )
 
 var Statuses = []Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProgress, StatusInReview, StatusDone, StatusCanceled}
@@ -218,6 +217,9 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 	if err := validateFields(nil, input.Status, input.Type); err != nil {
 		return nil, err
 	}
+	if err := s.checkReferences(ctx, &input.Project, &input.Parent); err != nil {
+		return nil, err
+	}
 	where, args := `1 = 1`, []any{}
 	if input.Status != nil {
 		where += ` AND status = ?`
@@ -246,6 +248,9 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 
 func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) {
 	if err := validateFields(&input.Title, input.Status, &input.Type); err != nil {
+		return Issue{}, err
+	}
+	if err := s.checkReferences(ctx, &input.Project, &input.Parent); err != nil {
 		return Issue{}, err
 	}
 	status := StatusTriage
@@ -296,8 +301,8 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 	if err := validateFields(input.Title, input.Status, input.Type); err != nil {
 		return Issue{}, err
 	}
-	if input.Parent != nil && *input.Parent == input.Identifier {
-		return Issue{}, ErrSelfParent
+	if err := s.checkReferences(ctx, input.Project, input.Parent); err != nil {
+		return Issue{}, err
 	}
 	sets, args := []string{}, []any{}
 	for _, field := range []struct {
@@ -404,12 +409,18 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 }
 
 func (s *Service) AddComment(ctx context.Context, identifier, body string) (Comment, error) {
+	if _, err := s.Get(ctx, identifier); err != nil {
+		return Comment{}, err
+	}
 	comment := Comment{Body: body, CreatedAt: s.now().UTC().Format(time.RFC3339Nano)}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO comments(issue, body, created_at) VALUES (?, ?, ?)`, identifier, body, comment.CreatedAt)
 	return comment, err
 }
 
 func (s *Service) AddLink(ctx context.Context, identifier, title, url string) (Link, error) {
+	if _, err := s.Get(ctx, identifier); err != nil {
+		return Link{}, err
+	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO links(issue, title, url) VALUES (?, ?, ?)`, identifier, title, url)
 	return Link{Title: title, URL: url}, err
 }
@@ -420,8 +431,10 @@ func (s *Service) Relation(ctx context.Context, identifier, kind, other string, 
 	default:
 		return ErrInvalidKind
 	}
-	if identifier == other {
-		return ErrSelfRelation
+	for _, reference := range []string{identifier, other} {
+		if _, err := s.Get(ctx, reference); err != nil {
+			return err
+		}
 	}
 	if kind == "blocked_by" {
 		identifier, other, kind = other, identifier, "blocks"
@@ -464,7 +477,25 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 	err := s.db.QueryRowContext(ctx, `UPDATE projects SET description = COALESCE(?, description), archived = COALESCE(?, archived)
 		WHERE name = ? RETURNING name, description, archived`, input.Description, input.Archived, input.Name).Scan(&project.Name, &project.Description, &project.Archived)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Project{}, errors.New("project not found")
+		return Project{}, ErrProjectNotFound
 	}
 	return project, err
+}
+
+func (s *Service) checkReferences(ctx context.Context, project, parent *string) error {
+	if project != nil && *project != "" {
+		var name string
+		err := s.db.QueryRowContext(ctx, `SELECT name FROM projects WHERE name = ?`, *project).Scan(&name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrProjectNotFound
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if parent != nil && *parent != "" {
+		_, err := s.Get(ctx, *parent)
+		return err
+	}
+	return nil
 }

@@ -38,6 +38,8 @@ The running server exposes these tools over streamable HTTP at `/mcp`:
 
 Statuses are `triage` (the default), `todo`, `agent_ready`, `in_progress`, `in_review`, `done`, and `canceled`. Optional types are `spec`, `feature`, `bug`, `improvement`, and `chore`. Project and parent references must already exist. An issue cannot be its own parent; parent cycles are not checked.
 
+Missing issues or Projects return not-found errors. SQLite constraints enforce unique Project names, valid stored values, foreign keys, and the prohibition on self-parenting and self-relations. Only issue creation and status changes add events.
+
 It is the only process that opens the database, so the page and every agent see the same data. Keep the server running while agents work:
 
 ```sh

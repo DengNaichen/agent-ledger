@@ -90,9 +90,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 func writeError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, app.ErrNotFound):
+	case errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrSelfParent):
+	case errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType):
 		status = http.StatusBadRequest
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {
