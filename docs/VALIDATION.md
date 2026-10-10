@@ -11,6 +11,8 @@ make test
 
 `go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，然后运行 `go test ./...`。前端 build 包含 TypeScript 严格类型检查和 Vite 打包，不包含组件测试或浏览器交互测试。仓库当前没有 `.github/workflows`，也没有前端 test/lint script；本地成功不等于已配置 CI 或自动 Hook。
 
+`git diff --name-only origin/main...HEAD` 列出的文件全部是 `.md` 时，推送前不需要 `go vet ./...` 和 `make test`，改做文档检查：相对链接和路径都存在，文中命令与 Makefile、package manifest 和源码一致。改了 `.agents/skills/` 下的 skill 时，再做 [skill 校验](#skill-校验)。
+
 ## 按改动选择证据
 
 | 改动 | 定向检查 | 证明范围 |
@@ -24,6 +26,18 @@ make test
 | UI、导航、共享外观 | `npm --prefix web run build`，另加 [UI 检查](#ui-检查) | 编译/打包与实际操作分别报告 |
 
 新增测试围绕真实可发生的输入与边界；数据库不变量需要真实隔离 SQLite，不能由 mock 成功推出迁移正确。文档改动检查相对链接、路径、命令与源码的一致性，不为可逆低影响文字编辑添加实现镜像测试。
+
+## Skill 校验
+
+改了 `.agents/skills/<name>/SKILL.md` 时，在工作树根目录对每个改动的 skill 运行：
+
+```sh
+uv run --offline --python 3.11 --isolated --with pyyaml==6.0.3 python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/<name>
+```
+
+exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter 和正文里未完成的 TODO 占位，不检查链接，也不检查 name 与目录名是否一致。
+
+前提：本机装有 Codex 自带的 skill-creator（上面的脚本路径存在）和 uv。`--offline` 不联网下载，所以 `uv python find 3.11` 要能找到已安装的 Python 3.11，uv 缓存里要已有 pyyaml 6.0.3；缓存里没有时命令报依赖无法满足并 exit 1。没有这些前提时，手动检查 frontmatter 的 `name` 与目录名一致、`description` 非空，并在报告里写明没有运行脚本。
 
 ## UI 检查
 
