@@ -37,3 +37,7 @@ Browser requests from other sites and requests with a non-local `Host` header ar
 make test
 ```
 
+
+## License
+
+[Apache-2.0](LICENSE)
