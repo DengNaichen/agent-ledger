@@ -191,3 +191,22 @@ func TestGitHubSyncContinuesPastFailingRepository(t *testing.T) {
 		t.Fatalf("status = %q, err = %v", issue.Status, err)
 	}
 }
+
+func TestGitHubNotificationsCoalesce(t *testing.T) {
+	g := NewGitHubSync(&Service{prefix: "AL"}, []string{"team/repo"}, "", false)
+	if g.Notify("other/repo") || len(g.wake) != 0 {
+		t.Fatal("unconfigured repository scheduled")
+	}
+	for range 10 {
+		if !g.Notify("team/repo") {
+			t.Fatal("configured repository rejected")
+		}
+	}
+	if len(g.wake) != 1 {
+		t.Fatal("notifications not coalesced")
+	}
+	<-g.wake
+	if !g.Notify("team/repo") || len(g.wake) != 1 {
+		t.Fatal("notification lost after draining")
+	}
+}
