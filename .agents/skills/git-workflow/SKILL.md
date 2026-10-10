@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: "Branches, worktrees, commits, pull requests, merging, and cleanup for Agent Ledger work."
+description: "Branches, worktrees, commits, pull requests, merging, and cleanup for InfTask work."
 ---
 
 # Git workflow
@@ -13,7 +13,7 @@ description: "Branches, worktrees, commits, pull requests, merging, and cleanup 
 ## Branches and worktrees
 
 - One ticket, one branch, created from the latest `origin/main`: `al-<number>-<short-name>`, lowercase and hyphenated. Work without a ticket uses a short descriptive name.
-- Work in a dedicated worktree beside the main checkout, such as `../agent-ledger-al-<number>`. Keep the main checkout on `main`; the instance is built from it.
+- Work in a dedicated worktree beside the main checkout, such as `../inftask-al-<number>`. Keep the main checkout on `main`; the instance is built from it.
 - In a new worktree, run `npm --prefix web ci` first. `make build` and `make test` build the frontend and need these dependencies.
 - When a ticket depends on another unmerged ticket, branch from that ticket's branch as `al-<number>-<short-name>-on-<base number>`, and retarget the pull request to `main` after the base merges.
 

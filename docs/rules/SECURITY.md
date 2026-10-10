@@ -2,7 +2,7 @@
 
 ## 本地访问边界
 
-`cmd/agent-ledger/main.go` 默认监听 `127.0.0.1:8787`。`internal/httpapi/server.go` 用 `http.NewCrossOriginProtection` 包裹 REST、MCP 和静态页面；现有测试证明跨站浏览器 POST 被拒绝、无对应浏览器头的 MCP 请求可通过。这不是用户认证或多租户授权，项目没有账户隔离模型。
+`cmd/inftask/main.go` 默认监听 `127.0.0.1:8787`。`internal/httpapi/server.go` 用 `http.NewCrossOriginProtection` 包裹 REST、MCP 和静态页面；现有测试证明跨站浏览器 POST 被拒绝、无对应浏览器头的 MCP 请求可通过。这不是用户认证或多租户授权，项目没有账户隔离模型。
 
 HTTP 组装层没有独立的本地 Host allowlist，不能从默认 loopback 监听推断所有非本地 Host 都被拒绝。修改监听范围或代理部署会改变信任边界，需要另行确定任务范围；文档初始化不授权扩展公网访问。
 

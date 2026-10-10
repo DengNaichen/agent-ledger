@@ -1,11 +1,11 @@
 ---
 name: ticket
-description: "Create and update Agent Ledger tickets: choose the Project by outcome, set type and status, apply the agent_ready gate, write self-contained bodies, and link related tickets."
+description: "Create and update InfTask tickets: choose the Project by outcome, set type and status, apply the agent_ready gate, write self-contained bodies, and link related tickets."
 ---
 
 # Ticket
 
-Tickets live in the Agent Ledger instance. Manage them with the `agent-ledger` MCP tools: `create_issue`, `update_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. Identifiers come only from `create_issue` results; never guess the next number.
+Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. Identifiers come only from `create_issue` results; never guess the next number.
 
 ## Project
 

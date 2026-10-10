@@ -91,7 +91,7 @@ const reviewComment = `Checked the gate against the open tickets:
 go test ./internal/app -run TestIssueLifecycle
 \`\`\``;
 
-await call("create_project", { name: "Dogfooding v1", description: "Run Agent Ledger as the tracker for its own development." });
+await call("create_project", { name: "Dogfooding v1", description: "Run InfTask as the tracker for its own development." });
 await call("create_project", { name: "Web polish", description: "Make the page pleasant to read and operate." });
 
 const backup = await issue({ title: "Back up the database daily and keep fourteen copies", status: "done", type: "feature", project: "Dogfooding v1" });
@@ -109,7 +109,7 @@ await issue({ title: "Investigate slow first load on cold start", status: "in_pr
 await call("add_relation", { identifier: spec, kind: "blocked_by", other: backup });
 await call("add_relation", { identifier: spec, kind: "blocks", other: shortcut });
 await call("add_relation", { identifier: spec, kind: "related", other: filters });
-await call("add_link", { identifier: spec, title: "Ticket skill draft", url: "https://example.com/agent-ledger/skills/ticket/SKILL.md" });
+await call("add_link", { identifier: spec, title: "Ticket skill draft", url: "https://example.com/inftask/skills/ticket/SKILL.md" });
 await call("add_comment", { identifier: spec, body: "Started on this. The gate lives in the service layer so MCP and REST share it." });
 await call("add_comment", { identifier: spec, body: reviewComment });
 await call("add_comment", { identifier: spec, body: "Decision: keep the gate to acceptance only for now." });

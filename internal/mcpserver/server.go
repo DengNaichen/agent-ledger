@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/DengNaichen/agent-ledger/internal/app"
+	"github.com/DengNaichen/inftask/internal/app"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -55,7 +55,7 @@ func Handler(service *app.Service) http.Handler {
 }
 
 func New(service *app.Service) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "agent-ledger", Version: "0.1.0"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "inftask", Version: "0.1.0"}, nil)
 	const statuses = "Statuses: triage, todo, agent_ready, in_progress, in_review, done, canceled. "
 	const types = "Types: spec, feature, bug, improvement, chore; empty string means no type. "
 	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, newest updated first. All filters combine with AND; limit defaults to 50. " + statuses + types},

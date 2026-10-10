@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "agent-ledger": {
+    "inftask": {
       "type": "http",
       "url": "http://127.0.0.1:8700/mcp"
     }

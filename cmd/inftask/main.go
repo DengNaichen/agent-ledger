@@ -10,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DengNaichen/agent-ledger/internal/app"
-	"github.com/DengNaichen/agent-ledger/internal/httpapi"
-	"github.com/DengNaichen/agent-ledger/internal/mcpserver"
-	webui "github.com/DengNaichen/agent-ledger/internal/web"
+	"github.com/DengNaichen/inftask/internal/app"
+	"github.com/DengNaichen/inftask/internal/httpapi"
+	"github.com/DengNaichen/inftask/internal/mcpserver"
+	webui "github.com/DengNaichen/inftask/internal/web"
 )
 
 func main() {
-	data := flag.String("data", "agent-ledger.db", "SQLite database path")
+	data := flag.String("data", "inftask.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
 	prefix := flag.String("prefix", "AL", "Issue identifier prefix")
 	var repos []string
@@ -78,7 +78,7 @@ func serve(ctx context.Context, addr string, service *app.Service) {
 		_ = server.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("Agent Ledger listening on http://%s (MCP at /mcp)", addr)
+	log.Printf("InfTask listening on http://%s (MCP at /mcp)", addr)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

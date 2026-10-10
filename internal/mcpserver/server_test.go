@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DengNaichen/agent-ledger/internal/app"
-	"github.com/DengNaichen/agent-ledger/internal/httpapi"
+	"github.com/DengNaichen/inftask/internal/app"
+	"github.com/DengNaichen/inftask/internal/httpapi"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -23,7 +23,7 @@ func connect(t *testing.T) *mcp.ClientSession {
 	t.Cleanup(func() { service.Close() })
 	server := httptest.NewServer(httpapi.New(service, http.NotFoundHandler(), Handler(service)))
 	t.Cleanup(server.Close)
-	client := mcp.NewClient(&mcp.Implementation{Name: "agent-ledger-test", Version: "0.1.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "inftask-test", Version: "0.1.0"}, nil)
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp"}, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -1,4 +1,4 @@
-module github.com/DengNaichen/agent-ledger
+module github.com/DengNaichen/inftask
 
 go 1.26.0
 

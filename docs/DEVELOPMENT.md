@@ -9,12 +9,12 @@ npm --prefix web ci
 make build
 ```
 
-`make build` 先执行 `tsc --noEmit && vite build`，生成 `internal/web/dist/app`，再构建根目录二进制 `agent-ledger`。`internal/web/dist/.gitkeep` 受 Git 跟踪，`//go:embed all:dist` 没构建前端时也有匹配，所以 `go vet ./...`、`go build ./...` 和 `go test ./...` 不依赖前端构建；这样构建的服务只有 API 和 MCP 可用，页面返回 404。Vite 只清空 `dist/app`，构建后 `git status` 保持干净。不要修改生成的 dist 或删除 `.gitkeep`，也不要把二进制或 node_modules 提交。
+`make build` 先执行 `tsc --noEmit && vite build`，生成 `internal/web/dist/app`，再构建根目录二进制 `inftask`。`internal/web/dist/.gitkeep` 受 Git 跟踪，`//go:embed all:dist` 没构建前端时也有匹配，所以 `go vet ./...`、`go build ./...` 和 `go test ./...` 不依赖前端构建；这样构建的服务只有 API 和 MCP 可用，页面返回 404。Vite 只清空 `dist/app`，构建后 `git status` 保持干净。不要修改生成的 dist 或删除 `.gitkeep`，也不要把二进制或 node_modules 提交。
 
 ## 隔离运行
 
 ```sh
-go run ./cmd/agent-ledger -data "$(mktemp -d)/dev.db"
+go run ./cmd/inftask -data "$(mktemp -d)/dev.db"
 ```
 
 默认地址 `127.0.0.1:8787`；打开该地址查看页面，`GET /api/health` 返回 `{"status":"ok"}`。服务日志会打印监听地址。数据库及 backups 均在这次临时目录内，Ctrl-C 停止开发服务；仅在确认不再需要时清理自己创建的临时目录。不要用维护者的 8700 实例验证开发写入。
@@ -28,7 +28,7 @@ lsof -nP -iTCP:8787 -sTCP:LISTEN
 被占用时换一个同样检查过、没有输出的空闲端口，用 `-addr` 指定，并用这个地址访问页面和 API：
 
 ```sh
-go run ./cmd/agent-ledger -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
+go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 ```
 
 永远不用 8700，也不要为了开发终止别人或维护者实例的进程。
@@ -39,7 +39,7 @@ go run ./cmd/agent-ledger -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 ## MCP 工具没加载时
 
-Agent 会话没加载 `agent-ledger` MCP 工具时，直接向实例的 `/mcp` 发 HTTP JSON-RPC `tools/call` 请求。服务端无状态，不需要先 `initialize`；请求要带下面两个头：
+Agent 会话没加载 `inftask` MCP 工具时，直接向实例的 `/mcp` 发 HTTP JSON-RPC `tools/call` 请求。服务端无状态，不需要先 `initialize`；请求要带下面两个头：
 
 ```sh
 curl -sS http://127.0.0.1:8700/mcp \
@@ -75,8 +75,8 @@ heredoc 定界符带引号（`<<'EOF'`），shell 不展开其中的 `$`、反�
 ```sh
 git switch main && git pull
 make build
-install -m 755 agent-ledger ~/.local/bin/agent-ledger
-launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.agent-ledger
+install -m 755 inftask ~/.local/bin/inftask
+launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.inftask
 ```
 
 分支与工作树的清理顺序见 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。上述安装和重启不是本地验证的前置条件。
