@@ -4,27 +4,30 @@ import { api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, Sta
 
 type ViewMode = "board" | "list";
 
+const listIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" /></svg>;
+const boardIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="11" rx="1.5" /><rect x="9" y="2.5" width="4.5" height="11" rx="1.5" /></svg>;
+const projectIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3" /></svg>;
+const chevronIcon = <svg className="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5l3 3 3-3" /></svg>;
+
 function App() {
   const [path, setPath] = useState(window.location.pathname);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [view, setView] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<Status | "all">("all");
   const [project, setProject] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
-  const titleInput = useRef<HTMLInputElement>(null);
+  const [dialog, setDialog] = useState<"new" | "edit" | null>(null);
   const detailIdentifier = path.startsWith("/issue/") ? path.slice("/issue/".length) : "";
 
   useEffect(() => {
     const sync = () => {
       setPath(window.location.pathname);
       setError("");
+      setDialog(null);
     };
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
@@ -43,7 +46,7 @@ function App() {
   );
 
   const visibleColumns = columns.filter((column) => filter === "all" || column.status === filter);
-  const heading = filter === "all" ? project || "All issues" : visibleColumns[0].label;
+  const heading = project || "All issues";
   const visibleCount = visibleColumns.reduce((count, column) => count + grouped[column.status].length, 0);
 
   function selectFilter(status: Status | "all", nextProject: string) {
@@ -68,22 +71,10 @@ function App() {
     }
   }
 
-  async function createIssue(event: FormEvent) {
-    event.preventDefault();
-    if (!title.trim()) return;
-    setSaving(true);
-    setError("");
-    try {
-      const issue = await api<Issue>("/api/issues", "POST", { title, description, status: filter === "all" ? "triage" : filter, project });
-      setIssues((current) => [issue, ...current]);
-      setCollapsed((current) => ({ ...current, [issue.status]: false }));
-      setTitle("");
-      setDescription("");
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSaving(false);
-    }
+  function addIssue(issue: Issue) {
+    setIssues((current) => [issue, ...current]);
+    setCollapsed((current) => ({ ...current, [issue.status]: false }));
+    setDialog(null);
   }
 
   async function moveIssue(identifier: string, status: Status) {
@@ -113,29 +104,27 @@ function App() {
         </div>
 
         <div className="sidebar-label">Workspace</div>
-        <button type="button" className={`sidebar-link ${filter === "all" && !project ? "active" : ""}`} aria-pressed={filter === "all" && !project} onClick={() => selectFilter("all", "")}>
-          <span className="sidebar-icon">◇</span>
-          <span>All issues</span>
+        <button type="button" className={`nav-item ${filter === "all" && !project ? "active" : ""}`} aria-pressed={filter === "all" && !project} onClick={() => selectFilter("all", "")}>
+          {listIcon}
+          <span className="nav-label">All issues</span>
           <small>{issues.length}</small>
         </button>
 
-        <div className="sidebar-label">Statuses</div>
-        <div className="sidebar-statuses">
+        <div className="sidebar-group">
+          <div className="sidebar-label">Statuses</div>
           {columns.map((column) => (
-            <button type="button" key={column.status} className={filter === column.status ? "active" : ""} aria-pressed={filter === column.status} onClick={() => selectFilter(column.status, project)}>
+            <button type="button" key={column.status} className={`nav-item ${filter === column.status ? "active" : ""}`} aria-pressed={filter === column.status} onClick={() => selectFilter(column.status, project)}>
               <span className={`status-icon status-icon-${column.status}`} />
-              <span>{column.label}</span>
+              <span className="nav-label">{column.label}</span>
               <small>{grouped[column.status].length}</small>
             </button>
           ))}
-        </div>
 
-        {projects.length > 0 && <div className="sidebar-label">Projects</div>}
-        <div className="sidebar-projects">
+          {projects.length > 0 && <div className="sidebar-label">Projects</div>}
           {projects.map((item) => (
-            <button type="button" key={item.name} title={item.description} className={project === item.name ? "active" : ""} aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}>
-              <span className="sidebar-icon">▣</span>
-              <span>{item.name}</span>
+            <button type="button" key={item.name} title={item.description} className={`nav-item ${project === item.name ? "active" : ""}`} aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}>
+              {projectIcon}
+              <span className="nav-label">{item.name}</span>
             </button>
           ))}
         </div>
@@ -143,138 +132,186 @@ function App() {
         <div className="sidebar-footer"><span /> Local workspace</div>
       </aside>
 
-      <main className="workspace">
-        <header className="topbar">
+      <main className="panel">
+        <header className="header-row">
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            {detailIdentifier ? (
+              <><NavLink to="/">{heading}</NavLink><span className="separator">/</span><span>{detailIdentifier}</span></>
+            ) : (
+              <span>{heading}</span>
+            )}
+          </nav>
           {detailIdentifier ? (
-            <div className="breadcrumb"><span>Workspace</span><b>/</b><NavLink to="/">{heading}</NavLink><b>/</b>{detailIdentifier}</div>
+            <button type="button" className="button" onClick={() => setDialog("edit")}>Edit</button>
           ) : (
-            <>
-              <div className="breadcrumb"><span>Workspace</span><b>/</b>{heading}</div>
-              <nav className="view-switch" aria-label="Issue view">
-                <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}><span>☷</span> List</button>
-                <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}><span>▦</span> Board</button>
-              </nav>
-            </>
+            <button type="button" className="button" onClick={() => setDialog("new")}>New issue</button>
           )}
         </header>
 
+        {!detailIdentifier && (
+          <div className="header-row">
+            <div className="chips">
+              {filter !== "all" && (
+                <span className="chip">
+                  <span className={`status-icon status-icon-${filter}`} />
+                  {visibleColumns[0].label}
+                  <button type="button" aria-label={`Clear ${visibleColumns[0].label} filter`} onClick={() => selectFilter("all", project)}>×</button>
+                </span>
+              )}
+              {project && (
+                <span className="chip">
+                  {projectIcon}
+                  {project}
+                  <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}>×</button>
+                </span>
+              )}
+              <span className="view-count">{visibleCount} issues</span>
+            </div>
+            <nav className="view-switch" aria-label="Issue view">
+              <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}>{listIcon} List</button>
+              <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}>{boardIcon} Board</button>
+            </nav>
+          </div>
+        )}
+
+        {error && <p className="error" role="alert">{error}</p>}
+
         {detailIdentifier ? (
-          <section className="content">
-            {error && <p className="error" role="alert">{error}</p>}
-            <IssueDetail key={detailIdentifier} identifier={detailIdentifier} setError={setError} />
+          <IssueDetail key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
+        ) : view === "board" ? (
+          <section className="board" aria-label="Delivery board">
+            {visibleColumns.map((column) => (
+              <section
+                className={`column ${dropTarget === column.status ? "drop-target" : ""}`}
+                key={column.status}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropTarget(column.status);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDropTarget(null);
+                  const identifier = event.dataTransfer.getData("application/x-agent-ledger-issue");
+                  if (identifier) void moveIssue(identifier, column.status);
+                }}
+              >
+                <header title={column.hint}>
+                  <span className={`status-icon status-icon-${column.status}`} />
+                  <h2>{column.label}</h2>
+                  <small>{grouped[column.status].length}</small>
+                </header>
+                <div className="cards">
+                  {loading && <p className="empty">Loading…</p>}
+                  {!loading && grouped[column.status].length === 0 && <p className="empty">No issues</p>}
+                  {grouped[column.status].map((issue) => (
+                    <article
+                      className="card"
+                      draggable
+                      key={issue.identifier}
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("application/x-agent-ledger-issue", issue.identifier);
+                        event.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => setDropTarget(null)}
+                    >
+                      <span className="drag-handle" draggable title={`Drag ${issue.identifier} to another status`} aria-label={`Drag ${issue.identifier}`}>⠿</span>
+                      <NavLink to={`/issue/${issue.identifier}`} className="card-open">
+                        <span className="identifier">{issue.identifier}</span>
+                        <span className="card-title">{issue.title}</span>
+                      </NavLink>
+                      <div className="card-meta">
+                        <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
+                        <IssueMeta issue={issue} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
           </section>
         ) : (
-          <section className="content">
-            <header className="view-heading">
-              <div>
-                <h1>{heading}</h1>
-                <p>{visibleCount} issues across {visibleColumns.length} {visibleColumns.length === 1 ? "status" : "statuses"}{project && ` in ${project}`}</p>
-              </div>
-              <span className="local-badge">Local</span>
-            </header>
-
-            <form className="composer" onSubmit={createIssue}>
-              <button type="button" className="composer-icon" aria-label="Focus new issue title" onClick={() => titleInput.current!.focus()}>+</button>
-              <label>
-                <span>Title</span>
-                <input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Create a new issue…" required />
-              </label>
-              <label>
-                <span>Description</span>
-                <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional context" />
-              </label>
-              <button type="submit" disabled={saving}>{saving ? "Adding…" : "Add issue"}</button>
-            </form>
-
-            {error && <p className="error" role="alert">{error}</p>}
-
-            {view === "board" ? (
-              <section className="board" aria-label="Delivery board">
-                {visibleColumns.map((column) => (
-                  <section
-                    className={`column column-${column.status} ${dropTarget === column.status ? "drop-target" : ""}`}
-                    key={column.status}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      setDropTarget(column.status);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      setDropTarget(null);
-                      const identifier = event.dataTransfer.getData("application/x-agent-ledger-issue");
-                      if (identifier) void moveIssue(identifier, column.status);
-                    }}
-                  >
-                    <header>
-                      <div>
-                        <span className={`status-icon status-icon-${column.status}`} />
-                        <h2>{column.label}</h2>
-                        <small>{grouped[column.status].length}</small>
-                      </div>
-                      <span className="column-hint">{column.hint}</span>
-                    </header>
-                    <div className="cards">
-                      {loading && <p className="empty">Loading…</p>}
-                      {!loading && grouped[column.status].length === 0 && <p className="empty">No issues</p>}
-                      {grouped[column.status].map((issue) => (
-                        <article
-                          className="card"
-                          draggable
-                          key={issue.identifier}
-                          onDragStart={(event) => {
-                            event.dataTransfer.setData("application/x-agent-ledger-issue", issue.identifier);
-                            event.dataTransfer.effectAllowed = "move";
-                          }}
-                          onDragEnd={() => setDropTarget(null)}
-                        >
-                          <span className="drag-handle" draggable title={`Drag ${issue.identifier} to another status`} aria-label={`Drag ${issue.identifier}`}>⠿</span>
-                          <NavLink to={`/issue/${issue.identifier}`} className="issue-open">
-                            <span className="identifier">{issue.identifier}</span>
-                            <span className="card-title">{issue.title}</span>
-                          </NavLink>
-                          <IssueMeta issue={issue} />
-                          <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                ))}
+          <section className="list-view" aria-label="Issue list">
+            {visibleColumns.map((column) => (
+              <section key={column.status}>
+                <button type="button" className="group-header" aria-expanded={!collapsed[column.status]} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !current[column.status] }))}>
+                  {chevronIcon}
+                  <span className={`status-icon status-icon-${column.status}`} />
+                  <span>{column.label}</span>
+                  <small>{grouped[column.status].length}</small>
+                </button>
+                <div id={`rows-${column.status}`} hidden={collapsed[column.status]}>
+                  {loading && <p className="list-empty">Loading…</p>}
+                  {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
+                  {grouped[column.status].map((issue) => (
+                    <article className="list-row" key={issue.identifier}>
+                      <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
+                      <NavLink to={`/issue/${issue.identifier}`} className="identifier">{issue.identifier}</NavLink>
+                      <NavLink to={`/issue/${issue.identifier}`} className="list-title">{issue.title}</NavLink>
+                      <IssueMeta issue={issue} />
+                      <time className="row-date" dateTime={issue.updatedAt}>{new Date(issue.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+                    </article>
+                  ))}
+                </div>
               </section>
-            ) : (
-              <section className="list-view" aria-label="Issue list">
-                {visibleColumns.map((column) => (
-                  <section className={`list-group list-group-${column.status}`} key={column.status}>
-                    <header>
-                      <button type="button" aria-expanded={!collapsed[column.status]} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !current[column.status] }))}>
-                        <span className="chevron">{collapsed[column.status] ? "›" : "⌄"}</span>
-                        <span className={`status-icon status-icon-${column.status}`} />
-                        <span className="group-title">{column.label}</span>
-                        <span className="group-count">{grouped[column.status].length}</span>
-                      </button>
-                    </header>
-                    <div className="list-rows" id={`rows-${column.status}`} hidden={collapsed[column.status]}>
-                      {loading && <p className="list-empty">Loading…</p>}
-                      {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
-                      {grouped[column.status].map((issue) => (
-                        <article className="list-row" key={issue.identifier}>
-                          <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
-                          <NavLink to={`/issue/${issue.identifier}`} className="identifier issue-open">{issue.identifier}</NavLink>
-                          <NavLink to={`/issue/${issue.identifier}`} className="list-copy issue-open">
-                            <span className="list-title">{issue.title}</span>
-                          </NavLink>
-                          <IssueMeta issue={issue} />
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </section>
-            )}
+            ))}
           </section>
         )}
       </main>
+
+      {dialog === "new" && <NewIssueDialog status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
     </div>
+  );
+}
+
+function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status; project: string; onClose: () => void; onCreate: (issue: Issue) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const element = dialog.current!;
+    element.showModal();
+    titleInput.current!.focus();
+    return () => element.close();
+  }, []);
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      onCreate(await api<Issue>("/api/issues", "POST", { title, description, status, project }));
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog ref={dialog} className="issue-dialog" aria-labelledby="new-issue-title" onCancel={onClose}>
+      <form onSubmit={create}>
+        <header>
+          <h2 id="new-issue-title">New issue</h2>
+          <button type="button" className="ghost" aria-label="Close" onClick={onClose}>×</button>
+        </header>
+        <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required /></label>
+        <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" /></label>
+        <p className="dialog-meta">
+          <span className="chip"><span className={`status-icon status-icon-${status}`} />{columns.find((column) => column.status === status)!.label}</span>
+          {project && <span className="chip">{projectIcon}{project}</span>}
+        </p>
+        {error && <p className="error" role="alert">{error}</p>}
+        <footer>
+          <button type="button" className="button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="button primary" disabled={saving}>{saving ? "Creating…" : "Create issue"}</button>
+        </footer>
+      </form>
+    </dialog>
   );
 }
 
