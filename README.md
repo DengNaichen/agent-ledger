@@ -22,11 +22,14 @@ The Vite server proxies `/api` to the Go server.
 
 ## MCP
 
-Agent Ledger exposes `list_issues`, `create_issue`, and `move_issue` over stdio:
+The running server exposes `list_issues`, `create_issue`, and `move_issue` over streamable HTTP at `/mcp`. It is the only process that opens the database, so the page and every agent see the same data. Keep the server running while agents work:
 
 ```sh
-go run ./cmd/agent-ledger -mode=mcp -data=/absolute/path/to/agent-ledger.db
+codex mcp add agent_ledger --url http://127.0.0.1:8787/mcp
+claude mcp add --transport http agent-ledger http://127.0.0.1:8787/mcp
 ```
+
+Browser requests from other sites and requests with a non-local `Host` header are rejected.
 
 ## Validate
 

@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
@@ -17,15 +18,11 @@ func TestCreateIssueTool(t *testing.T) {
 	defer service.Close()
 
 	ctx := context.Background()
-	clientTransport, serverTransport := mcp.NewInMemoryTransports()
-	serverSession, err := New(service).Connect(ctx, serverTransport, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer serverSession.Close()
+	server := httptest.NewServer(Handler(service))
+	defer server.Close()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "agent-ledger-test", Version: "0.1.0"}, nil)
-	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	clientSession, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

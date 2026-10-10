@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/DengNaichen/agent-ledger/internal/app"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -29,8 +30,12 @@ type moveInput struct {
 	Status     string `json:"status" jsonschema:"target status: triage, ready, in_progress, in_review, or done"`
 }
 
-func Run(ctx context.Context, service *app.Service) error {
-	return New(service).Run(ctx, &mcp.StdioTransport{})
+// Handler serves the tools over streamable HTTP. Each request is
+// self-contained, so clients survive server restarts without re-initializing.
+func Handler(service *app.Service) http.Handler {
+	server := New(service)
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server },
+		&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 }
 
 func New(service *app.Service) *mcp.Server {

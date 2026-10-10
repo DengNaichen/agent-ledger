@@ -11,7 +11,9 @@ import (
 
 type server struct{ service *app.Service }
 
-func New(service *app.Service, web http.Handler) http.Handler {
+// New serves the REST API, the MCP endpoint, and the web UI. Browsers may only
+// reach them from the same origin; MCP clients send no Origin and pass through.
+func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s := &server{service: service}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -20,8 +22,11 @@ func New(service *app.Service, web http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/issues", s.listIssues)
 	mux.HandleFunc("POST /api/issues", s.createIssue)
 	mux.HandleFunc("PATCH /api/issues/{identifier}/status", s.moveIssue)
+	for _, method := range []string{"GET", "POST", "DELETE"} {
+		mux.Handle(method+" /mcp", mcp)
+	}
 	mux.Handle("GET /", web)
-	return mux
+	return http.NewCrossOriginProtection().Handler(mux)
 }
 
 func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
