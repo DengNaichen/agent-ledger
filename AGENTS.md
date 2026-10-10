@@ -4,12 +4,10 @@ Agent Ledger tracks its own development. Tickets live in the maintainer's runnin
 
 ## Working a ticket
 
-1. Read the ticket with `get_issue`. Its description is the contract: scope, non-goals, and acceptance. Ask before going beyond it.
-2. Set it to `in_progress` with `update_issue`.
-3. Branch from the latest `origin/main` as `al-<number>-<short-name>`, for example `al-2-github-sync`.
-4. Run `go vet ./...` and `make test` before pushing. Write code, comments, and commit messages in English.
-5. Push and open a pull request whose title starts with the identifier, for example `AL-2 Sync pull requests from GitHub`. Record it with `add_link`, then set the ticket to `in_review`.
-6. Once the pull request is merged, set the ticket to `done`.
+Read the ticket with `get_issue`. Its description is the contract: scope, non-goals, and acceptance. Ask before going beyond it. Set it to `in_progress` when you start.
+
+- [ticket](.agents/skills/ticket/SKILL.md): creating and updating tickets, statuses, and the `agent_ready` gate.
+- [git-workflow](.agents/skills/git-workflow/SKILL.md): branches, worktrees, commits, pull requests, merging, and cleanup.
 
 Record decisions and evidence that should outlive the conversation as ticket comments with `add_comment`.
 
