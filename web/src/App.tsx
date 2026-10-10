@@ -8,6 +8,9 @@ const listIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><p
 const boardIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="11" rx="1.5" /><rect x="9" y="2.5" width="4.5" height="11" rx="1.5" /></svg>;
 const projectIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3" /></svg>;
 const chevronIcon = <svg className="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5l3 3 3-3" /></svg>;
+const searchIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25" /><path d="M10.25 10.25l3.25 3.25" /></svg>;
+const typeIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h5l6 6-5 5-6-6z" /><circle cx="5.25" cy="5.25" r=".75" /></svg>;
+const issueTypes = ["spec", "feature", "bug", "improvement", "chore"];
 
 function App() {
   const [path, setPath] = useState(window.location.pathname);
@@ -18,6 +21,9 @@ function App() {
   const [view, setView] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<Status | "all">("all");
   const [project, setProject] = useState("");
+  const [type, setType] = useState("");
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | null>(null);
@@ -38,7 +44,7 @@ function App() {
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
-  }, [path, project]);
+  }, [path, project, type, query]);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status)])) as Record<Status, Issue[]>,
@@ -57,9 +63,11 @@ function App() {
   }
 
   async function loadIssues() {
+    const params = new URLSearchParams({ project, query });
+    if (type) params.set("type", type);
     try {
       const [issueData, projectData] = await Promise.all([
-        api<{ issues: Issue[] }>(`/api/issues?project=${encodeURIComponent(project)}`),
+        api<{ issues: Issue[] }>(`/api/issues?${params}`),
         api<{ projects: Project[] }>("/api/projects"),
       ]);
       setIssues(issueData.issues);
@@ -149,7 +157,7 @@ function App() {
         </header>
 
         {!detailIdentifier && (
-          <div className="header-row">
+          <div className="header-row filter-row">
             <div className="chips">
               {filter !== "all" && (
                 <span className="chip">
@@ -165,12 +173,42 @@ function App() {
                   <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}>×</button>
                 </span>
               )}
+              {type && (
+                <span className="chip">
+                  {typeIcon}
+                  {type}
+                  <button type="button" aria-label={`Clear ${type} filter`} onClick={() => setType("")}>×</button>
+                </span>
+              )}
+              {query && (
+                <span className="chip">
+                  {searchIcon}
+                  “{query}”
+                  <button type="button" aria-label="Clear search" onClick={() => {
+                    setSearch("");
+                    setQuery("");
+                  }}>×</button>
+                </span>
+              )}
               <span className="view-count">{visibleCount} issues</span>
             </div>
-            <nav className="view-switch" aria-label="Issue view">
-              <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}>{listIcon} List</button>
-              <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}>{boardIcon} Board</button>
-            </nav>
+            <div className="filter-controls">
+              <form className="search-box" role="search" onSubmit={(event) => {
+                event.preventDefault();
+                setQuery(search);
+              }}>
+                {searchIcon}
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search issues" aria-label="Search issues" />
+              </form>
+              <select className="type-filter" value={type} aria-label="Filter by type" onChange={(event) => setType(event.target.value)}>
+                <option value="">All types</option>
+                {issueTypes.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <nav className="view-switch" aria-label="Issue view">
+                <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}>{listIcon} List</button>
+                <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}>{boardIcon} Board</button>
+              </nav>
+            </div>
           </div>
         )}
 

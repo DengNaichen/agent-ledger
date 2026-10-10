@@ -36,10 +36,12 @@ export type IssueSummary = {
 
 export type Comment = { body: string; created_at: string };
 export type Link = { title: string; url: string };
+export type PullRequest = { repo: string; number: number; title: string; url: string; state: "open" | "draft" | "merged" | "closed"; updated_at: string };
 
 export type IssueDetails = Issue & {
   comments: Comment[];
   links: Link[];
+  pull_requests: PullRequest[];
   children: IssueSummary[];
   blocks: IssueSummary[];
   blocked_by: IssueSummary[];
