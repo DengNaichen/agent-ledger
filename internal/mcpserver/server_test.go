@@ -57,16 +57,16 @@ func TestIssueWorkflowOverHTTP(t *testing.T) {
 	if project.Name != "Delivery" || project.Description != "Ship the issue model" || project.Archived {
 		t.Fatalf("unexpected Project: %#v", project)
 	}
-	var created issueOutput
+	var created app.Issue
 	call(t, session, "create_issue", map[string]any{"title": "Issue specification", "type": "spec"}, &created)
-	parent := created.Issue.Identifier
-	if parent != "AL-1" || created.Issue.Status != app.StatusTriage {
+	parent := created.Identifier
+	if parent != "AL-1" || created.Status != app.StatusTriage {
 		t.Fatalf("unexpected spec: %#v", created)
 	}
 	call(t, session, "create_issue", map[string]any{
 		"title": "Implement model", "description": "Keep all context", "status": "agent_ready", "type": "feature", "project": "Delivery", "parent": parent,
 	}, &created)
-	child := created.Issue.Identifier
+	child := created.Identifier
 	var ignored struct{}
 	for range 2 {
 		call(t, session, "add_relation", map[string]any{"identifier": child, "kind": "blocked_by", "other": parent}, &ignored)
@@ -99,7 +99,7 @@ func TestIssueWorkflowOverHTTP(t *testing.T) {
 		t.Fatalf("unexpected parent: %#v", detail)
 	}
 	call(t, session, "update_issue", map[string]any{"identifier": child, "parent": ""}, &created)
-	if created.Issue.Parent != nil || *created.Issue.Type != "feature" || *created.Issue.Project != "Delivery" || created.Issue.Description != "Keep all context" {
+	if created.Parent != nil || *created.Type != "feature" || *created.Project != "Delivery" || created.Description != "Keep all context" {
 		t.Fatalf("clearing parent changed other fields: %#v", created)
 	}
 	call(t, session, "list_issues", map[string]any{"parent": parent}, &listed)
@@ -119,7 +119,7 @@ func TestIssueWorkflowOverHTTP(t *testing.T) {
 		t.Fatal("filters did not combine with AND")
 	}
 	call(t, session, "update_issue", map[string]any{"identifier": child, "title": "Shipped", "description": "", "status": "done", "type": "", "project": ""}, &created)
-	if created.Issue.Title != "Shipped" || created.Issue.Description != "" || created.Issue.Status != app.StatusDone || created.Issue.Type != nil || created.Issue.Project != nil {
+	if created.Title != "Shipped" || created.Description != "" || created.Status != app.StatusDone || created.Type != nil || created.Project != nil {
 		t.Fatalf("unexpected updated issue: %#v", created)
 	}
 	for _, pair := range [][2]string{{parent, child}, {child, parent}} {
@@ -160,9 +160,26 @@ func TestIssueWorkflowOverHTTP(t *testing.T) {
 	}
 }
 
+func TestSingleObjectToolsReturnObjectAtTopLevel(t *testing.T) {
+	session := connect(t)
+	for _, step := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"create_issue", map[string]any{"title": "Top-level output"}},
+		{"update_issue", map[string]any{"identifier": "AL-1", "status": "todo"}},
+	} {
+		var output map[string]any
+		call(t, session, step.tool, step.args, &output)
+		if _, wrapped := output["issue"]; wrapped || output["identifier"] != "AL-1" {
+			t.Errorf("%s: want the issue at the top level, got %#v", step.tool, output)
+		}
+	}
+}
+
 func TestValidationOverHTTP(t *testing.T) {
 	session := connect(t)
-	var created issueOutput
+	var created app.Issue
 	call(t, session, "create_issue", map[string]any{"title": "Existing issue"}, &created)
 	var project app.Project
 	call(t, session, "create_project", map[string]any{"name": "Existing"}, &project)
