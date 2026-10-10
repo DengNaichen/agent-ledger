@@ -71,10 +71,42 @@ export function NavLink({ to, className, children }: { to: string; className?: s
   return <a className={className} href={to} onClick={open}>{children}</a>;
 }
 
+const statusColors: Record<Status, string> = {
+  triage: "#6b6f76",
+  todo: "#a6a8b1",
+  agent_ready: "#b49bdd",
+  in_progress: "#6f78dd",
+  in_review: "#5a9bc0",
+  done: "#4e9b68",
+  canceled: "#9c626c",
+};
+
+// Open states are rings, progress fills a pie inside the ring, and closed
+// states are solid discs with a mark drawn in the panel color.
+const ring = <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />;
+const disc = <circle cx="7" cy="7" r="7" fill="currentColor" />;
+const statusGlyphs: Record<Status, ReactNode> = {
+  triage: <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" pathLength="24" strokeDasharray="1.5 1.5" />,
+  todo: ring,
+  agent_ready: <>{ring}<circle cx="7" cy="7" r="2" fill="currentColor" /></>,
+  in_progress: <>{ring}<path d="M7 7V3.5a3.5 3.5 0 0 1 0 7z" fill="currentColor" /></>,
+  in_review: <>{ring}<path d="M7 7V3.5a3.5 3.5 0 1 1-3.5 3.5z" fill="currentColor" /></>,
+  done: <>{disc}<path className="status-mark" d="M4.25 7.25l1.75 1.75 3.75-4" /></>,
+  canceled: <>{disc}<path className="status-mark" d="M5 5l4 4M9 5l-4 4" /></>,
+};
+
+export function StatusIcon({ status }: { status: Status }) {
+  return (
+    <svg className="status-icon" width="14" height="14" viewBox="0 0 14 14" color={statusColors[status]} aria-hidden="true">
+      {statusGlyphs[status]}
+    </svg>
+  );
+}
+
 export function StatusSelect({ issue, onChange }: { issue: { identifier: string; status: Status }; onChange: (status: Status) => void }) {
   return (
     <div className="status-control">
-      <span className={`status-icon status-icon-${issue.status}`} aria-hidden="true" />
+      <StatusIcon status={issue.status} />
       <select
         className="status-select"
         value={issue.status}

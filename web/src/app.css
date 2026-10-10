@@ -37,7 +37,8 @@ select { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.icon { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+/* Lucide icons: size and stroke width are set here, not with component props. */
+.icon { display: block; flex: none; width: 16px; height: 16px; stroke-width: 1.5; }
 
 /* Shell: the sidebar sits on the app background, the main panel is inset. */
 .app-shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100dvh; }
@@ -52,6 +53,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .nav-item.active { color: var(--text); background: var(--selected); }
 .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-item small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* 14px status icons sit centered in the 16px icon column so labels line up. */
+.nav-item .status-icon { margin: 0 1px; }
 .sidebar-footer { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 8px; color: var(--muted); font-size: 12px; }
 .sidebar-footer > span { width: 6px; height: 6px; background: #4ca06a; border-radius: 50%; }
 
@@ -66,13 +69,13 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .button:hover { color: var(--text); background: rgba(255, 255, 255, .08); }
 .button.primary { color: #fff; background: var(--accent); border-color: transparent; }
 .button.primary:hover { background: var(--accent-hover); }
-.ghost { padding: 4px 8px; color: var(--muted); background: transparent; border: 0; border-radius: var(--radius); font-size: 16px; }
+.ghost { padding: 4px 8px; color: var(--muted); background: transparent; border: 0; border-radius: var(--radius); }
 .ghost:hover { color: var(--text); background: var(--hover); }
 
 .chips { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
 .chip { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 24px; padding: 0 8px; color: var(--text-2); background: rgba(255, 255, 255, .04); border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 12px; font-weight: 510; white-space: nowrap; }
 .chip:has(button) { padding-right: 2px; }
-.chip button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; color: var(--muted); background: transparent; border: 0; border-radius: 4px; font-size: 14px; }
+.chip button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; color: var(--muted); background: transparent; border: 0; border-radius: 4px; }
 .chip button:hover { color: var(--text); background: var(--hover); }
 .view-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .view-switch { display: inline-flex; flex: none; gap: 2px; padding: 1px; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -93,13 +96,9 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .error { flex: none; margin: 12px 24px 0; padding: 8px 12px; color: #f1a7ad; background: rgba(235, 87, 87, .08); border: 1px solid rgba(235, 87, 87, .24); border-radius: var(--radius); font-size: 12px; }
 .empty { margin: 16px 0; color: var(--muted); font-size: 12px; text-align: center; }
 
-.status-icon { flex: none; width: 14px; height: 14px; border: 1.5px solid #6b6f76; border-radius: 50%; }
-.status-icon-todo { border-color: #a6a8b1; }
-.status-icon-agent_ready { border-color: #b49bdd; }
-.status-icon-canceled { border-color: #9c626c; background: #9c626c; }
-.status-icon-in_progress { border-color: #6f78dd; border-right-color: #343741; }
-.status-icon-in_review { border-color: #5a9bc0; border-bottom-color: #343741; }
-.status-icon-done { background: #4e9b68; border-color: #4e9b68; box-shadow: inset 0 0 0 2px var(--panel); }
+/* StatusIcon in shared.tsx draws the glyphs and sets each status color. */
+.status-icon { flex: none; }
+.status-mark { fill: none; stroke: var(--panel); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Status menu: an icon with the native select laid over it, or icon and label in the properties. */
 .status-control { position: relative; display: inline-flex; flex: none; align-items: center; gap: 8px; border-radius: var(--radius); }
@@ -120,7 +119,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .group-header { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; gap: 6px; width: 100%; height: 36px; padding: 0 24px 0 4px; color: var(--text-2); background: var(--raised); border: 0; text-align: left; font-weight: 510; }
 .group-header:hover { color: var(--text); }
 .group-header small { color: var(--muted); font-size: 12px; }
-.chevron { color: var(--muted); transition: transform .12s; }
+/* The negative margin keeps the header status icon above the row status icons. */
+.chevron { margin-left: -2px; color: var(--muted); transition: transform .12s; }
 .group-header[aria-expanded="false"] .chevron { transform: rotate(-90deg); }
 .list-row { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 24px 0 19px; }
 .list-row:hover { background: var(--hover); }

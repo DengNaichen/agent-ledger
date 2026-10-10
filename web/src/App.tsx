@@ -1,15 +1,10 @@
+import { Box, ChevronDown, Columns2, List, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
-import { api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusSelect } from "./shared";
+import { api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect } from "./shared";
 
 type ViewMode = "board" | "list";
 
-const listIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" /></svg>;
-const boardIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="11" rx="1.5" /><rect x="9" y="2.5" width="4.5" height="11" rx="1.5" /></svg>;
-const projectIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3" /></svg>;
-const chevronIcon = <svg className="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5l3 3 3-3" /></svg>;
-const searchIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25" /><path d="M10.25 10.25l3.25 3.25" /></svg>;
-const typeIcon = <svg className="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h5l6 6-5 5-6-6z" /><circle cx="5.25" cy="5.25" r=".75" /></svg>;
 const issueTypes = ["spec", "feature", "bug", "improvement", "chore"];
 
 function App() {
@@ -113,7 +108,7 @@ function App() {
 
         <div className="sidebar-label">Workspace</div>
         <button type="button" className={`nav-item ${filter === "all" && !project ? "active" : ""}`} aria-pressed={filter === "all" && !project} onClick={() => selectFilter("all", "")}>
-          {listIcon}
+          <List className="icon" />
           <span className="nav-label">All issues</span>
           <small>{issues.length}</small>
         </button>
@@ -122,7 +117,7 @@ function App() {
           <div className="sidebar-label">Statuses</div>
           {columns.map((column) => (
             <button type="button" key={column.status} className={`nav-item ${filter === column.status ? "active" : ""}`} aria-pressed={filter === column.status} onClick={() => selectFilter(column.status, project)}>
-              <span className={`status-icon status-icon-${column.status}`} />
+              <StatusIcon status={column.status} />
               <span className="nav-label">{column.label}</span>
               <small>{grouped[column.status].length}</small>
             </button>
@@ -131,7 +126,7 @@ function App() {
           {projects.length > 0 && <div className="sidebar-label">Projects</div>}
           {projects.map((item) => (
             <button type="button" key={item.name} title={item.description} className={`nav-item ${project === item.name ? "active" : ""}`} aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}>
-              {projectIcon}
+              <Box className="icon" />
               <span className="nav-label">{item.name}</span>
             </button>
           ))}
@@ -161,33 +156,33 @@ function App() {
             <div className="chips">
               {filter !== "all" && (
                 <span className="chip">
-                  <span className={`status-icon status-icon-${filter}`} />
+                  <StatusIcon status={filter} />
                   {visibleColumns[0].label}
-                  <button type="button" aria-label={`Clear ${visibleColumns[0].label} filter`} onClick={() => selectFilter("all", project)}>×</button>
+                  <button type="button" aria-label={`Clear ${visibleColumns[0].label} filter`} onClick={() => selectFilter("all", project)}><X className="icon" /></button>
                 </span>
               )}
               {project && (
                 <span className="chip">
-                  {projectIcon}
+                  <Box className="icon" />
                   {project}
-                  <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}>×</button>
+                  <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}><X className="icon" /></button>
                 </span>
               )}
               {type && (
                 <span className="chip">
-                  {typeIcon}
+                  <Tag className="icon" />
                   {type}
-                  <button type="button" aria-label={`Clear ${type} filter`} onClick={() => setType("")}>×</button>
+                  <button type="button" aria-label={`Clear ${type} filter`} onClick={() => setType("")}><X className="icon" /></button>
                 </span>
               )}
               {query && (
                 <span className="chip">
-                  {searchIcon}
+                  <Search className="icon" />
                   “{query}”
                   <button type="button" aria-label="Clear search" onClick={() => {
                     setSearch("");
                     setQuery("");
-                  }}>×</button>
+                  }}><X className="icon" /></button>
                 </span>
               )}
               <span className="view-count">{visibleCount} issues</span>
@@ -197,7 +192,7 @@ function App() {
                 event.preventDefault();
                 setQuery(search);
               }}>
-                {searchIcon}
+                <Search className="icon" />
                 <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search issues" aria-label="Search issues" />
               </form>
               <select className="type-filter" value={type} aria-label="Filter by type" onChange={(event) => setType(event.target.value)}>
@@ -205,8 +200,8 @@ function App() {
                 {issueTypes.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
               <nav className="view-switch" aria-label="Issue view">
-                <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}>{listIcon} List</button>
-                <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}>{boardIcon} Board</button>
+                <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}><List className="icon" /> List</button>
+                <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}><Columns2 className="icon" /> Board</button>
               </nav>
             </div>
           </div>
@@ -235,7 +230,7 @@ function App() {
                 }}
               >
                 <header title={column.hint}>
-                  <span className={`status-icon status-icon-${column.status}`} />
+                  <StatusIcon status={column.status} />
                   <h2>{column.label}</h2>
                   <small>{grouped[column.status].length}</small>
                 </header>
@@ -273,8 +268,8 @@ function App() {
             {visibleColumns.map((column) => (
               <section key={column.status}>
                 <button type="button" className="group-header" aria-expanded={!collapsed[column.status]} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !current[column.status] }))}>
-                  {chevronIcon}
-                  <span className={`status-icon status-icon-${column.status}`} />
+                  <ChevronDown className="icon chevron" />
+                  <StatusIcon status={column.status} />
                   <span>{column.label}</span>
                   <small>{grouped[column.status].length}</small>
                 </button>
@@ -335,13 +330,13 @@ function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status
       <form onSubmit={create}>
         <header>
           <h2 id="new-issue-title">New issue</h2>
-          <button type="button" className="ghost" aria-label="Close" onClick={onClose}>×</button>
+          <button type="button" className="ghost" aria-label="Close" onClick={onClose}><X className="icon" /></button>
         </header>
         <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required /></label>
         <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" /></label>
         <p className="dialog-meta">
-          <span className="chip"><span className={`status-icon status-icon-${status}`} />{columns.find((column) => column.status === status)!.label}</span>
-          {project && <span className="chip">{projectIcon}{project}</span>}
+          <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
+          {project && <span className="chip"><Box className="icon" />{project}</span>}
         </p>
         {error && <p className="error" role="alert">{error}</p>}
         <footer>
