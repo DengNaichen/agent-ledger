@@ -35,29 +35,30 @@ Check every item before setting `agent_ready`:
 
 ## Body
 
-- Title: an imperative phrase naming the deliverable. Records start with `Record:`.
+- Ticket titles, bodies, and comments are in Chinese. Paths, commands, code identifiers, and `status` and `type` values stay as written. See the Language section of [git-workflow](../git-workflow/SKILL.md#language).
+- Title: an imperative phrase naming the deliverable. Records start with `记录：`.
 - The body must be self-contained: the executor cannot see this conversation. Write the background, scope, non-goals, and acceptance; link documents instead of copying them.
 - Decisions the user has not made stay open in the body; do not write a recommendation as if it were agreed.
-- When product details are still open, list them under `Open items and defaults`, each with the default the executor follows. Leave nothing for the executor to guess.
+- When product details are still open, list them under `待定项和默认做法`, each with the default the executor follows. Leave nothing for the executor to guess.
 - Progress, evidence, and decisions go in comments with `add_comment`. Other references go in with `add_link`; GitHub sync records pull requests.
 
 agent_ready ticket:
 
 ```md
-Background:
-Scope:
-Non-goals:
-Open items and defaults: (only when product details are open)
-Red:
-Acceptance:
+背景：
+范围：
+非目标：
+待定项和默认做法：（仅在有未决产品细节时写）
+Red：
+验收：
 - <command / test name / grep pattern>
 ```
 
 Record ticket, status `triage`, no Project, no type:
 
 ```md
-Record:
-No repository change.
+记录：
+不产生仓库改动。
 ```
 
 ## Splitting and relations
