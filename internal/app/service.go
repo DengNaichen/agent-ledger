@@ -63,12 +63,13 @@ type Issue struct {
 
 type IssueDetails struct {
 	Issue
-	Comments  []Comment      `json:"comments"`
-	Links     []Link         `json:"links"`
-	Children  []IssueSummary `json:"children"`
-	Blocks    []IssueSummary `json:"blocks"`
-	BlockedBy []IssueSummary `json:"blocked_by"`
-	Related   []IssueSummary `json:"related"`
+	Comments     []Comment      `json:"comments"`
+	Links        []Link         `json:"links"`
+	PullRequests []PullRequest  `json:"pull_requests"`
+	Children     []IssueSummary `json:"children"`
+	Blocks       []IssueSummary `json:"blocks"`
+	BlockedBy    []IssueSummary `json:"blocked_by"`
+	Related      []IssueSummary `json:"related"`
 }
 
 type ListIssues struct {
@@ -119,6 +120,15 @@ type Comment struct {
 type Link struct {
 	Title string `json:"title"`
 	URL   string `json:"url"`
+}
+
+type PullRequest struct {
+	Repo      string `json:"repo"`
+	Number    int    `json:"number"`
+	Title     string `json:"title"`
+	URL       string `json:"url"`
+	State     string `json:"state"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 type Service struct {
@@ -365,7 +375,7 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 	if err != nil {
 		return IssueDetails{}, err
 	}
-	detail := IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}}
+	detail := IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{}}
 	for _, group := range []struct {
 		target *[]IssueSummary
 		where  string
@@ -407,6 +417,22 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 			return IssueDetails{}, err
 		}
 		detail.Links = append(detail.Links, link)
+	}
+	if err := rows.Err(); err != nil {
+		return IssueDetails{}, err
+	}
+	rows, err = s.db.QueryContext(ctx, `SELECT repo, number, title, url, state, updated_at FROM pull_requests
+		WHERE issue_identifier = ? ORDER BY updated_at DESC`, identifier)
+	if err != nil {
+		return IssueDetails{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pull PullRequest
+		if err := rows.Scan(&pull.Repo, &pull.Number, &pull.Title, &pull.URL, &pull.State, &pull.UpdatedAt); err != nil {
+			return IssueDetails{}, err
+		}
+		detail.PullRequests = append(detail.PullRequests, pull)
 	}
 	return detail, rows.Err()
 }
