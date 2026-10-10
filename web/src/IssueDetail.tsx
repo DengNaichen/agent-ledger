@@ -1,7 +1,8 @@
+import { X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusSelect } from "./shared";
+import { api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusIcon, StatusSelect } from "./shared";
 
 const remarkPlugins = [remarkGfm];
 
@@ -163,7 +164,7 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
     <ul className="detail-rows">
       {issues.map((item) => (
         <li key={item.identifier}>
-          <span className={`status-icon status-icon-${item.status}`} aria-hidden="true" />
+          <StatusIcon status={item.status} />
           <NavLink to={`/issue/${item.identifier}`}><span className="identifier">{item.identifier}</span> {item.title}</NavLink>
           <small>{columns.find((column) => column.status === item.status)!.label}</small>
         </li>
@@ -213,7 +214,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
       <form onSubmit={save}>
         <header>
           <h2 id="issue-dialog-title">{issue.identifier}</h2>
-          <button type="button" className="ghost" aria-label="Close issue" onClick={onClose}>×</button>
+          <button type="button" className="ghost" aria-label="Close issue" onClick={onClose}><X className="icon" /></button>
         </header>
         <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
         <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
