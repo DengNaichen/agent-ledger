@@ -22,6 +22,12 @@ npm --prefix web run dev
 
 The Vite server proxies `/api` to the Go server.
 
+## Data and backups
+
+The server keeps one copy of the database per day in a `backups` directory next to the database file (`daily-YYYY-MM-DD.db`, newest 14 kept) and checks hourly whether today's copy exists. Before upgrading the schema it also writes `before-migration-<n>.db`, which is never pruned.
+
+To restore, stop the server, delete the database's `-wal` and `-shm` files, copy a backup over the database file, and start the server again. Do not copy the live database file with `cp` while the server runs; most recent writes may still be in the `-wal` file.
+
 ## MCP
 
 The running server exposes these tools over streamable HTTP at `/mcp`:

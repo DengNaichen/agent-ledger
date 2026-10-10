@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -121,9 +122,10 @@ type Link struct {
 }
 
 type Service struct {
-	db     *sql.DB
-	prefix string
-	now    func() time.Time
+	db        *sql.DB
+	prefix    string
+	backupDir string
+	now       func() time.Time
 }
 
 func Open(path, prefix string) (*Service, error) {
@@ -147,12 +149,13 @@ func Open(path, prefix string) (*Service, error) {
 			return nil, err
 		}
 	}
-	if _, err := db.Exec(schema); err != nil {
+	backupDir := filepath.Join(filepath.Dir(path), "backups")
+	if err := migrate(db, backupDir, migrations); err != nil {
 		db.Close()
 		return nil, err
 	}
 
-	return &Service{db: db, prefix: prefix, now: time.Now}, nil
+	return &Service{db: db, prefix: prefix, backupDir: backupDir, now: time.Now}, nil
 }
 
 func (s *Service) Close() error { return s.db.Close() }
