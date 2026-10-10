@@ -30,6 +30,7 @@ Check every item before setting `agent_ready`:
 - Scope names file or directory paths, and a non-goals section blocks scope creep.
 - Every scope item points to a file, function, or behavior that exists. Check it on `main` before writing.
 - `Red`: the smallest rerunnable check that fails on the current `main` and passes after the change. When you cannot write one, narrow the ticket first.
+- When `Red` is a new test, it cannot fail on `main`, where it does not exist yet: `go test -run <name>` exits 0 with `[no tests to run]`. Say so in the ticket, and have the executor add the test first and run it against the unchanged code, checking the output for `--- FAIL`, before making the change.
 - Every acceptance item can be rerun by a reviewer. `Red` and acceptance name the exact test name, command, or grep pattern. Never "confirm it works", and never "such as" or "for example" ("如……", "例如……").
 - Every acceptance item gives different results before and after the change. A check that already passes on `main` cannot be an acceptance item on its own.
 - When acceptance depends on a file or tool outside the repository, state the prerequisite: the path or the tool.
