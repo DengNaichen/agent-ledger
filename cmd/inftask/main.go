@@ -24,7 +24,6 @@ import (
 func main() {
 	data := flag.String("data", "inftask.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
-	prefix := flag.String("prefix", "AL", "Issue identifier prefix")
 	var repos []string
 	flag.Func("github-repo", "Sync pull requests from this GitHub repository, as owner/name (repeatable; needs GITHUB_TOKEN)", func(repo string) error {
 		repos = append(repos, repo)
@@ -49,7 +48,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	service, err := app.Open(*data, *prefix)
+	service, err := app.Open(*data)
 	if err != nil {
 		log.Fatal(err)
 	}

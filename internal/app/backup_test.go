@@ -9,15 +9,16 @@ import (
 
 func TestBackupKeepsOneCopyPerDay(t *testing.T) {
 	dir := t.TempDir()
-	service, err := Open(filepath.Join(dir, "ledger.db"), "AL")
+	service, err := Open(filepath.Join(dir, "ledger.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	alTeam(t, service)
 	day := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return day }
 	ctx := context.Background()
-	if _, err := service.Create(ctx, CreateIssue{Title: "Keep me"}); err != nil {
+	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Keep me"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -46,7 +47,7 @@ func TestBackupKeepsOneCopyPerDay(t *testing.T) {
 	if len(daily) != backupsKept || filepath.Base(daily[0]) != "daily-2026-10-08.db" {
 		t.Fatalf("daily backups = %v", daily)
 	}
-	restored, err := Open(daily[len(daily)-1], "AL")
+	restored, err := Open(daily[len(daily)-1])
 	if err != nil {
 		t.Fatal(err)
 	}

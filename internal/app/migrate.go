@@ -12,7 +12,42 @@ import (
 // user_version counts how many have run. schema.sql always describes the
 // current shape, so a new database starts at len(migrations) without running
 // any. Append only; never edit a migration that has shipped.
-var migrations = []string{}
+var migrations = []string{
+	// 1: teams. Every identifier so far is <prefix>-<id>, so each prefix
+	// becomes a team, the id after the last dash becomes the issue's number,
+	// and the team's counter continues after its highest number. Rebuilding
+	// issues keeps ids, which events reference, and identifiers, which
+	// everything else references.
+	`CREATE TABLE teams (
+		key TEXT PRIMARY KEY NOT NULL,
+		name TEXT NOT NULL,
+		next_number INTEGER NOT NULL
+	);
+	CREATE TABLE issues_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		identifier TEXT NOT NULL UNIQUE,
+		team TEXT NOT NULL REFERENCES teams(key),
+		number INTEGER NOT NULL,
+		title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+		description TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL CHECK (status IN ('triage', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+		type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
+		project TEXT REFERENCES projects(name),
+		parent TEXT REFERENCES issues(identifier) CHECK (parent <> identifier),
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	INSERT INTO issues_new(id, identifier, team, number, title, description, status, type, project, parent, created_at, updated_at)
+	SELECT id, identifier, substr(head, 1, length(head) - 1), CAST(substr(identifier, length(head) + 1) AS INTEGER),
+		title, description, status, type, project, parent, created_at, updated_at
+	FROM (SELECT *, rtrim(identifier, '0123456789') AS head FROM issues);
+	INSERT INTO teams(key, name, next_number) SELECT team, team, max(number) + 1 FROM issues_new GROUP BY team;
+	DROP TABLE issues;
+	ALTER TABLE issues_new RENAME TO issues;
+	CREATE UNIQUE INDEX issues_team_number_idx ON issues(team, number);
+	CREATE INDEX issues_status_updated_idx ON issues(status, updated_at DESC);
+	CREATE INDEX issues_parent_idx ON issues(parent);`,
+}
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {
 	var tables int

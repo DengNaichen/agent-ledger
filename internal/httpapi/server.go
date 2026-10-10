@@ -30,6 +30,7 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/issues/{identifier}", s.getIssue)
 	mux.HandleFunc("POST /api/issues/{identifier}/comments", s.addComment)
 	mux.HandleFunc("GET /api/projects", s.listProjects)
+	mux.HandleFunc("GET /api/teams", s.listTeams)
 	for _, method := range []string{"GET", "POST", "DELETE"} {
 		mux.Handle(method+" /mcp", mcp)
 	}
@@ -41,7 +42,7 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	status := app.Status(r.URL.Query().Get("status"))
 	issueType := r.URL.Query().Get("type")
 	limit := -1
-	input := app.ListIssues{Project: r.URL.Query().Get("project"), Query: r.URL.Query().Get("query"), Limit: &limit}
+	input := app.ListIssues{Team: r.URL.Query().Get("team"), Project: r.URL.Query().Get("project"), Query: r.URL.Query().Get("query"), Limit: &limit}
 	if r.URL.Query().Has("status") {
 		input.Status = &status
 	}
@@ -139,6 +140,15 @@ func (s *server) listProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"projects": projects})
 }
 
+func (s *server) listTeams(w http.ResponseWriter, r *http.Request) {
+	teams, err := s.service.ListTeams(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"teams": teams})
+}
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	decoder := json.NewDecoder(r.Body)
@@ -155,9 +165,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 func writeError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound):
+	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType):
+	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired):
 		status = http.StatusBadRequest
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {

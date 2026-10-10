@@ -12,6 +12,21 @@ import (
 	"testing"
 )
 
+// openService opens a new database with team AL, the team most tests number
+// their issues in.
+func openService(t *testing.T) *app.Service {
+	t.Helper()
+	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { service.Close() })
+	if _, err := service.CreateTeam(context.Background(), app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
+		t.Fatal(err)
+	}
+	return service
+}
+
 func TestRejectsCrossSiteBrowserRequests(t *testing.T) {
 	reached := false
 	mcp := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { reached = true })
@@ -38,12 +53,8 @@ func TestRejectsCrossSiteBrowserRequests(t *testing.T) {
 }
 
 func TestEditIssue(t *testing.T) {
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
-	issue, err := service.Create(context.Background(), app.CreateIssue{Title: "Original", Description: "Old context", Type: "bug"})
+	service := openService(t)
+	issue, err := service.Create(context.Background(), app.CreateIssue{Team: "AL", Title: "Original", Description: "Old context", Type: "bug"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,20 +95,16 @@ func TestEditIssue(t *testing.T) {
 }
 
 func TestReadIssueDetails(t *testing.T) {
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
+	service := openService(t)
 	ctx := context.Background()
 	if _, err := service.CreateProject(ctx, "Delivery", "Ship the board"); err != nil {
 		t.Fatal(err)
 	}
-	parent, err := service.Create(ctx, app.CreateIssue{Title: "Board spec", Type: "spec"})
+	parent, err := service.Create(ctx, app.CreateIssue{Team: "AL", Title: "Board spec", Type: "spec"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := service.Create(ctx, app.CreateIssue{Title: "Build the board", Project: "Delivery", Parent: parent.Identifier})
+	child, err := service.Create(ctx, app.CreateIssue{Team: "AL", Title: "Build the board", Project: "Delivery", Parent: parent.Identifier})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,12 +151,8 @@ func TestReadIssueDetails(t *testing.T) {
 }
 
 func TestIssueJSONUsesSnakeCase(t *testing.T) {
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
-	issue, err := service.Create(context.Background(), app.CreateIssue{Title: "Timestamps"})
+	service := openService(t)
+	issue, err := service.Create(context.Background(), app.CreateIssue{Team: "AL", Title: "Timestamps"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,15 +168,11 @@ func TestIssueJSONUsesSnakeCase(t *testing.T) {
 }
 
 func TestListIssuesFiltersByQueryAndType(t *testing.T) {
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
+	service := openService(t)
 	for _, input := range []app.CreateIssue{
-		{Title: "Crash on login", Type: "bug"},
-		{Title: "Search box", Description: "Find issues by keyword", Type: "feature"},
-		{Title: "Release notes"},
+		{Team: "AL", Title: "Crash on login", Type: "bug"},
+		{Team: "AL", Title: "Search box", Description: "Find issues by keyword", Type: "feature"},
+		{Team: "AL", Title: "Release notes"},
 	} {
 		if _, err := service.Create(context.Background(), input); err != nil {
 			t.Fatal(err)
@@ -195,5 +194,57 @@ func TestListIssuesFiltersByQueryAndType(t *testing.T) {
 		if len(listed.Issues) != 1 || listed.Issues[0].Title != tc.want {
 			t.Fatalf("%s: status %d, issues %#v", tc.query, rec.Code, listed.Issues)
 		}
+	}
+}
+
+func TestTeamsOverREST(t *testing.T) {
+	service := openService(t)
+	if _, err := service.CreateTeam(context.Background(), app.CreateTeam{Key: "TOK", Name: "HarnessKit"}); err != nil {
+		t.Fatal(err)
+	}
+	handler := New(service, http.NotFoundHandler(), http.NotFoundHandler())
+	request := func(method, path, body string, want int, output any) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(method, path, strings.NewReader(body)))
+		if rec.Code != want {
+			t.Fatalf("%s %s: status %d, want %d: %s", method, path, rec.Code, want, rec.Body.String())
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), output); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var teams struct {
+		Teams []app.Team `json:"teams"`
+	}
+	request(http.MethodGet, "/api/teams", "", http.StatusOK, &teams)
+	if len(teams.Teams) != 2 || teams.Teams[0] != (app.Team{Key: "AL", Name: "InfTask", NextNumber: 1}) || teams.Teams[1].Key != "TOK" {
+		t.Fatalf("unexpected teams: %#v", teams)
+	}
+	var failure struct {
+		Error string `json:"error"`
+	}
+	request(http.MethodPost, "/api/issues", `{"title":"No team"}`, http.StatusBadRequest, &failure)
+	if failure.Error != app.ErrTeamRequired.Error() {
+		t.Fatalf("error = %q", failure.Error)
+	}
+	request(http.MethodPost, "/api/issues", `{"team":"NOPE","title":"Unknown team"}`, http.StatusNotFound, &failure)
+	var created app.Issue
+	for _, tc := range []struct{ body, want string }{
+		{`{"team":"TOK","title":"Imported"}`, "TOK-1"},
+		{`{"team":"AL","title":"Local"}`, "AL-1"},
+	} {
+		request(http.MethodPost, "/api/issues", tc.body, http.StatusCreated, &created)
+		if created.Identifier != tc.want {
+			t.Fatalf("created %s, want %s", created.Identifier, tc.want)
+		}
+	}
+	var listed struct {
+		Issues []app.Issue `json:"issues"`
+	}
+	request(http.MethodGet, "/api/issues?team=TOK", "", http.StatusOK, &listed)
+	if len(listed.Issues) != 1 || listed.Issues[0].Identifier != "TOK-1" {
+		t.Fatalf("unexpected TOK issues: %#v", listed)
 	}
 }

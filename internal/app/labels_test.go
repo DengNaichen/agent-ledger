@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,11 +15,12 @@ import (
 
 func labelService(t *testing.T) *Service {
 	t.Helper()
-	s, err := Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	s, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
+	alTeam(t, s)
 	return s
 }
 func mustLabel(t *testing.T, s *Service, name string, group int64) Label {
@@ -31,7 +33,7 @@ func mustLabel(t *testing.T, s *Service, name string, group int64) Label {
 }
 func mustIssue(t *testing.T, s *Service, title string) Issue {
 	t.Helper()
-	i, err := s.Create(context.Background(), CreateIssue{Title: title})
+	i, err := s.Create(context.Background(), CreateIssue{Team: "AL", Title: title})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,16 +274,17 @@ func TestLabelUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The schema before labels is the unchanged prefix of the current schema.
+	// Label tables come last in the schema. A database at the current
+	// migration version without them gets them on open, with no migration.
 	old := strings.Split(schema, "CREATE TABLE IF NOT EXISTS label_groups")[0]
-	if _, err = db.Exec(old); err != nil {
+	if _, err = db.Exec(old + fmt.Sprintf(`PRAGMA user_version = %d;`, len(migrations))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(`INSERT INTO issues(identifier,title,description,status,created_at,updated_at) VALUES ('AL-1','Keep me','Existing body','todo','before','before'); INSERT INTO comments(issue,body,created_at) VALUES ('AL-1','Keep comment','before')`); err != nil {
+	if _, err = db.Exec(`INSERT INTO teams(key,name,next_number) VALUES ('AL','InfTask',2); INSERT INTO issues(identifier,team,number,title,description,status,created_at,updated_at) VALUES ('AL-1','AL',1,'Keep me','Existing body','todo','before','before'); INSERT INTO comments(issue,body,created_at) VALUES ('AL-1','Keep comment','before')`); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
-	s, err := Open(path, "AL")
+	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +293,7 @@ func TestLabelUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Close()
-	s, err = Open(path, "AL")
+	s, err = Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}

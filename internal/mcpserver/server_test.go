@@ -16,11 +16,14 @@ import (
 
 func connect(t *testing.T) *mcp.ClientSession {
 	t.Helper()
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { service.Close() })
+	if _, err := service.CreateTeam(context.Background(), app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
+		t.Fatal(err)
+	}
 	server := httptest.NewServer(httpapi.New(service, http.NotFoundHandler(), Handler(service)))
 	t.Cleanup(server.Close)
 	client := mcp.NewClient(&mcp.Implementation{Name: "inftask-test", Version: "0.1.0"}, nil)
@@ -58,13 +61,13 @@ func TestIssueWorkflowOverHTTP(t *testing.T) {
 		t.Fatalf("unexpected Project: %#v", project)
 	}
 	var created app.Issue
-	call(t, session, "create_issue", map[string]any{"title": "Issue specification", "type": "spec"}, &created)
+	call(t, session, "create_issue", map[string]any{"team": "AL", "title": "Issue specification", "type": "spec"}, &created)
 	parent := created.Identifier
 	if parent != "AL-1" || created.Status != app.StatusTriage {
 		t.Fatalf("unexpected spec: %#v", created)
 	}
 	call(t, session, "create_issue", map[string]any{
-		"title": "Implement model", "description": "Keep all context", "status": "agent_ready", "type": "feature", "project": "Delivery", "parent": parent,
+		"team": "AL", "title": "Implement model", "description": "Keep all context", "status": "agent_ready", "type": "feature", "project": "Delivery", "parent": parent,
 	}, &created)
 	child := created.Identifier
 	var ignored struct{}
@@ -166,7 +169,7 @@ func TestSingleObjectToolsReturnObjectAtTopLevel(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"create_issue", map[string]any{"title": "Top-level output"}},
+		{"create_issue", map[string]any{"team": "AL", "title": "Top-level output"}},
 		{"update_issue", map[string]any{"identifier": "AL-1", "status": "todo"}},
 	} {
 		var output map[string]any
@@ -180,7 +183,7 @@ func TestSingleObjectToolsReturnObjectAtTopLevel(t *testing.T) {
 func TestValidationOverHTTP(t *testing.T) {
 	session := connect(t)
 	var created app.Issue
-	call(t, session, "create_issue", map[string]any{"title": "Existing issue"}, &created)
+	call(t, session, "create_issue", map[string]any{"team": "AL", "title": "Existing issue"}, &created)
 	var project app.Project
 	call(t, session, "create_project", map[string]any{"name": "Existing"}, &project)
 	for _, tc := range []struct {
@@ -189,15 +192,23 @@ func TestValidationOverHTTP(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"title", "create_issue", map[string]any{"title": "  "}, app.ErrInvalidTitle.Error()},
-		{"status", "create_issue", map[string]any{"title": "Invalid status", "status": "ready"}, app.ErrInvalidStatus.Error()},
+		{"title", "create_issue", map[string]any{"team": "AL", "title": "  "}, app.ErrInvalidTitle.Error()},
+		{"status", "create_issue", map[string]any{"team": "AL", "title": "Invalid status", "status": "ready"}, app.ErrInvalidStatus.Error()},
 		{"type", "update_issue", map[string]any{"identifier": "AL-1", "type": "decision"}, app.ErrInvalidType.Error()},
 		{"kind", "add_relation", map[string]any{"identifier": "AL-1", "kind": "duplicate", "other": "AL-2"}, app.ErrInvalidKind.Error()},
 		{"self parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-1"}, "CHECK constraint failed"},
 		{"self relation", "add_relation", map[string]any{"identifier": "AL-1", "kind": "related", "other": "AL-1"}, "CHECK constraint failed"},
 		{"duplicate project", "create_project", map[string]any{"name": "Existing"}, "UNIQUE constraint failed"},
-		{"missing project", "create_issue", map[string]any{"title": "New issue", "project": "Missing"}, app.ErrProjectNotFound.Error()},
-		{"missing parent", "create_issue", map[string]any{"title": "New issue", "parent": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing project", "create_issue", map[string]any{"team": "AL", "title": "New issue", "project": "Missing"}, app.ErrProjectNotFound.Error()},
+		{"missing parent", "create_issue", map[string]any{"team": "AL", "title": "New issue", "parent": "AL-99"}, app.ErrNotFound.Error()},
+		{"missing team", "create_issue", map[string]any{"title": "No team"}, `missing properties: [\"team\"]`},
+		{"empty team", "create_issue", map[string]any{"team": "", "title": "Empty team"}, app.ErrTeamRequired.Error()},
+		{"unknown team", "create_issue", map[string]any{"team": "NOPE", "title": "Unknown team"}, app.ErrTeamNotFound.Error()},
+		{"unknown team filter", "list_issues", map[string]any{"team": "NOPE"}, app.ErrTeamNotFound.Error()},
+		{"lowercase team key", "create_team", map[string]any{"key": "tok", "name": "Lowercase"}, app.ErrInvalidTeam.Error()},
+		{"short team key", "create_team", map[string]any{"key": "T", "name": "Too short"}, app.ErrInvalidTeam.Error()},
+		{"long team key", "create_team", map[string]any{"key": "TOOLONG1", "name": "Too long"}, app.ErrInvalidTeam.Error()},
+		{"duplicate team", "create_team", map[string]any{"key": "AL", "name": "Again"}, "UNIQUE constraint failed"},
 		{"missing updated project", "update_issue", map[string]any{"identifier": "AL-1", "project": "Missing"}, app.ErrProjectNotFound.Error()},
 		{"missing updated parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-99"}, app.ErrNotFound.Error()},
 		{"missing relation target", "add_relation", map[string]any{"identifier": "AL-1", "kind": "blocks", "other": "AL-99"}, app.ErrNotFound.Error()},
@@ -221,5 +232,38 @@ func TestValidationOverHTTP(t *testing.T) {
 				t.Fatalf("expected %q, got %s", tc.want, content)
 			}
 		})
+	}
+}
+
+func TestTeamsOverHTTP(t *testing.T) {
+	session := connect(t)
+	var team map[string]any
+	call(t, session, "create_team", map[string]any{"key": "TOK", "name": "HarnessKit"}, &team)
+	if team["key"] != "TOK" || team["name"] != "HarnessKit" || team["next_number"] != float64(1) {
+		t.Fatalf("unexpected team: %#v", team)
+	}
+	var identifiers []string
+	for _, key := range []string{"TOK", "AL", "TOK"} {
+		var created map[string]any
+		call(t, session, "create_issue", map[string]any{"team": key, "title": "Work for " + key}, &created)
+		identifiers = append(identifiers, created["identifier"].(string))
+	}
+	if strings.Join(identifiers, " ") != "TOK-1 AL-1 TOK-2" {
+		t.Fatalf("identifiers = %q", identifiers)
+	}
+	var teams struct {
+		Teams []map[string]any `json:"teams"`
+	}
+	call(t, session, "list_teams", map[string]any{}, &teams)
+	if len(teams.Teams) != 2 || teams.Teams[0]["key"] != "AL" || teams.Teams[0]["next_number"] != float64(2) ||
+		teams.Teams[1]["key"] != "TOK" || teams.Teams[1]["next_number"] != float64(3) {
+		t.Fatalf("unexpected teams: %#v", teams)
+	}
+	var listed struct {
+		Issues []map[string]any `json:"issues"`
+	}
+	call(t, session, "list_issues", map[string]any{"team": "TOK"}, &listed)
+	if len(listed.Issues) != 2 || listed.Issues[0]["identifier"] != "TOK-2" || listed.Issues[1]["identifier"] != "TOK-1" {
+		t.Fatalf("unexpected TOK issues: %#v", listed)
 	}
 }

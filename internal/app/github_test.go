@@ -23,11 +23,12 @@ type fakeGitHub struct {
 
 func newTestSync(t *testing.T, fake *fakeGitHub, repos ...string) (*Service, *GitHubSync) {
 	t.Helper()
-	service, err := Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	service, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { service.Close() })
+	alTeam(t, service)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{name}/pulls", func(w http.ResponseWriter, r *http.Request) {
 		repo := r.PathValue("owner") + "/" + r.PathValue("name")
@@ -92,10 +93,10 @@ func TestGitHubSyncLinksAndAdvancesIssues(t *testing.T) {
 	service, sync := newTestSync(t, fake, "owner/app")
 	ctx := context.Background()
 	for _, issue := range []CreateIssue{
-		{Title: "A", Description: "Context for A", Status: new(StatusInProgress)},
-		{Title: "B", Status: new(StatusAgentReady)},
-		{Title: "C", Description: "Context for C", Status: new(StatusInProgress)},
-		{Title: "D", Status: new(StatusCanceled)},
+		{Team: "AL", Title: "A", Description: "Context for A", Status: new(StatusInProgress)},
+		{Team: "AL", Title: "B", Status: new(StatusAgentReady)},
+		{Team: "AL", Title: "C", Description: "Context for C", Status: new(StatusInProgress)},
+		{Team: "AL", Title: "D", Status: new(StatusCanceled)},
 	} {
 		if _, err := service.Create(ctx, issue); err != nil {
 			t.Fatal(err)
@@ -178,7 +179,7 @@ func TestGitHubSyncContinuesPastFailingRepository(t *testing.T) {
 	}}}
 	service, sync := newTestSync(t, fake, "owner/broken", "owner/app")
 	ctx := context.Background()
-	if _, err := service.Create(ctx, CreateIssue{Title: "A", Status: new(StatusInProgress)}); err != nil {
+	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "A", Status: new(StatusInProgress)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -193,7 +194,7 @@ func TestGitHubSyncContinuesPastFailingRepository(t *testing.T) {
 }
 
 func TestGitHubNotificationsCoalesce(t *testing.T) {
-	g := NewGitHubSync(&Service{prefix: "AL"}, []string{"team/repo"}, "", false)
+	g := NewGitHubSync(&Service{}, []string{"team/repo"}, "", false)
 	if g.Notify("other/repo") || len(g.wake) != 0 {
 		t.Fatal("unconfigured repository scheduled")
 	}
@@ -209,4 +210,93 @@ func TestGitHubNotificationsCoalesce(t *testing.T) {
 	if !g.Notify("team/repo") || len(g.wake) != 1 {
 		t.Fatal("notification lost after draining")
 	}
+}
+
+func TestGitHubSyncMatchesEveryTeamKey(t *testing.T) {
+	const updated = "2026-10-01T12:00:00Z"
+	fake := &fakeGitHub{pulls: map[string][]map[string]any{"owner/app": {
+		pull(21, "al-1-build", "Build", "open", updated),
+		pull(22, "import", "tok-1 Import tickets", "open", updated),
+		pull(23, "tok-2-and-al-2", "Both teams", "merged", updated),
+	}}}
+	service, sync := newTestSync(t, fake, "owner/app")
+	ctx := context.Background()
+	stored := func(want string) {
+		t.Helper()
+		var got string
+		if err := service.db.QueryRowContext(ctx, `SELECT COALESCE(group_concat(number || ' ' || issue_identifier, ', '), '') FROM (SELECT * FROM pull_requests ORDER BY number, issue_identifier)`).Scan(&got); err != nil || got != want {
+			t.Fatalf("pull requests = %q, err = %v; want %q", got, err, want)
+		}
+	}
+	for _, issue := range []CreateIssue{{Team: "AL", Title: "Build", Status: new(StatusInProgress)}, {Team: "AL", Title: "Both", Status: new(StatusTodo)}} {
+		if _, err := service.Create(ctx, issue); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// TOK is not a team yet, so the first round does not recognize its identifiers.
+	sync.syncAll(ctx)
+	stored("21 AL-1, 23 AL-2")
+
+	if _, err := service.CreateTeam(ctx, CreateTeam{Key: "TOK", Name: "HarnessKit"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, issue := range []CreateIssue{{Team: "TOK", Title: "Import", Status: new(StatusInProgress)}, {Team: "TOK", Title: "Both", Status: new(StatusTodo)}} {
+		if _, err := service.Create(ctx, issue); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sync.syncAll(ctx)
+	stored("21 AL-1, 22 TOK-1, 23 AL-2, 23 TOK-2")
+	for identifier, want := range map[string]Status{"AL-1": StatusInReview, "AL-2": StatusDone, "TOK-1": StatusInReview, "TOK-2": StatusDone} {
+		if issue, err := service.Get(ctx, identifier); err != nil || issue.Status != want {
+			t.Fatalf("%s: status = %q, err = %v; want %q", identifier, issue.Status, err, want)
+		}
+	}
+}
+
+// The webhook only calls Notify. The round Notify wakes reads the current
+// teams, so a team created while the server runs is recognized right away.
+func TestGitHubSyncNotifyReadsCurrentTeams(t *testing.T) {
+	fake := &fakeGitHub{pulls: map[string][]map[string]any{"owner/app": {
+		pull(31, "tok-1-import", "Import tickets", "open", "2026-10-01T12:00:00Z"),
+	}}}
+	service, sync := newTestSync(t, fake, "owner/app")
+	ctx, cancel := context.WithCancel(context.Background())
+	stopped := make(chan struct{})
+	go func() {
+		sync.Run(ctx)
+		close(stopped)
+	}()
+	defer func() {
+		cancel()
+		<-stopped
+	}()
+	waitFor := func(what string, done func() bool) {
+		t.Helper()
+		for deadline := time.Now().Add(5 * time.Second); !done(); time.Sleep(10 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out waiting for %s", what)
+			}
+		}
+	}
+	waitFor("the first round to store its cursor", func() bool {
+		var rounds int
+		return service.db.QueryRow(`SELECT count(*) FROM github_sync`).Scan(&rounds) == nil && rounds == 1
+	})
+
+	if _, err := service.CreateTeam(context.Background(), CreateTeam{Key: "TOK", Name: "HarnessKit"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Create(context.Background(), CreateIssue{Team: "TOK", Title: "Import", Status: new(StatusInProgress)}); err != nil {
+		t.Fatal(err)
+	}
+	if !sync.Notify("owner/app") {
+		t.Fatal("configured repository rejected")
+	}
+	// Without the notification the next round would start a minute later.
+	waitFor("TOK-1 to move to in_review", func() bool {
+		issue, err := service.Get(context.Background(), "TOK-1")
+		return err == nil && issue.Status == StatusInReview
+	})
 }

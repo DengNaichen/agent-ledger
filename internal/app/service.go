@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -32,7 +33,12 @@ var (
 	ErrInvalidStatus   = errors.New("invalid status: use triage, todo, agent_ready, in_progress, in_review, done, or canceled")
 	ErrInvalidType     = errors.New("invalid type: use spec, feature, bug, improvement, chore, or an empty string")
 	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
+	ErrTeamRequired    = errors.New("team is required")
+	ErrTeamNotFound    = errors.New("team not found")
+	ErrInvalidTeam     = errors.New("invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, and name is required")
 )
+
+var teamKey = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,5}$`)
 
 var Statuses = []Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProgress, StatusInReview, StatusDone, StatusCanceled}
 
@@ -80,6 +86,7 @@ type ListIssues struct {
 	LabelMode     string  `json:"label_mode,omitempty" jsonschema:"any (default), all, none, or unlabeled; unlabeled requires empty selections"`
 	Status        *Status `json:"status,omitempty" jsonschema:"filter by status: triage, todo, agent_ready, in_progress, in_review, done, or canceled"`
 	Type          *string `json:"type,omitempty" jsonschema:"filter by type: spec, feature, bug, improvement, chore; empty string matches untyped issues"`
+	Team          string  `json:"team,omitempty" jsonschema:"filter by exact team key, such as AL"`
 	Project       string  `json:"project,omitempty" jsonschema:"filter by exact Project name"`
 	Parent        string  `json:"parent,omitempty" jsonschema:"filter by parent issue identifier, such as AL-1"`
 	Query         string  `json:"query,omitempty" jsonschema:"LIKE match against title or description; percent and underscore are SQL wildcards"`
@@ -87,6 +94,7 @@ type ListIssues struct {
 }
 
 type CreateIssue struct {
+	Team        string  `json:"team" jsonschema:"required key of an existing team, such as AL; the issue is numbered <key>-<n> in that team's sequence"`
 	Title       string  `json:"title" jsonschema:"required nonempty issue title"`
 	Description string  `json:"description,omitempty" jsonschema:"self-contained issue description"`
 	Status      *Status `json:"status,omitempty" jsonschema:"initial status: triage (default), todo, agent_ready, in_progress, in_review, done, or canceled"`
@@ -117,6 +125,17 @@ type UpdateProject struct {
 	Archived    *bool   `json:"archived,omitempty" jsonschema:"archive or unarchive the Project; omitted leaves unchanged"`
 }
 
+type Team struct {
+	Key        string `json:"key" jsonschema:"identifier prefix; fixed once created"`
+	Name       string `json:"name"`
+	NextNumber int    `json:"next_number" jsonschema:"number the team's next issue gets"`
+}
+
+type CreateTeam struct {
+	Key  string `json:"key" jsonschema:"2 to 6 uppercase letters or digits starting with a letter, such as AL; cannot be changed later"`
+	Name string `json:"name" jsonschema:"required nonempty team name"`
+}
+
 type Comment struct {
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
@@ -138,12 +157,11 @@ type PullRequest struct {
 
 type Service struct {
 	db        *sql.DB
-	prefix    string
 	backupDir string
 	now       func() time.Time
 }
 
-func Open(path, prefix string) (*Service, error) {
+func Open(path string) (*Service, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("database path is required")
 	}
@@ -170,7 +188,7 @@ func Open(path, prefix string) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{db: db, prefix: prefix, backupDir: backupDir, now: time.Now}, nil
+	return &Service{db: db, backupDir: backupDir, now: time.Now}, nil
 }
 
 func (s *Service) Close() error { return s.db.Close() }
@@ -249,6 +267,11 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 	if err := s.checkReferences(ctx, &input.Project, &input.Parent); err != nil {
 		return nil, err
 	}
+	if input.Team != "" {
+		if err := s.checkTeam(ctx, input.Team); err != nil {
+			return nil, err
+		}
+	}
 	where, args := `1 = 1`, []any{}
 	if input.Status != nil {
 		where += ` AND status = ?`
@@ -258,7 +281,7 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		where += ` AND type IS NULLIF(?, '')`
 		args = append(args, *input.Type)
 	}
-	for _, filter := range []struct{ column, value string }{{"project", input.Project}, {"parent", input.Parent}} {
+	for _, filter := range []struct{ column, value string }{{"team", input.Team}, {"project", input.Project}, {"parent", input.Parent}} {
 		if filter.value != "" {
 			where += ` AND ` + filter.column + ` = ?`
 			args = append(args, filter.value)
@@ -282,6 +305,9 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 }
 
 func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) {
+	if input.Team == "" {
+		return Issue{}, ErrTeamRequired
+	}
 	if err := validateFields(&input.Title, input.Status, &input.Type); err != nil {
 		return Issue{}, err
 	}
@@ -297,20 +323,27 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 		return Issue{}, err
 	}
 	defer tx.Rollback()
+	// Taking the number in the same transaction as the insert means a failed
+	// insert gives the number back.
+	var number int
+	err = tx.QueryRowContext(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE key = ? RETURNING next_number - 1`, input.Team).Scan(&number)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Issue{}, ErrTeamNotFound
+	}
+	if err != nil {
+		return Issue{}, err
+	}
+	identifier := fmt.Sprintf("%s-%d", input.Team, number)
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO issues(title, description, status, type, project, parent, created_at, updated_at)
-		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
-		strings.TrimSpace(input.Title), input.Description, status, input.Type, input.Project, input.Parent, now, now)
+		INSERT INTO issues(identifier, team, number, title, description, status, type, project, parent, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
+		identifier, input.Team, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, input.Project, input.Parent, now, now)
 	if err != nil {
 		return Issue{}, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		return Issue{}, err
-	}
-	identifier := fmt.Sprintf("%s-%d", s.prefix, id)
-	if _, err := tx.ExecContext(ctx, `UPDATE issues SET identifier = ? WHERE id = ?`, identifier, id); err != nil {
 		return Issue{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at) VALUES (?, 'created', ?, ?)`, id, string(status), now); err != nil {
@@ -535,6 +568,43 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 		return Project{}, ErrProjectNotFound
 	}
 	return project, err
+}
+
+func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT key, name, next_number FROM teams ORDER BY key`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	teams := []Team{}
+	for rows.Next() {
+		var team Team
+		if err := rows.Scan(&team.Key, &team.Name, &team.NextNumber); err != nil {
+			return nil, err
+		}
+		teams = append(teams, team)
+	}
+	return teams, rows.Err()
+}
+
+// CreateTeam adds a team whose numbering starts at 1. Teams cannot be changed
+// or deleted.
+func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error) {
+	team := Team{Key: input.Key, Name: strings.TrimSpace(input.Name), NextNumber: 1}
+	if !teamKey.MatchString(team.Key) || team.Name == "" {
+		return Team{}, ErrInvalidTeam
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO teams(key, name, next_number) VALUES (?, ?, ?)`, team.Key, team.Name, team.NextNumber)
+	return team, err
+}
+
+func (s *Service) checkTeam(ctx context.Context, key string) error {
+	var found string
+	err := s.db.QueryRowContext(ctx, `SELECT key FROM teams WHERE key = ?`, key).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrTeamNotFound
+	}
+	return err
 }
 
 func (s *Service) checkReferences(ctx context.Context, project, parent *string) error {

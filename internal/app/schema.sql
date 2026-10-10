@@ -6,9 +6,19 @@ CREATE TABLE IF NOT EXISTS projects (
     archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1))
 );
 
+-- Each team numbers its own issues. A key is fixed once created, because it
+-- is the prefix of every identifier the team has issued.
+CREATE TABLE IF NOT EXISTS teams (
+    key TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    next_number INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS issues (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    identifier TEXT UNIQUE,
+    identifier TEXT NOT NULL UNIQUE,
+    team TEXT NOT NULL REFERENCES teams(key),
+    number INTEGER NOT NULL,
     title TEXT NOT NULL CHECK (length(trim(title)) > 0),
     description TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL CHECK (status IN ('triage', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
@@ -70,6 +80,7 @@ CREATE TABLE IF NOT EXISTS github_sync (
     last_updated_at TEXT NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS issues_team_number_idx ON issues(team, number);
 CREATE INDEX IF NOT EXISTS issues_status_updated_idx ON issues(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS issues_parent_idx ON issues(parent);
 CREATE INDEX IF NOT EXISTS events_issue_created_idx ON events(issue_id, created_at DESC);

@@ -4,11 +4,11 @@ import { parseArgs } from "node:util";
 
 const usage = `Usage: node scripts/browser/seed.mjs --url http://127.0.0.1:<port>
 
-Creates two Projects and eleven tickets through the server's /mcp endpoint:
-every status and type, a spec with two children, blocks, blocked_by and
-related relations, a link, and Markdown tables and code blocks in a
-description and a comment. Refuses to write when the server already has
-tickets. On a new database AL-2 is the spec that shows all of these.`;
+Creates team AL, two Projects, and eleven AL tickets through the server's
+/mcp endpoint: every status and type, a spec with two children, blocks,
+blocked_by and related relations, a link, and Markdown tables and code blocks
+in a description and a comment. Refuses to write when the server already has
+tickets. AL-2 is the spec that shows all of these.`;
 
 const { values } = parseArgs({ options: { url: { type: "string" }, help: { type: "boolean" } } });
 if (values.help) {
@@ -43,7 +43,7 @@ if (existing.issues.length > 0) {
 }
 
 async function issue(fields) {
-  const created = await call("create_issue", fields);
+  const created = await call("create_issue", { team: "AL", ...fields });
   console.log(`${created.identifier}\t${created.status}\t${created.type || "-"}\t${created.title}`);
   return created.identifier;
 }
@@ -91,6 +91,7 @@ const reviewComment = `Checked the gate against the open tickets:
 go test ./internal/app -run TestIssueLifecycle
 \`\`\``;
 
+await call("create_team", { key: "AL", name: "InfTask" });
 await call("create_project", { name: "Dogfooding v1", description: "Run InfTask as the tracker for its own development." });
 await call("create_project", { name: "Web polish", description: "Make the page pleasant to read and operate." });
 

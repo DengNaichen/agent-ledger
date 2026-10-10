@@ -9,7 +9,7 @@ import (
 )
 
 type identifierInput struct {
-	Identifier string `json:"identifier" jsonschema:"issue identifier using the configured prefix, such as AL-1"`
+	Identifier string `json:"identifier" jsonschema:"issue identifier <team key>-<number>, such as AL-1"`
 }
 
 type listOutput struct {
@@ -41,6 +41,10 @@ type projectsOutput struct {
 	Projects []app.Project `json:"projects"`
 }
 
+type teamsOutput struct {
+	Teams []app.Team `json:"teams"`
+}
+
 type createProjectInput struct {
 	Name        string `json:"name" jsonschema:"unique Project name"`
 	Description string `json:"description,omitempty" jsonschema:"the outcome this Project should deliver"`
@@ -58,7 +62,7 @@ func New(service *app.Service) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "inftask", Version: "0.1.0"}, nil)
 	const statuses = "Statuses: triage, todo, agent_ready, in_progress, in_review, done, canceled. "
 	const types = "Types: spec, feature, bug, improvement, chore; empty string means no type. "
-	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, newest updated first. All filters combine with AND; limit defaults to 50. " + statuses + types},
+	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, newest updated first. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ListIssues) (*mcp.CallToolResult, listOutput, error) {
 			issues, err := service.List(ctx, input)
 			return nil, listOutput{Issues: app.Summaries(issues)}, err
@@ -68,7 +72,7 @@ func New(service *app.Service) *mcp.Server {
 			issue, err := service.Details(ctx, input.Identifier)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_issue", Description: "Create an issue; title is required, status defaults to triage. Project and parent must already exist. " + statuses + types},
+	mcp.AddTool(server, &mcp.Tool{Name: "create_issue", Description: "Create an issue in a team; team and title are required, status defaults to triage. There is no default team: use the team key the repository names, or list_teams. The identifier is <team key>-<n>, where n is the team's next number. Project and parent must already exist. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Create(ctx, input)
 			return nil, issue, err
@@ -100,6 +104,16 @@ func New(service *app.Service) *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, input linkInput) (*mcp.CallToolResult, app.Link, error) {
 			link, err := service.AddLink(ctx, input.Identifier, input.Title, input.URL)
 			return nil, link, err
+		})
+	mcp.AddTool(server, &mcp.Tool{Name: "list_teams", Description: "List teams by key. Each team numbers its own issues <key>-<n>; next_number is the number its next issue gets."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, teamsOutput, error) {
+			teams, err := service.ListTeams(ctx)
+			return nil, teamsOutput{Teams: teams}, err
+		})
+	mcp.AddTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. A key cannot be changed, and teams cannot be renamed or deleted."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateTeam) (*mcp.CallToolResult, app.Team, error) {
+			team, err := service.CreateTeam(ctx, input)
+			return nil, team, err
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "list_projects", Description: "List Projects alphabetically; archived Projects are excluded unless include_archived is true."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input listProjectsInput) (*mcp.CallToolResult, projectsOutput, error) {

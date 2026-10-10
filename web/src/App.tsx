@@ -1,7 +1,7 @@
 import { Box, ChevronDown, Columns2, List, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
-import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect } from "./shared";
+import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect, Team } from "./shared";
 
 import { Session } from "./Session";
 
@@ -19,6 +19,7 @@ function App() {
   const [path, setPath] = useState(window.location.pathname);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const loadVersion = useRef(0);
   const [error, setError] = useState("");
@@ -78,13 +79,15 @@ function App() {
     labelFilter.labels.forEach((id) => params.append("label_id", String(id)));
     labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
     try {
-      const [issueData, projectData] = await Promise.all([
+      const [issueData, projectData, teamData] = await Promise.all([
         api<{ issues: Issue[] }>(`/api/issues?${params}`),
         api<{ projects: Project[] }>("/api/projects"),
+        api<{ teams: Team[] }>("/api/teams"),
       ]);
       if (version === loadVersion.current) {
         setIssues(issueData.issues);
         setProjects(projectData.projects);
+        setTeams(teamData.teams);
         setError("");
       }
     } catch (cause) {
@@ -323,14 +326,16 @@ function App() {
       </main>
 
       {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
-      {dialog === "new" && <NewIssueDialog status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
+      {dialog === "new" && <NewIssueDialog teams={teams} status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
     </div>
   );
 }
 
-function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status; project: string; onClose: () => void; onCreate: (issue: Issue) => void }) {
+function NewIssueDialog({ teams, status, project, onClose, onCreate }: { teams: Team[]; status: Status; project: string; onClose: () => void; onCreate: (issue: Issue) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
+  // The server has no default team; the dialog preselects the first one and always sends the choice.
+  const [team, setTeam] = useState(teams.length > 0 ? teams[0].key : "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -348,7 +353,7 @@ function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status
     setSaving(true);
     setError("");
     try {
-      onCreate(await api<Issue>("/api/issues", "POST", { title, description, status, project }));
+      onCreate(await api<Issue>("/api/issues", "POST", { team, title, description, status, project }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -365,6 +370,13 @@ function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status
         </header>
         <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required /></label>
         <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" /></label>
+        {teams.length > 0 ? (
+          <label>Team<select value={team} onChange={(event) => setTeam(event.target.value)}>
+            {teams.map((item) => <option key={item.key} value={item.key}>{item.key} · {item.name}</option>)}
+          </select></label>
+        ) : (
+          <p className="error" role="alert">No teams yet. Create one with the create_team MCP tool, then reopen this dialog.</p>
+        )}
         <p className="dialog-meta">
           <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
           {project && <span className="chip"><Box className="icon" />{project}</span>}
@@ -372,7 +384,7 @@ function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status
         {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="button primary" disabled={saving}>{saving ? "Creating…" : "Create issue"}</button>
+          <button type="submit" className="button primary" disabled={saving || !team}>{saving ? "Creating…" : "Create issue"}</button>
         </footer>
       </form>
     </dialog>
