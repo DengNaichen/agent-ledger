@@ -47,6 +47,106 @@ var migrations = []string{
 	CREATE UNIQUE INDEX issues_team_number_idx ON issues(team, number);
 	CREATE INDEX issues_status_updated_idx ON issues(status, updated_at DESC);
 	CREATE INDEX issues_parent_idx ON issues(parent);`,
+
+	// 2: references by id. Team keys are to become unique only within a
+	// workspace, so tables reference teams, projects, and issues by integer
+	// id. Issues, links, and comments keep their ids; teams and projects are
+	// numbered in creation order. Related rows kept issue < other as text,
+	// where 'AL-10' < 'AL-9', so they are reordered by id.
+	`CREATE TABLE teams_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		key TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
+		next_number INTEGER NOT NULL
+	);
+	INSERT INTO teams_new(key, name, next_number) SELECT key, name, next_number FROM teams ORDER BY rowid;
+	CREATE TABLE projects_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE,
+		description TEXT NOT NULL DEFAULT '',
+		archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1))
+	);
+	INSERT INTO projects_new(name, description, archived) SELECT name, description, archived FROM projects ORDER BY rowid;
+	CREATE TABLE issues_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		identifier TEXT NOT NULL UNIQUE,
+		team_id INTEGER NOT NULL REFERENCES teams(id),
+		number INTEGER NOT NULL,
+		title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+		description TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL CHECK (status IN ('triage', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+		type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
+		project_id INTEGER REFERENCES projects(id),
+		parent_id INTEGER REFERENCES issues(id) CHECK (parent_id <> id),
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	INSERT INTO issues_new(id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
+	SELECT id, identifier, (SELECT id FROM teams_new WHERE key = issues.team), number, title, description, status, type,
+		(SELECT id FROM projects_new WHERE name = issues.project), (SELECT p.id FROM issues p WHERE p.identifier = issues.parent),
+		created_at, updated_at
+	FROM issues;
+	CREATE TABLE relations_new (
+		issue_id INTEGER NOT NULL REFERENCES issues(id),
+		kind TEXT NOT NULL CHECK (kind IN ('blocks', 'related')),
+		other_id INTEGER NOT NULL REFERENCES issues(id),
+		PRIMARY KEY (issue_id, kind, other_id),
+		CHECK (issue_id <> other_id),
+		CHECK (kind <> 'related' OR issue_id < other_id)
+	);
+	INSERT INTO relations_new(issue_id, kind, other_id)
+	SELECT CASE kind WHEN 'related' THEN min(issue_id, other_id) ELSE issue_id END, kind,
+		CASE kind WHEN 'related' THEN max(issue_id, other_id) ELSE other_id END
+	FROM (SELECT (SELECT id FROM issues WHERE identifier = relations.issue) AS issue_id, kind,
+		(SELECT id FROM issues WHERE identifier = relations.other) AS other_id FROM relations);
+	CREATE TABLE links_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		issue_id INTEGER NOT NULL REFERENCES issues(id),
+		title TEXT NOT NULL,
+		url TEXT NOT NULL
+	);
+	INSERT INTO links_new(id, issue_id, title, url)
+	SELECT id, (SELECT id FROM issues WHERE identifier = links.issue), title, url FROM links;
+	CREATE TABLE comments_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		issue_id INTEGER NOT NULL REFERENCES issues(id),
+		body TEXT NOT NULL,
+		created_at TEXT NOT NULL
+	);
+	INSERT INTO comments_new(id, issue_id, body, created_at)
+	SELECT id, (SELECT id FROM issues WHERE identifier = comments.issue), body, created_at FROM comments;
+	CREATE TABLE issue_labels_new (
+		issue_id INTEGER NOT NULL REFERENCES issues(id),
+		label_id INTEGER NOT NULL REFERENCES labels(id),
+		PRIMARY KEY (issue_id, label_id)
+	);
+	INSERT INTO issue_labels_new(issue_id, label_id)
+	SELECT (SELECT id FROM issues WHERE identifier = issue_labels.issue), label_id FROM issue_labels;
+	DROP TABLE issue_labels;
+	DROP TABLE comments;
+	DROP TABLE links;
+	DROP TABLE relations;
+	DROP TABLE issues;
+	DROP TABLE projects;
+	DROP TABLE teams;
+	ALTER TABLE teams_new RENAME TO teams;
+	ALTER TABLE projects_new RENAME TO projects;
+	ALTER TABLE issues_new RENAME TO issues;
+	ALTER TABLE relations_new RENAME TO relations;
+	ALTER TABLE links_new RENAME TO links;
+	ALTER TABLE comments_new RENAME TO comments;
+	ALTER TABLE issue_labels_new RENAME TO issue_labels;
+	CREATE UNIQUE INDEX issues_team_number_idx ON issues(team_id, number);
+	CREATE INDEX issues_status_updated_idx ON issues(status, updated_at DESC);
+	CREATE INDEX issues_parent_idx ON issues(parent_id);
+	CREATE INDEX issue_labels_label_idx ON issue_labels(label_id, issue_id);
+	CREATE TRIGGER issue_labels_exclusive BEFORE INSERT ON issue_labels
+	WHEN EXISTS (
+		SELECT 1 FROM issue_labels il JOIN labels old ON old.id = il.label_id
+		JOIN labels incoming ON incoming.id = NEW.label_id
+		WHERE il.issue_id = NEW.issue_id AND old.group_id = incoming.group_id AND old.id <> incoming.id
+	)
+	BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {
