@@ -43,7 +43,7 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
 
 改动 UI 时用临时开发数据库，检查列表/看板切换、筛选下新建、状态选择和拖动、详情直达/刷新、编辑及评论失败后文本保留。共享样式还需核对 1024px、760px 两侧和窄屏，键盘焦点与原生 select/dialog。具体行为见 [交互](INTERACTION_DESIGN.md)。这些操作靠人工检查；下面的脚本只负责造数和截图。
 
-`scripts/browser/` 只用 Node 内置的 `fetch` 和 `WebSocket`，需要 Node 22 及以上，截图用 `/Applications/Google Chrome.app` 里的 Chrome。不要用 Chrome 命令行的 `--headless --screenshot`：在维护者的 Mac 上它写出 PNG 后进程不退出，会一直卡住。截图脚本改走 DevTools 协议。
+`scripts/browser/` 只用 Node 内置的 `fetch` 和 `WebSocket`，需要 Node 22 及以上，截图默认用 `/Applications/Google Chrome.app` 里的 Chrome，可用环境变量 `CHROME_PATH` 指向别的 Chrome 可执行文件；路径不存在或启动失败时脚本 exit 1，报错写出该路径。不要用 Chrome 命令行的 `--headless --screenshot`：在维护者的 Mac 上它写出 PNG 后进程不退出，会一直卡住。截图脚本改走 DevTools 协议。
 
 1. 按 [开发](DEVELOPMENT.md) 构建前端，检查端口后用临时库启动开发服务。没构建前端时页面返回 404。
 2. 造数：
@@ -67,6 +67,15 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
    EOF
    node scripts/browser/screenshot.mjs "$shots/shots.json"
    ```
+
+   每项还可加两个可选字段：`click` 是 CSS 选择器，页面网络空闲后点击该元素，等两帧再截图，匹配不到元素时 exit 1；`scale` 是设备像素比，默认 1。看板没有自己的 URL，用 `click` 切过去；14px 的状态图标用 `scale` 放大：
+
+   ```json
+   {"url": "http://127.0.0.1:<端口>/", "width": 1280, "height": 900, "path": "<目录>/board.png", "click": "nav[aria-label=\"Issue view\"] button:nth-child(2)"},
+   {"url": "http://127.0.0.1:<端口>/", "width": 800, "height": 600, "path": "<目录>/zoom.png", "scale": 4}
+   ```
+
+   `scale` 为 4 时 800x600 的视口输出 3200x2400 的 PNG。等待 DevTools 启动和每一项的 `networkIdle` 各最多 30 秒，超时 exit 1，报错写明在等什么；页面一直有请求不结束时就会超时。
 
    脚本用临时 profile 启动 headless Chrome，DevTools 端口由 Chrome 自选。每项按给定宽高加载页面，等网络空闲后截取视口并打印输出路径；输出目录必须已存在。结束或出错时关闭 Chrome、删除 profile。多个 agent 各用自己的服务端口，可以同时运行。
 4. 逐张打开截图核对内容。只截视口，要看下方内容就加大 `height`。截图只证明该宽度下的渲染结果，不证明点击、拖动、键盘和失败恢复。
