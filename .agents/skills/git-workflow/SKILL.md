@@ -25,7 +25,7 @@ description: "Branches, worktrees, commits, pull requests, merging, and cleanup 
 ## Commits and pull requests
 
 - Commit messages are `AL-<number> <imperative sentence>`, with a first line of at most 72 characters. Stage files by name; do not use `git add -A` or `git add .`.
-- Run `go vet ./...` and `make test` before pushing.
+- Run `go vet ./...` and `make test` before pushing. When every file listed by `git diff --name-only origin/main...HEAD` ends in `.md`, skip both and run the documentation checks instead: relative links and paths exist, and commands match the Makefile, package manifest, and source. When you changed a skill under `.agents/skills/`, also run the skill validation. Both are described in [validation](../../../docs/VALIDATION.md).
 - Push a new branch with `git push -u origin <branch>`. A branch created from `origin/main` tracks `origin/main`; `-u` makes it track its own remote branch.
 - The pull request title is `AL-<number> <Chinese title>` and its base is `main`. The body states what was delivered, risks, and the verification actually run with exit codes. Do not paste the whole ticket or raw logs.
 - Merge with `gh pr merge --merge`, never squash or rebase, and only when the user authorized the merge and checks pass.

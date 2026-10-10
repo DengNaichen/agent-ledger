@@ -30,7 +30,11 @@ Check every item before setting `agent_ready`:
 - Scope names file or directory paths, and a non-goals section blocks scope creep.
 - Every scope item points to a file, function, or behavior that exists. Check it on `main` before writing.
 - `Red`: the smallest rerunnable check that fails on the current `main` and passes after the change. When you cannot write one, narrow the ticket first.
+- When `Red` is a new test, it cannot fail on `main`, where it does not exist yet: `go test -run <name>` exits 0 with `[no tests to run]`. Say so in the ticket, and have the executor add the test first and run it against the unchanged code, checking the output for `--- FAIL`, before making the change.
 - Every acceptance item can be rerun by a reviewer. `Red` and acceptance name the exact test name, command, or grep pattern. Never "confirm it works", and never "such as" or "for example" ("如……", "例如……").
+- Every acceptance item gives different results before and after the change. A check that already passes on `main` cannot be an acceptance item on its own.
+- When acceptance depends on a file or tool outside the repository, state the prerequisite: the path or the tool.
+- When a check needs a new worktree, name the commit or branch to create it from.
 - Non-goals do not conflict with acceptance. When acceptance requires a narrow-screen screenshot, a non-goal cannot say "no layout changes".
 
 ## Body
@@ -67,4 +71,4 @@ Record ticket, status `triage`, no Project, no type:
 - Each child is a self-contained one-pull-request leaf.
 - `parent` means ownership; `blocks` / `blocked_by` means required order; `related` covers anything else. Add no relation when order does not matter, and no intermediate parents for grouping by layer or component.
 - `agent_ready` tickets that change the same files are ordered with `blocks` and never executed in parallel.
-- Work that changes `AGENTS.md`, `docs/`, or `.agents/skills/` runs between batches of tickets. Do not merge it while another ticket is being executed.
+- Work whose purpose is to change rules or workflow in `AGENTS.md`, `docs/`, or `.agents/skills/` runs between batches of tickets. Do not merge it while another ticket is being executed. Updating the document that owns a fact together with the code change, such as `docs/DEVELOPMENT.md` or `docs/DESIGN_SYSTEM.md`, is not restricted.
