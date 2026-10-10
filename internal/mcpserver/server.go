@@ -116,5 +116,6 @@ func New(service *app.Service) *mcp.Server {
 			project, err := service.UpdateProject(ctx, input)
 			return nil, project, err
 		})
+	addLabelTools(server, service)
 	return server
 }

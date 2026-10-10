@@ -8,6 +8,8 @@
 
 ## 图标
 
+标签使用 `shared.tsx` 的 `LabelBadge`：颜色仅用于小圆点，文字沿用主题 token；长名称截断，title 显示完整名称和描述，归档标记单独展示。管理页和选择器样式集中在 `app.css` 的标签区块。
+
 界面图标来自 `lucide-react`（ISC 许可）。组件写 `className="icon"`，尺寸和描边由 `.icon` 统一设为 16px、1.5，不在组件上传 `size` 或 `strokeWidth`。现有对应：`List` 是全部 issue 和列表视图，`Columns2` 是看板视图，`Box` 是 Project，`ChevronDown` 是分组折叠，`Search` 是搜索，`Tag` 是 type 筛选，`X` 是清除筛选和关闭弹窗。lucide 在没有 accessible name 时自动加 `aria-hidden`；只有图标的按钮在按钮上写 `aria-label`。
 
 状态图标由 `shared.tsx` 的 `StatusIcon` 在 14×14 网格上自绘，按 14px 显示，不用 lucide，也不从其他项目复制代码。形状和颜色都写在组件里。颜色参照 Linear 的状态配色：todo、in_progress、done 按 Linear 截图取色；triage、in_review、canceled 的取值没有找到公开来源核实；agent_ready 在 Linear 没有对应状态，用自定的紫色。

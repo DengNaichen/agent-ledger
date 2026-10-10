@@ -19,6 +19,7 @@ make test
 | --- | --- | --- |
 | Service、输入、关系 | `go test ./internal/app -run TestIssueLifecycle` | 真实临时 SQLite 上的生命周期与业务规则 |
 | schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚 |
+| 标签、互斥组、筛选与已有库安装 | `go test ./internal/app -run 'TestLabels\|TestLabelFilters\|TestLabelUpgrade'` | 真实 SQLite 上的互斥、幂等、批量回滚、归档、合并、筛选与旧数据保留 |
 | 备份 | `go test ./internal/app -run TestBackup` | 每日副本与保留行为 |
 | REST 读写、跨站边界 | `go test ./internal/httpapi` | httptest 请求、临时数据库、跨站 POST 被拒绝 |
 | MCP 工具契约 | `go test ./internal/mcpserver` | MCP 客户端经 HTTP 执行工作流和非法输入 |
