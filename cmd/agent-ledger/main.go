@@ -30,7 +30,24 @@ func main() {
 	}
 	defer service.Close()
 
+	go backupDaily(ctx, service)
 	serve(ctx, *addr, service)
+}
+
+func backupDaily(ctx context.Context, service *app.Service) {
+	for {
+		path, err := service.Backup(ctx)
+		if err != nil {
+			log.Printf("backup failed: %v", err)
+		} else if path != "" {
+			log.Printf("backed up to %s", path)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Hour):
+		}
+	}
 }
 
 func serve(ctx context.Context, addr string, service *app.Service) {

@@ -37,7 +37,13 @@ Before finishing, go through every new `if`, `try`/`catch`, `?.`, and `??` in th
 
 ## Schema
 
-The instance holds real data, so no change may require deleting the database. Add tables with `CREATE TABLE IF NOT EXISTS`. Changing an existing table needs an `ALTER TABLE` applied at startup.
+The instance holds real data, so no change may require deleting the database.
+
+- `internal/app/schema.sql` always describes the current shape. New databases are created from it and skip all migrations.
+- Add a new table there with `CREATE TABLE IF NOT EXISTS`.
+- To change an existing table, update `schema.sql` and append a migration to `migrations` in `internal/app/migrate.go` that upgrades an existing database. Never edit a migration that has shipped.
+- Changing a `CHECK` constraint, such as adding a status, means rebuilding the table: create the new table, copy the rows, drop the old one, rename. Foreign keys are off while migrations run, and a migration that leaves violations is rolled back.
+- The server copies the database to `backups/before-migration-<n>.db` before running migration `n`.
 
 ## Updating the instance
 
