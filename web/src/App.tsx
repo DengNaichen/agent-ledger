@@ -249,7 +249,7 @@ function App() {
                       <NavLink to={`/issue/${issue.identifier}`} className="identifier">{issue.identifier}</NavLink>
                       <NavLink to={`/issue/${issue.identifier}`} className="list-title">{issue.title}</NavLink>
                       <IssueMeta issue={issue} />
-                      <time className="row-date" dateTime={issue.updatedAt}>{new Date(issue.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+                      <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
                     </article>
                   ))}
                 </div>

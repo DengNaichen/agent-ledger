@@ -142,3 +142,24 @@ func TestReadIssueDetails(t *testing.T) {
 		t.Fatalf("unexpected projects: %#v", projects)
 	}
 }
+
+func TestIssueJSONUsesSnakeCase(t *testing.T) {
+	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	issue, err := service.Create(context.Background(), app.CreateIssue{Title: "Timestamps"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	New(service, http.NotFoundHandler(), http.NotFoundHandler()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/issues/"+issue.Identifier, nil))
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["updated_at"] == nil || body["created_at"] == nil || body["updatedAt"] != nil || body["createdAt"] != nil {
+		t.Fatalf("timestamp keys are not snake_case: %s", rec.Body)
+	}
+}

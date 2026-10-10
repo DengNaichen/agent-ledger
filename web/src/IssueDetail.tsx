@@ -62,9 +62,9 @@ export function IssueDetail({ identifier, setError, editing, closeEditor }: { id
       <dt>Parent</dt>
       <dd>{issue.parent ? <NavLink to={`/issue/${issue.parent}`}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd>
       <dt>Created</dt>
-      <dd>{timestamp(issue.createdAt)}</dd>
+      <dd>{timestamp(issue.created_at)}</dd>
       <dt>Updated</dt>
-      <dd>{timestamp(issue.updatedAt)}</dd>
+      <dd>{timestamp(issue.updated_at)}</dd>
     </dl>
   );
 
