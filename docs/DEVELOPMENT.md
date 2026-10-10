@@ -33,7 +33,7 @@ go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 永远不用 8700，也不要为了开发终止别人或维护者实例的进程。
 
-前端热更新另开终端运行 `npm --prefix web run dev`，访问 Vite 打印的地址。只有 `/api` 代理（写在 `web/vite.config.ts`），目标默认是 `http://127.0.0.1:8787`；开发服务换了端口时用环境变量 `INFTASK_API_URL` 指向它，例如 `INFTASK_API_URL=http://127.0.0.1:8791 npm --prefix web run dev`；不要假设 Vite 提供 `/mcp`。默认开发无需 GitHub token；仅测试 GitHub 集成时才配置对应参数，行为边界见 [安全](rules/SECURITY.md)。
+前端热更新另开终端运行 `npm --prefix web run dev`，访问 Vite 打印的地址。只有 `/api` 和 `/auth` 代理（写在 `web/vite.config.ts`），目标默认是 `http://127.0.0.1:8787`；开发服务换了端口时用环境变量 `INFTASK_API_URL` 指向它，例如 `INFTASK_API_URL=http://127.0.0.1:8791 npm --prefix web run dev`；不要假设 Vite 提供 `/mcp`。默认开发无需 GitHub token；仅测试 GitHub 集成时才配置对应参数，行为边界见 [安全](rules/SECURITY.md)。
 
 页面看起来仍是旧版时，区分 Vite 与 Go 嵌入页面：后者需重新构建并重启自己启动的开发进程。数据库升级/恢复失败的处理见 [可靠性](rules/RELIABILITY.md)。
 
@@ -80,3 +80,53 @@ launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.inftask
 ```
 
 分支与工作树的清理顺序见 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。上述安装和重启不是本地验证的前置条件。
+
+
+## 云端团队部署
+
+第一版是一个进程、一份 SQLite、一个共享看板。所有通过配置的 InfOne UC 登录的用户都有现有全部操作权限；不复用 HarnessKit workspace membership。网页登录与远程 MCP 参考 `go-backend/backend/internal/transport/httpapi/web_auth.go`、`mcp_oauth.go`，但使用 InfTask 独立的 cookie 和进程内状态。部署平台与域名由运维提供。
+
+### 服务端配置
+
+| 环境变量 | 含义 |
+| --- | --- |
+| `INFTASK_PUBLIC_URL` | 外部 HTTPS origin，不带路径，回调固定为该地址加 `/auth/callback` |
+| `INFONE_UC_BASE_URL` | UC 的 HTTPS origin；authorize/token/userinfo 使用 `/user_center/v1/oauth2/` 下的入口 |
+| `INFONE_UC_CLIENT_ID` | 暂时使用现有 HarnessKit 的 UC client ID |
+| `INFONE_UC_CLIENT_SECRET` | 对应 secret，只注入服务端环境，不写入源码或前端 |
+| `INFONE_SHARE_DIR` | 内含 `infone.pub` 的目录；文件必须是单个 PKIX `PUBLIC KEY` PEM，支持 RSA/RS256 或 P-256/ES256 |
+| `INFONE_UC_JWT_ISSUER` | 可选；配置后严格检查 `iss`。当前 UC token 可以没有 `iss`，信任根是配置的公钥 |
+| `GITHUB_TOKEN` | 已配置 repository 的 PR 读取凭据 |
+| `GITHUB_WEBHOOK_SECRET` | webhook HMAC secret，和 UC client secret 不同；未配置时不挂载 webhook 路由 |
+
+UC 地址与外部地址只允许 HTTPS；本地假 UC 验证允许 loopback HTTP。所有 UC 配置都未设置时保留本地无认证模式，但只能监听 loopback；任何部分配置都必须补齐，不能静默降级成无认证。云端反向代理必须保留外部 Host，避免破坏已有同源写入检查。
+
+在 UC 对当前 client 登记精确的 `https://<域名>/auth/callback`。网页跳转 UC 后由 Go 后端换 token、验证签名、`client_id`、`type=access`、过期时间和 userinfo subject，随后发放 InfTask 的 opaque HttpOnly cookie。共享 client 意味着两个产品无法仅凭 UC token 区分用户最初在哪个产品登录；独立 client 可后续替换配置。
+
+### 容器与 HTTPS
+
+前提：Docker Engine、Compose 插件、解析到部署主机的域名、开放 80/443、UC 配置和可读的验证公钥。不要在维护者实例上试部署。将变量放入仓库外受保护的环境文件（权限 `0600`），Compose 另需 `INFTASK_DOMAIN` 和 `GITHUB_REPO=owner/name`；`INFONE_SHARE_DIR` 是宿主的公钥目录。环境文件不要提交。
+
+```sh
+docker compose --env-file /secure/inftask.env -f deploy/compose.yaml config --quiet
+docker compose --env-file /secure/inftask.env -f deploy/compose.yaml build
+docker compose --env-file /secure/inftask.env -f deploy/compose.yaml up -d
+```
+
+Caddy 自动申请证书并反向代理到容器内部 8787；app 不向宿主发布 8787。`/api/health` 公开且只返回健康状态；`/webhooks/github` 通过 GitHub 签名认证；其他业务入口需要 UC 身份或网页会话。镜像以 UID 10001 运行，数据库和 `backups` 都在 `/data` 命名卷中。每日备份仍是同一磁盘上的一致性快照，不能抵御卷丢失，应将已完成的日期备份另行复制到异地存储。
+
+更新前先保留卷和可恢复的日期备份，再重新构建并 `up -d`；不得运行删除卷的命令。恢复步骤：停止 app，保留现有数据库和 WAL/SHM 供调查，将选定一致性备份恢复为 `/data/inftask.db`，清理该库对应的旧 WAL/SHM，确保 UID 10001 可读写，再启动。备份恢复遵循 [可靠性](rules/RELIABILITY.md)。旧版程序回滚前需核对 schema 兼容性，不直接对已升级数据库运行旧二进制。
+
+网页登录会话有效期 8 小时；注销立即撤销本地会话。重启会清空会话、待完成登录和 MCP 授权码，用户需重登；已经发给 MCP 的 UC token 仍按自身有效期使用。此设计只支持单实例。UC 禁用账号不会立即撤销既有本地会话或离线验证的 access token；下一次登录/refresh 由 UC 决定是否允许。
+
+### 远程 MCP
+
+云端 `/mcp` 不接受网页 cookie，只接受有效 UC access token。未认证响应带 `WWW-Authenticate` 指向 `/.well-known/oauth-protected-resource/mcp`；对应授权服务器 metadata 是 `/.well-known/oauth-authorization-server`。
+
+MCP host 配置服务 URL `https://<域名>/mcp`、public client ID `inftask`（与后端使用的 UC client ID 不同），使用 Authorization Code + S256 PKCE；本版不提供动态 client 注册。授权请求必须带精确 `resource=https://<域名>/mcp`，callback 只接受带端口的 `http://127.0.0.1`、`http://[::1]` 或 `http://localhost` URL，不接受 query 或 fragment。后端将其转到 UC 的固定网页回调。公网托管 MCP host 的 HTTPS callback 不在本版范围。
+
+后端的 `/mcp/oauth/token` 接受 form-urlencoded：code grant 必须有 `grant_type`、`client_id`、`resource`、`code`、`redirect_uri`、`code_verifier`；refresh grant 必须有 `grant_type`、`client_id`、`resource`、`refresh_token`。重复、额外或空字段被拒绝。后端只在短期内存 grant 中保存 UC token，完成 PKCE 校验后将 access/refresh token 交给 host；secret 不交给 host。直接持有合法 access token 的客户端也可用 `Authorization: Bearer ...` 访问 REST/MCP。
+
+### 验证边界
+
+`go test ./internal/ucauth ./internal/httpapi ./internal/app ./cmd/inftask` 覆盖假 UC、签名、回调绑定、PKCE、注销、入口保护和 webhook 验签；不证明真实 UC 公钥/client/回调匹配。上线验收还需真实 UC 浏览器登录与退出、远程 MCP host 的 tool call 和 refresh、GitHub Delivery 成功，以及临时卷上的重启保留与备份恢复。不得以构建成功代替这些检查。

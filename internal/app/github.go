@@ -19,9 +19,8 @@ const (
 	gitHubPageSize     = 100
 )
 
-// GitHubSync polls pull requests, because webhooks cannot reach a server that
-// listens on localhost. A pull request whose branch or title names an issue is
-// recorded on it and moves it forward.
+// GitHubSync polls pull requests and coalesces webhook-triggered refreshes.
+// All reads and linkbacks run in the same worker.
 type GitHubSync struct {
 	service  *Service
 	repos    []string
@@ -29,12 +28,14 @@ type GitHubSync struct {
 	linkback bool
 	baseURL  string
 	pattern  *regexp.Regexp
+	wake     chan struct{}
 }
 
 func NewGitHubSync(service *Service, repos []string, token string, linkback bool) *GitHubSync {
 	return &GitHubSync{
 		service: service, repos: repos, token: token, linkback: linkback,
 		baseURL: "https://api.github.com",
+		wake:    make(chan struct{}, 1),
 		pattern: regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(service.prefix) + `-(\d+)`),
 	}
 }
@@ -73,6 +74,7 @@ func (g *GitHubSync) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(gitHubSyncInterval):
+		case <-g.wake:
 		}
 	}
 }
@@ -207,4 +209,17 @@ func (g *GitHubSync) request(ctx context.Context, method, path string, body io.R
 		return fmt.Errorf("%s %s: %s", method, path, resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// Notify schedules a refresh only for a configured repository. Multiple pending
+// deliveries coalesce; polling recovers notifications lost during a restart.
+func (g *GitHubSync) Notify(repo string) bool {
+	if !slices.Contains(g.repos, repo) {
+		return false
+	}
+	select {
+	case g.wake <- struct{}{}:
+	default:
+	}
+	return true
 }

@@ -1,7 +1,9 @@
 import { Box, ChevronDown, Columns2, List, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
-import { api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect } from "./shared";
+import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect } from "./shared";
+
+import { Session } from "./Session";
 
 import { emptyLabelFilter, LabelFilter, LabelFilterValue, LabelManager, LabelPicker, useLabels } from "./Labels";
 
@@ -108,7 +110,9 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!response.ok) throw new Error("Could not move issue");
+      if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
+      if (response.ok) window.dispatchEvent(new Event("session-active"));
+      if (!response.ok) throw new Error(response.status === 401 ? "unauthorized" : "Could not move issue");
       const updated = (await response.json()) as Issue;
       setIssues((current) => current.map((issue) => (issue.identifier === identifier ? updated : issue)));
     } catch (cause) {
@@ -125,6 +129,7 @@ function App() {
           <strong>InfTask</strong>
         </div>
 
+        <Session />
         <div className="sidebar-label">Workspace</div>
         <button type="button" className={`nav-item ${filter === "all" && !project && !managingLabels ? "active" : ""}`} aria-pressed={filter === "all" && !project && !managingLabels} onClick={() => selectFilter("all", "")}>
           <List className="icon" />
@@ -153,7 +158,7 @@ function App() {
           ))}
         </div>
 
-        <div className="sidebar-footer"><span /> Local workspace</div>
+        <div className="sidebar-footer"><span /> Shared workspace</div>
       </aside>
 
       <main className="panel">
@@ -229,7 +234,7 @@ function App() {
           </div>
         )}
 
-        {error && <p className="error" role="alert">{error}</p>}
+        {error && <RequestError message={error} />}
 
         {!detailIdentifier && !managingLabels && <div className="label-bulk-bar"><button className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button>{selectedVisible.length > 0 && <><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></>}</div>}
         {managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
@@ -364,7 +369,7 @@ function NewIssueDialog({ status, project, onClose, onCreate }: { status: Status
           <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
           {project && <span className="chip"><Box className="icon" />{project}</span>}
         </p>
-        {error && <p className="error" role="alert">{error}</p>}
+        {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" onClick={onClose}>Cancel</button>
           <button type="submit" className="button primary" disabled={saving}>{saving ? "Creating…" : "Create issue"}</button>

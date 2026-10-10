@@ -2,17 +2,22 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/DengNaichen/inftask/internal/app"
 	"github.com/DengNaichen/inftask/internal/httpapi"
 	"github.com/DengNaichen/inftask/internal/mcpserver"
+	"github.com/DengNaichen/inftask/internal/ucauth"
 	webui "github.com/DengNaichen/inftask/internal/web"
 )
 
@@ -32,6 +37,15 @@ func main() {
 		log.Fatal("GITHUB_TOKEN is required with -github-repo")
 	}
 
+	auth, err := cloudAuth(*addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	webhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
+	if webhookSecret != "" && len(repos) == 0 {
+		log.Fatal("GITHUB_WEBHOOK_SECRET requires at least one -github-repo")
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -42,10 +56,21 @@ func main() {
 	defer service.Close()
 
 	go backupDaily(ctx, service)
-	if len(repos) > 0 {
-		go app.NewGitHubSync(service, repos, token, *linkback).Run(ctx)
+	handler := httpapi.New(service, webui.Handler(), mcpserver.Handler(service))
+	if auth != nil {
+		handler = auth.Handler(handler)
 	}
-	serve(ctx, *addr, service)
+	if len(repos) > 0 {
+		sync := app.NewGitHubSync(service, repos, token, *linkback)
+		go sync.Run(ctx)
+		if webhookSecret != "" {
+			mux := http.NewServeMux()
+			mux.Handle("POST /webhooks/github", httpapi.GitHubWebhook(sync, webhookSecret))
+			mux.Handle("/", handler)
+			handler = mux
+		}
+	}
+	serve(ctx, *addr, handler)
 }
 
 func backupDaily(ctx context.Context, service *app.Service) {
@@ -64,10 +89,10 @@ func backupDaily(ctx context.Context, service *app.Service) {
 	}
 }
 
-func serve(ctx context.Context, addr string, service *app.Service) {
+func serve(ctx context.Context, addr string, handler http.Handler) {
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(service, webui.Handler(), mcpserver.Handler(service)),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -82,4 +107,24 @@ func serve(ctx context.Context, addr string, service *app.Service) {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func cloudAuth(addr string) (*ucauth.Auth, error) {
+	cfg := ucauth.Config{
+		BaseURL: os.Getenv("INFONE_UC_BASE_URL"), ClientID: os.Getenv("INFONE_UC_CLIENT_ID"), ClientSecret: os.Getenv("INFONE_UC_CLIENT_SECRET"),
+		PublicURL: os.Getenv("INFTASK_PUBLIC_URL"), Issuer: os.Getenv("INFONE_UC_JWT_ISSUER"),
+	}
+	share := os.Getenv("INFONE_SHARE_DIR")
+	if cfg.BaseURL == "" && cfg.ClientID == "" && cfg.ClientSecret == "" && cfg.PublicURL == "" && cfg.Issuer == "" && share == "" {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil || !(strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback()) {
+			return nil, errors.New("UC authentication is required for a non-loopback listener")
+		}
+		return nil, nil
+	}
+	if share == "" {
+		return nil, errors.New("INFONE_SHARE_DIR is required for UC authentication")
+	}
+	cfg.PublicKeyPath = filepath.Join(share, "infone.pub")
+	return ucauth.New(cfg)
 }

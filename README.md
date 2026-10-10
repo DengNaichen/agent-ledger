@@ -1,6 +1,6 @@
 # InfTask
 
-A local, agent-first delivery board: one Go process, one SQLite file, one React Kanban.
+An agent-first delivery board for local use or a shared cloud instance: one Go process, one SQLite file, one React Kanban.
 
 ## Run
 
@@ -24,7 +24,7 @@ For frontend hot reload, keep the Go server running and start:
 npm --prefix web run dev
 ```
 
-The Vite server proxies `/api` to the Go server.
+The Vite server proxies `/api` and `/auth` to the Go server.
 
 ## Data and backups
 
@@ -34,7 +34,7 @@ To restore, stop the server, delete the database's `-wal` and `-shm` files, copy
 
 ## GitHub pull requests
 
-The server can link GitHub pull requests to issues. It listens only on localhost, where GitHub webhooks cannot reach it, so it polls each repository once a minute:
+The server can link GitHub pull requests to issues. It polls each repository once a minute; cloud deployments can also trigger immediate refreshes through a signed webhook:
 
 ```sh
 GITHUB_TOKEN=$(gh auth token) inftask -github-repo owner/name -github-repo owner/other
@@ -47,6 +47,14 @@ GITHUB_TOKEN=$(gh auth token) inftask -github-repo owner/name -github-repo owner
 - Each sync reads pull requests by most recent update and stops at the first one updated before the previous sync; the first sync reads them all. A repository that fails is logged and read again in the next round.
 
 `-github-linkback` (off by default) comments on an open or draft pull request the first time it is linked to an existing issue: the identifier and title in bold, then the issue description in a collapsed `<details>` block. **This copies the issue's title and description into GitHub, where everyone who can see the repository can read them; on a public repository that is everyone.** Merged and closed pull requests get no comment, so the first sync does not comment on old pull requests. Linkback needs a token that can comment on pull requests.
+
+Set `GITHUB_WEBHOOK_SECRET` to enable `POST /webhooks/github`; at least one `-github-repo` is required. Configure GitHub to send `pull_request` events as JSON to that path over HTTPS, with the same webhook secret. Valid deliveries for configured repositories schedule a serial refresh through the existing sync worker. Pending notifications coalesce; the payload itself never writes PR state. Polling recovers downtime and failed reads. A `202` means scheduled, not that the ticket has already changed.
+
+## Cloud team instance
+
+The cloud instance uses InfOne UC for sign-in. All authenticated UC users share the same board and can use all existing operations. There are no workspace roles or tenant isolation. The UC client may temporarily be the existing HarnessKit client; configure it on the backend rather than copying credentials into this repository.
+
+See [cloud deployment and recovery](docs/DEVELOPMENT.md#云端团队部署) for configuration, Compose, and the remote MCP OAuth contract. Deployment artifacts are [Dockerfile](Dockerfile), [Compose](deploy/compose.yaml), and [Caddyfile](deploy/Caddyfile). The single instance keeps SQLite on a persistent volume; it is not a multi-replica deployment.
 
 ## MCP
 
@@ -78,7 +86,7 @@ codex mcp add inftask --url http://127.0.0.1:8787/mcp
 claude mcp add --transport http inftask http://127.0.0.1:8787/mcp
 ```
 
-The server binds to loopback by default and wraps requests in Go cross-origin protection. There is no separate local `Host` allowlist or user authentication layer; see [security boundaries](docs/rules/SECURITY.md).
+The server binds to loopback by default and wraps requests in Go cross-origin protection. Local mode has no separate `Host` allowlist or user authentication. Non-loopback listeners require UC authentication; see [security boundaries](docs/rules/SECURITY.md).
 
 ## Run as a macOS LaunchAgent
 

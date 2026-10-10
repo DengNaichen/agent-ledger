@@ -310,3 +310,5 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
  .label-dialog form, .label-dialog-body { padding-inline: 16px; }
  .label-dialog > header { padding-inline: 16px; }
 }
+.session-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.session-bar a { color: var(--accent); }

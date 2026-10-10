@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { api, Label, LabelBadge, LabelGroup } from "./shared";
+import { api, Label, LabelBadge, LabelGroup, RequestError } from "./shared";
 
 export function useLabels() {
   const [labels, setLabels] = useState<Label[]>([]);
@@ -165,9 +165,7 @@ export function LabelPicker({
           {options.length === 0 && <p className="empty">No matching labels. Create labels in Labels settings.</p>}
         </div>
         {(error || catalog.error) && (
-          <p className="error" role="alert">
-            {error || catalog.error}
-          </p>
+          <RequestError message={error || catalog.error} />
         )}
         <footer>
           <button type="button" className="button" onClick={onClose}>
@@ -275,9 +273,7 @@ export function LabelFilter({
               </>
             )}
             {catalog.error && (
-              <p className="error" role="alert">
-                {catalog.error}
-              </p>
+              <RequestError message={catalog.error} />
             )}
             <footer>
               <button
@@ -337,9 +333,7 @@ export function LabelManager({ catalog, onMerged }: { catalog: Catalog; onMerged
         </button>
       </div>
       {catalog.error && (
-        <p className="error" role="alert">
-          {catalog.error}
-        </p>
+        <RequestError message={catalog.error} />
       )}
       {[{ id: 0, name: "Ungrouped" }, ...catalog.groups].map((group) => (
         <section className="label-section" key={group.id}>
@@ -451,9 +445,7 @@ function LabelEditor({ label, catalog, onClose }: { label: Label | "new"; catalo
           </label>
         )}
         {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
+          <RequestError message={error} />
         )}
         <footer>
           <button type="button" className="button" onClick={onClose}>
@@ -494,9 +486,7 @@ function GroupEditor({ group, catalog, onClose }: { group: LabelGroup | "new"; c
         </label>
         <p className="label-help">Each issue can have only one label from this group.</p>
         {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
+          <RequestError message={error} />
         )}
         <footer>
           <button className="button primary" disabled={busy}>
@@ -557,9 +547,7 @@ function MergeEditor({
           </select>
         </label>
         {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
+          <RequestError message={error} />
         )}
         <footer>
           <button type="button" className="button" onClick={onClose}>

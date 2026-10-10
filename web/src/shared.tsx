@@ -57,6 +57,8 @@ export type Project = { name: string; description: string; archived: boolean };
 
 export async function api<T>(path: string, method = "GET", body?: object): Promise<T> {
   const response = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
+  if (response.ok) window.dispatchEvent(new Event("session-active"));
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
   return result;
@@ -137,4 +139,8 @@ export function IssueMeta({ issue }: { issue: { type: string | null; project: st
 
 export function LabelBadge({ label }: { label: Label }) {
  return <span className="label-badge" title={`${label.name}${label.archived ? " (archived)" : ""}${label.description ? ` — ${label.description}` : ""}`}><span className="label-dot" style={{ backgroundColor: label.color }} /><span>{label.name}</span>{label.archived && <small>archived</small>}</span>;
+}
+
+export function RequestError({ message }: { message: string }) {
+  return <p className="error" role="alert">{message === "unauthorized" ? <>Your session expired. <a href="/auth/login" target="_blank" rel="noopener noreferrer">Sign in again</a>, then retry. Your text stays here.</> : message}</p>;
 }
