@@ -46,12 +46,12 @@ func TestBackupKeepsOneCopyPerDay(t *testing.T) {
 	if len(daily) != backupsKept || filepath.Base(daily[0]) != "daily-2026-10-08.db" {
 		t.Fatalf("daily backups = %v", daily)
 	}
-	copy, err := Open(daily[len(daily)-1], "AL")
+	restored, err := Open(daily[len(daily)-1], "AL")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer copy.Close()
-	if issues, err := copy.List(ctx, ListIssues{}); err != nil || len(issues) != 1 {
+	defer restored.Close()
+	if issues, err := restored.List(ctx, ListIssues{}); err != nil || len(issues) != 1 {
 		t.Fatalf("issues in backup = %#v, err = %v", issues, err)
 	}
 }
