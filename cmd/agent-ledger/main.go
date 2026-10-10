@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -19,7 +20,17 @@ func main() {
 	data := flag.String("data", "agent-ledger.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
 	prefix := flag.String("prefix", "AL", "Issue identifier prefix")
+	var repos []string
+	flag.Func("github-repo", "Sync pull requests from this GitHub repository, as owner/name (repeatable; needs GITHUB_TOKEN)", func(repo string) error {
+		repos = append(repos, repo)
+		return nil
+	})
+	linkback := flag.Bool("github-linkback", false, "Comment the issue title and description on open pull requests when they are first linked")
 	flag.Parse()
+	token := os.Getenv("GITHUB_TOKEN")
+	if len(repos) > 0 && token == "" {
+		log.Fatal("GITHUB_TOKEN is required with -github-repo")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -31,6 +42,9 @@ func main() {
 	defer service.Close()
 
 	go backupDaily(ctx, service)
+	if len(repos) > 0 {
+		go app.NewGitHubSync(service, repos, token, *linkback).Run(ctx)
+	}
 	serve(ctx, *addr, service)
 }
 
