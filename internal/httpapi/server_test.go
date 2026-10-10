@@ -163,3 +163,37 @@ func TestIssueJSONUsesSnakeCase(t *testing.T) {
 		t.Fatalf("timestamp keys are not snake_case: %s", rec.Body)
 	}
 }
+
+func TestListIssuesFiltersByQueryAndType(t *testing.T) {
+	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	for _, input := range []app.CreateIssue{
+		{Title: "Crash on login", Type: "bug"},
+		{Title: "Search box", Description: "Find issues by keyword", Type: "feature"},
+		{Title: "Release notes"},
+	} {
+		if _, err := service.Create(context.Background(), input); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := New(service, http.NotFoundHandler(), http.NotFoundHandler())
+	for _, tc := range []struct{ query, want string }{
+		{"query=keyword", "Search box"},
+		{"type=bug", "Crash on login"},
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/issues?"+tc.query, nil))
+		var listed struct {
+			Issues []app.Issue `json:"issues"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+			t.Fatal(err)
+		}
+		if len(listed.Issues) != 1 || listed.Issues[0].Title != tc.want {
+			t.Fatalf("%s: status %d, issues %#v", tc.query, rec.Code, listed.Issues)
+		}
+	}
+}

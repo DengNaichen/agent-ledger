@@ -35,10 +35,14 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 
 func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	status := app.Status(r.URL.Query().Get("status"))
+	issueType := r.URL.Query().Get("type")
 	limit := -1
-	input := app.ListIssues{Project: r.URL.Query().Get("project"), Limit: &limit}
+	input := app.ListIssues{Project: r.URL.Query().Get("project"), Query: r.URL.Query().Get("query"), Limit: &limit}
 	if r.URL.Query().Has("status") {
 		input.Status = &status
+	}
+	if r.URL.Query().Has("type") {
+		input.Type = &issueType
 	}
 	issues, err := s.service.List(r.Context(), input)
 	if err != nil {
