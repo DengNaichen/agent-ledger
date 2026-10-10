@@ -208,7 +208,8 @@ func TestValidationOverHTTP(t *testing.T) {
 		{"lowercase team key", "create_team", map[string]any{"key": "tok", "name": "Lowercase"}, app.ErrInvalidTeam.Error()},
 		{"short team key", "create_team", map[string]any{"key": "T", "name": "Too short"}, app.ErrInvalidTeam.Error()},
 		{"long team key", "create_team", map[string]any{"key": "TOOLONG1", "name": "Too long"}, app.ErrInvalidTeam.Error()},
-		{"duplicate team", "create_team", map[string]any{"key": "AL", "name": "Again"}, "UNIQUE constraint failed"},
+		{"duplicate team", "create_team", map[string]any{"key": "AL", "name": "Again"}, app.ErrTeamExists.Error()},
+		{"zero start number", "create_team", map[string]any{"key": "OPS", "name": "Ops", "start_number": 0}, app.ErrInvalidTeam.Error()},
 		{"missing updated project", "update_issue", map[string]any{"identifier": "AL-1", "project": "Missing"}, app.ErrProjectNotFound.Error()},
 		{"missing updated parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-99"}, app.ErrNotFound.Error()},
 		{"missing relation target", "add_relation", map[string]any{"identifier": "AL-1", "kind": "blocks", "other": "AL-99"}, app.ErrNotFound.Error()},
@@ -265,5 +266,15 @@ func TestTeamsOverHTTP(t *testing.T) {
 	call(t, session, "list_issues", map[string]any{"team": "TOK"}, &listed)
 	if len(listed.Issues) != 2 || listed.Issues[0]["identifier"] != "TOK-2" || listed.Issues[1]["identifier"] != "TOK-1" {
 		t.Fatalf("unexpected TOK issues: %#v", listed)
+	}
+
+	call(t, session, "create_team", map[string]any{"key": "OPS", "name": "Ops", "start_number": 1227}, &team)
+	if team["next_number"] != float64(1227) {
+		t.Fatalf("unexpected team: %#v", team)
+	}
+	var created map[string]any
+	call(t, session, "create_issue", map[string]any{"team": "OPS", "title": "First after import"}, &created)
+	if created["identifier"] != "OPS-1227" {
+		t.Fatalf("identifier = %v, want OPS-1227", created["identifier"])
 	}
 }

@@ -35,7 +35,8 @@ var (
 	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
 	ErrTeamRequired    = errors.New("team is required")
 	ErrTeamNotFound    = errors.New("team not found")
-	ErrInvalidTeam     = errors.New("invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, and name is required")
+	ErrInvalidTeam     = errors.New("invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, name is required, and start_number must be at least 1")
+	ErrTeamExists      = errors.New("a team with this key already exists")
 )
 
 var teamKey = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,5}$`)
@@ -132,8 +133,9 @@ type Team struct {
 }
 
 type CreateTeam struct {
-	Key  string `json:"key" jsonschema:"2 to 6 uppercase letters or digits starting with a letter, such as AL; cannot be changed later"`
-	Name string `json:"name" jsonschema:"required nonempty team name"`
+	Key         string `json:"key" jsonschema:"2 to 6 uppercase letters or digits starting with a letter, such as AL; cannot be changed later"`
+	Name        string `json:"name" jsonschema:"required nonempty team name"`
+	StartNumber *int   `json:"start_number,omitempty" jsonschema:"number the team's first issue gets, at least 1; omitted starts at 1"`
 }
 
 type Comment struct {
@@ -587,15 +589,24 @@ func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
 	return teams, rows.Err()
 }
 
-// CreateTeam adds a team whose numbering starts at 1. Teams cannot be changed
-// or deleted.
+// CreateTeam adds a team whose numbering starts at StartNumber, or 1 when it
+// is omitted. Teams cannot be changed or deleted.
 func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error) {
 	team := Team{Key: input.Key, Name: strings.TrimSpace(input.Name), NextNumber: 1}
-	if !teamKey.MatchString(team.Key) || team.Name == "" {
+	if input.StartNumber != nil {
+		team.NextNumber = *input.StartNumber
+	}
+	if !teamKey.MatchString(team.Key) || team.Name == "" || team.NextNumber < 1 {
 		return Team{}, ErrInvalidTeam
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO teams(key, name, next_number) VALUES (?, ?, ?)`, team.Key, team.Name, team.NextNumber)
-	return team, err
+	result, err := s.db.ExecContext(ctx, `INSERT INTO teams(key, name, next_number) VALUES (?, ?, ?) ON CONFLICT(key) DO NOTHING`, team.Key, team.Name, team.NextNumber)
+	if err != nil {
+		return Team{}, err
+	}
+	if inserted, _ := result.RowsAffected(); inserted == 0 {
+		return Team{}, ErrTeamExists
+	}
+	return team, nil
 }
 
 func (s *Service) checkTeam(ctx context.Context, key string) error {

@@ -248,3 +248,25 @@ func TestTeamsOverREST(t *testing.T) {
 		t.Fatalf("unexpected TOK issues: %#v", listed)
 	}
 }
+
+func TestCreateTeamOverREST(t *testing.T) {
+	handler := New(openService(t), http.NotFoundHandler(), http.NotFoundHandler())
+	for _, tc := range []struct {
+		body  string
+		want  int
+		check string
+	}{
+		{`{"key":"TOK","name":"TokfinityFde","start_number":1227}`, http.StatusCreated, `{"key":"TOK","name":"TokfinityFde","next_number":1227}`},
+		{`{"key":"OPS","name":"Ops"}`, http.StatusCreated, `{"key":"OPS","name":"Ops","next_number":1}`},
+		{`{"key":"TOK","name":"Again"}`, http.StatusConflict, `{"error":"` + app.ErrTeamExists.Error() + `"}`},
+		{`{"key":"tok","name":"Lowercase"}`, http.StatusBadRequest, `{"error":"` + app.ErrInvalidTeam.Error() + `"}`},
+		{`{"key":"ZERO","name":"Zero","start_number":0}`, http.StatusBadRequest, `{"error":"` + app.ErrInvalidTeam.Error() + `"}`},
+		{`{"key":"BAD","name":"Bad","start":5}`, http.StatusBadRequest, `{"error":"json: unknown field \"start\""}`},
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/teams", strings.NewReader(tc.body)))
+		if rec.Code != tc.want || strings.TrimSpace(rec.Body.String()) != tc.check {
+			t.Fatalf("POST %s: status %d %s, want %d %s", tc.body, rec.Code, rec.Body.String(), tc.want, tc.check)
+		}
+	}
+}

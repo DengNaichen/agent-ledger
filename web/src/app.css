@@ -48,6 +48,10 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .brand-mark { display: grid; place-items: center; width: 20px; height: 20px; color: #fff; background: var(--accent); border-radius: 5px; font-size: 9px; font-weight: 700; letter-spacing: .02em; }
 .sidebar-group { display: flex; flex-direction: column; gap: 1px; }
 .sidebar-label { margin: 16px 8px 4px; color: var(--muted); font-size: 12px; font-weight: 510; }
+.sidebar-heading { display: flex; align-items: center; justify-content: space-between; }
+.sidebar-heading .ghost { display: grid; place-items: center; width: 20px; height: 20px; margin: -2px -4px -2px 0; padding: 0; }
+.sidebar-heading .icon { width: 14px; height: 14px; }
+.team-mark { display: grid; flex: none; place-items: center; width: 16px; height: 16px; color: var(--text-2); background: var(--border-strong); border-radius: 4px; font-size: 8px; font-weight: 700; letter-spacing: .02em; }
 .nav-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 8px; color: var(--text-3); background: transparent; border: 0; border-radius: var(--radius); text-align: left; font-weight: 510; }
 .nav-item:hover { color: var(--text-2); background: var(--hover); }
 .nav-item.active { color: var(--text); background: var(--selected); }
@@ -108,7 +112,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .list-row .status-control, .card .status-control { justify-content: center; width: 24px; height: 24px; }
 .list-row .status-select, .card .status-select { position: absolute; inset: 0; width: 100%; opacity: 0; }
 
-.identifier { flex: none; color: var(--muted); }
+.identifier { flex: none; color: var(--muted); white-space: nowrap; }
 .issue-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .issue-meta:empty { display: none; }
 .type-label { flex: none; height: 20px; padding: 0 8px; color: var(--text-3); border: 1px solid var(--border-strong); border-radius: 999px; font-size: 12px; line-height: 18px; }
@@ -124,7 +128,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .group-header[aria-expanded="false"] .chevron { transform: rotate(-90deg); }
 .list-row { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 24px 0 19px; }
 .list-row:hover { background: var(--hover); }
-.list-row > .identifier { width: 66px; }
+.list-row > .identifier { min-width: 66px; }
 .list-title { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-weight: 510; text-overflow: ellipsis; white-space: nowrap; }
 .row-date { flex: none; min-width: 44px; color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
 .list-empty { padding: 10px 24px 10px 51px; color: var(--muted); font-size: 12px; }
@@ -205,6 +209,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .issue-dialog ::placeholder { color: var(--muted); }
 .issue-dialog .error { margin: 0; }
 .dialog-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.dialog-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 /* Markdown */
 .markdown { color: var(--text-2); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
@@ -254,7 +259,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
   .view-count, .project-label, .row-date { display: none; }
   .group-header { padding: 0 16px 0 28px; }
   .list-row { padding: 0 16px 0 15px; }
-  .list-row > .identifier { width: 48px; }
+  .list-row > .identifier { min-width: 48px; }
   .list-empty { padding-left: 47px; }
   .detail-content { padding: 24px 16px 48px; }
   .detail-content h1 { font-size: 22px; }
