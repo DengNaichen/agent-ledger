@@ -1,0 +1,6 @@
+# Build context contains a static Linux inftask binary and a trusted CA bundle.
+FROM scratch
+COPY inftask /inftask
+COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+USER 10001:10001
+ENTRYPOINT ["/inftask"]
