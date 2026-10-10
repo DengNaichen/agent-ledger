@@ -4,13 +4,29 @@
 
 `web/src/app.css` 的 `:root` 管理共享颜色、圆角和字体：`--bg` 是外层背景，`--panel` 是主面板，`--raised` 是抬升表面，`--hover`/`--selected` 表达交互状态，`--text` 至 `--faint` 分配文字层级，`--accent`/`--accent-hover` 表达主要操作。当前固定 dark color-scheme，使用 Inter Variable；没有主题切换器。
 
-共享状态控件与元信息在 `shared.tsx` 的 `StatusSelect`、`IssueMeta`；`.button`/`.primary`、`.chip`、`.error`、`.issue-dialog` 与 `.status-icon-*` 在 CSS 中统一消费。改全局角色先改已有 token 或共享规则，局部布局则定位消费选择器，不另造平行主题系统。
+共享状态控件与元信息在 `shared.tsx` 的 `StatusIcon`、`StatusSelect`、`IssueMeta`；`.button`/`.primary`、`.chip`、`.error`、`.issue-dialog` 与 `.icon` 在 CSS 中统一消费。改全局角色先改已有 token 或共享规则，局部布局则定位消费选择器，不另造平行主题系统。
+
+## 图标
+
+界面图标来自 `lucide-react`（ISC 许可）。组件写 `className="icon"`，尺寸和描边由 `.icon` 统一设为 16px、1.5，不在组件上传 `size` 或 `strokeWidth`。现有对应：`List` 是全部 issue 和列表视图，`Columns2` 是看板视图，`Box` 是 Project，`ChevronDown` 是分组折叠，`Search` 是搜索，`Tag` 是 type 筛选，`X` 是清除筛选和关闭弹窗。lucide 在没有 accessible name 时自动加 `aria-hidden`；只有图标的按钮在按钮上写 `aria-label`。
+
+状态图标由 `shared.tsx` 的 `StatusIcon` 在 14×14 网格上自绘，按 14px 显示，不用 lucide，也不从其他项目复制代码。每个状态的颜色写在组件里：
+
+- triage：虚线圈
+- todo：空心圈
+- agent_ready：空心圈加中心小点
+- in_progress：圈内填一半扇形
+- in_review：圈内填四分之三扇形
+- done：实心圆加对勾
+- canceled：实心圆加叉
+
+对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头的 `.chevron` 左移 2px，让分组头的状态图标对齐行内的状态图标。
 
 ## 状态与可访问外观
 
 状态图标供侧栏、列表、看板和详情复用。列表/卡片中的原生 select 透明覆盖图标；不要把透明误认为无需保留，键盘操作与 accessible name 来自这个 select。`.status-control:focus-within` 显示焦点，链接和按钮有 `:focus-visible` 描边。禁用按钮降低不透明度并改变 cursor；保存流程见 [交互](INTERACTION_DESIGN.md)。
 
-增加状态需同时核对共享 `columns` 和图标 CSS，再在列表、卡片及详情检查，不凭单页截图证明全部场景。仓库没有自动视觉回归测试或对比度认证。
+增加状态需同时核对共享 `columns` 和 `StatusIcon` 的颜色与图形（两张表按 `Status` 类型定义，缺项时前端构建报错），再在列表、卡片及详情检查，不凭单页截图证明全部场景。仓库没有自动视觉回归测试或对比度认证。
 
 ## 布局
 

@@ -14,7 +14,7 @@
 
 增加 issue 字段时，先核对 `CreateIssue`、`UpdateIssue`、查询列和扫描，再判断是否需要 schema/迁移、MCP schema、HTTP 测试和前端类型/编辑器一起变更。REST 并未暴露 MCP 的全部能力，不因工具存在就假设有对应 HTTP endpoint。
 
-增加状态时，核对后端 `Statuses`、schema 的 CHECK、MCP 描述、前端 `columns` 和 `.status-icon-*`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
+增加状态时，核对后端 `Statuses`、schema 的 CHECK、MCP 描述、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
 
 ## 外部同步
 
