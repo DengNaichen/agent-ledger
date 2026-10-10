@@ -31,6 +31,7 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/issues/{identifier}/comments", s.addComment)
 	mux.HandleFunc("GET /api/projects", s.listProjects)
 	mux.HandleFunc("GET /api/teams", s.listTeams)
+	mux.HandleFunc("POST /api/teams", s.createTeam)
 	for _, method := range []string{"GET", "POST", "DELETE"} {
 		mux.Handle(method+" /mcp", mcp)
 	}
@@ -149,6 +150,20 @@ func (s *server) listTeams(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"teams": teams})
 }
 
+func (s *server) createTeam(w http.ResponseWriter, r *http.Request) {
+	var input app.CreateTeam
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	team, err := s.service.CreateTeam(r.Context(), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, team)
+}
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	decoder := json.NewDecoder(r.Body)
@@ -167,8 +182,10 @@ func writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired):
+	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam):
 		status = http.StatusBadRequest
+	case errors.Is(err, app.ErrTeamExists):
+		status = http.StatusConflict
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {
 			status = http.StatusBadRequest

@@ -10,7 +10,7 @@ npm --prefix web run build
 go run ./cmd/inftask
 ```
 
-Open <http://localhost:8787>. Data is stored in `inftask.db` by default. Every issue belongs to a team, and each team numbers its own issues: team `AL` issues `AL-1`, `AL-2`, and so on, independently of team `TOK`. A new database has no teams; create one with the `create_team` MCP tool before creating issues.
+Open <http://localhost:8787>. Data is stored in `inftask.db` by default. Every issue belongs to a team, and each team numbers its own issues: team `AL` issues `AL-1`, `AL-2`, and so on, independently of team `TOK`. A new database has no teams; create one with + next to Teams in the sidebar, the `create_team` MCP tool, or `POST /api/teams` before creating issues.
 
 New databases use the current schema directly. Existing databases use the append-only migration mechanism. Migration 1 introduces teams: each identifier prefix already in the database becomes a team, and its numbering continues after its highest number. Arbitrary legacy schemas are not automatically converted. Do not delete the database to apply a schema change. See [data reliability](docs/rules/RELIABILITY.md).
 
@@ -64,7 +64,7 @@ The running server exposes these tools over streamable HTTP at `/mcp`:
 - `get_issue`: retrieve the full issue, comments, links, linked GitHub pull requests, parent identifier, children summaries, and `blocks`, `blocked_by`, and `related` summaries.
 - `create_issue`: create an issue with a required team key and title; optionally set description, status, type, Project, and parent. There is no default team. The issue gets the team's next number in one transaction with the insert.
 - `list_teams`: list teams with their key, name, and `next_number`.
-- `create_team`: create a team with a key of 2 to 6 uppercase letters or digits starting with a letter, and a required name. Numbering starts at 1. A key cannot be changed, and teams cannot be renamed or deleted.
+- `create_team`: create a team with a key of 2 to 6 uppercase letters or digits starting with a letter, and a required name. Numbering starts at 1, or at the optional `start_number`, so a team imported from another tracker does not reuse its old numbers. A key cannot be changed, and teams cannot be renamed or deleted.
 - `update_issue`: update supplied fields only; an empty string clears type, Project, or parent.
 - `add_comment`: append a comment; comments cannot be edited or deleted.
 - `add_relation`, `remove_relation`: manage directed `blocks` (or its inverse `blocked_by`) and undirected `related` relations. Duplicate additions succeed without creating duplicates; self-relations are forbidden.

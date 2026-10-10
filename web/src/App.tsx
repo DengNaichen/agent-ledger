@@ -1,4 +1,4 @@
-import { Box, ChevronDown, Columns2, List, Search, Tag, X } from "lucide-react";
+import { Box, ChevronDown, Columns2, List, Plus, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
 import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect, Team } from "./shared";
@@ -26,12 +26,13 @@ function App() {
   const [view, setView] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<Status | "all">("all");
   const [project, setProject] = useState("");
+  const [team, setTeam] = useState("");
   const [type, setType] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
-  const [dialog, setDialog] = useState<"new" | "edit" | null>(null);
+  const [dialog, setDialog] = useState<"new" | "edit" | "team" | null>(null);
   const managingLabels = path === "/labels";
   const detailIdentifier = path.startsWith("/issue/") ? path.slice("/issue/".length) : "";
 
@@ -50,7 +51,7 @@ function App() {
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
-  }, [path, project, type, query, labelFilter]);
+  }, [path, team, project, type, query, labelFilter]);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status)])) as Record<Status, Issue[]>,
@@ -58,14 +59,15 @@ function App() {
   );
 
   const visibleColumns = columns.filter((column) => filter === "all" || column.status === filter);
-  const heading = managingLabels ? "Labels" : project || "All issues";
+  const heading = managingLabels ? "Labels" : project || (team && teams.find((item) => item.key === team)!.name) || "All issues";
   const selectedVisible = selected.filter((id) => issues.some((issue) => issue.identifier === id && (filter === "all" || issue.status === filter)));
   function toggleIssue(id: string) { setSelected((ids) => ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]); }
   const visibleCount = visibleColumns.reduce((count, column) => count + grouped[column.status].length, 0);
 
-  function selectFilter(status: Status | "all", nextProject: string) {
+  function selectFilter(status: Status | "all", nextProject: string, nextTeam = team) {
     setFilter(status);
     setProject(nextProject);
+    setTeam(nextTeam);
     setCollapsed({});
     setSelected([]);
     if (path !== "/") navigate("/");
@@ -74,6 +76,7 @@ function App() {
   async function loadIssues() {
     const version = ++loadVersion.current;
     const params = new URLSearchParams({ project, query });
+    if (team) params.set("team", team);
     if (type) params.set("type", type);
     params.set("label_mode", labelFilter.mode);
     labelFilter.labels.forEach((id) => params.append("label_id", String(id)));
@@ -98,9 +101,16 @@ function App() {
   }
 
   function addIssue(issue: Issue) {
-    if (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0)) setIssues((current) => [issue, ...current]);
+    const inTeam = !team || issue.identifier.startsWith(`${team}-`);
+    if (inTeam && (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0))) setIssues((current) => [issue, ...current]);
     else void loadIssues();
     setCollapsed((current) => ({ ...current, [issue.status]: false }));
+    setDialog(null);
+  }
+
+  function addTeam(created: Team) {
+    setTeams((current) => [...current, created].sort((a, b) => a.key.localeCompare(b.key)));
+    selectFilter("all", "", created.key);
     setDialog(null);
   }
 
@@ -134,7 +144,7 @@ function App() {
 
         <Session />
         <div className="sidebar-label">Workspace</div>
-        <button type="button" className={`nav-item ${filter === "all" && !project && !managingLabels ? "active" : ""}`} aria-pressed={filter === "all" && !project && !managingLabels} onClick={() => selectFilter("all", "")}>
+        <button type="button" className={`nav-item ${filter === "all" && !project && !team && !managingLabels ? "active" : ""}`} aria-pressed={filter === "all" && !project && !team && !managingLabels} onClick={() => selectFilter("all", "", "")}>
           <List className="icon" />
           <span className="nav-label">All issues</span>
           <small>{issues.length}</small>
@@ -143,6 +153,18 @@ function App() {
         <button type="button" className={`nav-item ${managingLabels ? "active" : ""}`} onClick={() => navigate("/labels")}><Tag className="icon" /><span className="nav-label">Labels</span></button>
 
         <div className="sidebar-group">
+          <div className="sidebar-label sidebar-heading">
+            <span>Teams</span>
+            <button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={() => setDialog("team")}><Plus className="icon" /></button>
+          </div>
+          {teams.map((item) => (
+            <button type="button" key={item.key} className={`nav-item ${team === item.key && !managingLabels ? "active" : ""}`} aria-pressed={team === item.key && !managingLabels} onClick={() => selectFilter("all", "", item.key)}>
+              <span className="team-mark">{item.key.slice(0, 2)}</span>
+              <span className="nav-label">{item.name}</span>
+              <small>{item.key}</small>
+            </button>
+          ))}
+
           <div className="sidebar-label">Statuses</div>
           {columns.map((column) => (
             <button type="button" key={column.status} className={`nav-item ${filter === column.status ? "active" : ""}`} aria-pressed={filter === column.status} onClick={() => selectFilter(column.status, project)}>
@@ -188,6 +210,13 @@ function App() {
                   <StatusIcon status={filter} />
                   {visibleColumns[0].label}
                   <button type="button" aria-label={`Clear ${visibleColumns[0].label} filter`} onClick={() => selectFilter("all", project)}><X className="icon" /></button>
+                </span>
+              )}
+              {team && (
+                <span className="chip">
+                  <span className="team-mark">{team.slice(0, 2)}</span>
+                  {team}
+                  <button type="button" aria-label={`Clear ${team} filter`} onClick={() => selectFilter(filter, project, "")}><X className="icon" /></button>
                 </span>
               )}
               {project && (
@@ -326,16 +355,17 @@ function App() {
       </main>
 
       {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
-      {dialog === "new" && <NewIssueDialog teams={teams} status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
+      {dialog === "new" && <NewIssueDialog teams={teams} team={team} status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
+      {dialog === "team" && <CreateTeamDialog onClose={() => setDialog(null)} onCreate={addTeam} />}
     </div>
   );
 }
 
-function NewIssueDialog({ teams, status, project, onClose, onCreate }: { teams: Team[]; status: Status; project: string; onClose: () => void; onCreate: (issue: Issue) => void }) {
+function NewIssueDialog({ teams, team: selectedTeam, status, project, onClose, onCreate }: { teams: Team[]; team: string; status: Status; project: string; onClose: () => void; onCreate: (issue: Issue) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
-  // The server has no default team; the dialog preselects the first one and always sends the choice.
-  const [team, setTeam] = useState(teams.length > 0 ? teams[0].key : "");
+  // The server has no default team; the dialog preselects the team being viewed, else the first one, and always sends the choice.
+  const [team, setTeam] = useState(selectedTeam || (teams.length > 0 ? teams[0].key : ""));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -375,7 +405,7 @@ function NewIssueDialog({ teams, status, project, onClose, onCreate }: { teams: 
             {teams.map((item) => <option key={item.key} value={item.key}>{item.key} · {item.name}</option>)}
           </select></label>
         ) : (
-          <p className="error" role="alert">No teams yet. Create one with the create_team MCP tool, then reopen this dialog.</p>
+          <p className="error" role="alert">No teams yet. Create one with + next to Teams in the sidebar, then reopen this dialog.</p>
         )}
         <p className="dialog-meta">
           <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
@@ -385,6 +415,56 @@ function NewIssueDialog({ teams, status, project, onClose, onCreate }: { teams: 
         <footer>
           <button type="button" className="button" onClick={onClose}>Cancel</button>
           <button type="submit" className="button primary" disabled={saving || !team}>{saving ? "Creating…" : "Create issue"}</button>
+        </footer>
+      </form>
+    </dialog>
+  );
+}
+
+function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (team: Team) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const keyInput = useRef<HTMLInputElement>(null);
+  const [key, setKey] = useState("");
+  const [name, setName] = useState("");
+  const [startNumber, setStartNumber] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const element = dialog.current!;
+    element.showModal();
+    keyInput.current!.focus();
+    return () => element.close();
+  }, []);
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      onCreate(await api<Team>("/api/teams", "POST", { key, name, start_number: startNumber ? Number(startNumber) : undefined }));
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog ref={dialog} className="issue-dialog" aria-labelledby="new-team-title" onCancel={onClose}>
+      <form onSubmit={create}>
+        <header>
+          <h2 id="new-team-title">Create team</h2>
+          <button type="button" className="ghost" aria-label="Close" onClick={onClose}><X className="icon" /></button>
+        </header>
+        <label>Key<input ref={keyInput} value={key} onChange={(event) => setKey(event.target.value.toUpperCase())} placeholder="TOK" pattern="[A-Z][A-Z0-9]{1,5}" maxLength={6} required /></label>
+        <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Team name" required /></label>
+        <label>Start number<input type="number" min={1} step={1} value={startNumber} onChange={(event) => setStartNumber(event.target.value)} placeholder="1" /></label>
+        <p className="dialog-hint">Issues are numbered {key || "KEY"}-{startNumber || "1"}, {key || "KEY"}-{startNumber ? Number(startNumber) + 1 : "2"}, and so on. Set a start number above numbers the team already used elsewhere. The key cannot be changed later.</p>
+        {error && <RequestError message={error} />}
+        <footer>
+          <button type="button" className="button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="button primary" disabled={saving}>{saving ? "Creating…" : "Create team"}</button>
         </footer>
       </form>
     </dialog>

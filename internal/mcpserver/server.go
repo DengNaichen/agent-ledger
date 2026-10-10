@@ -110,7 +110,7 @@ func New(service *app.Service) *mcp.Server {
 			teams, err := service.ListTeams(ctx)
 			return nil, teamsOutput{Teams: teams}, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. A key cannot be changed, and teams cannot be renamed or deleted."},
+	mcp.AddTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. start_number makes numbering begin above numbers the team already used elsewhere, such as a team imported from another tracker. A key cannot be changed, and teams cannot be renamed or deleted."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateTeam) (*mcp.CallToolResult, app.Team, error) {
 			team, err := service.CreateTeam(ctx, input)
 			return nil, team, err

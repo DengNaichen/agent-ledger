@@ -142,3 +142,31 @@ func TestIssueLifecycleNumbersPerTeam(t *testing.T) {
 		t.Fatalf("list unknown team: err = %v", err)
 	}
 }
+
+func TestCreateTeamStartNumber(t *testing.T) {
+	service, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	ctx := context.Background()
+	start := 1227
+	if team, err := service.CreateTeam(ctx, CreateTeam{Key: "TOK", Name: "TokfinityFde", StartNumber: &start}); err != nil || team.NextNumber != 1227 {
+		t.Fatalf("team = %#v, err = %v; want next number 1227", team, err)
+	}
+	if issue, err := service.Create(ctx, CreateIssue{Team: "TOK", Title: "First after import"}); err != nil || issue.Identifier != "TOK-1227" {
+		t.Fatalf("issue = %#v, err = %v; want TOK-1227", issue, err)
+	}
+
+	zero := 0
+	if _, err := service.CreateTeam(ctx, CreateTeam{Key: "OPS", Name: "Ops", StartNumber: &zero}); !errors.Is(err, ErrInvalidTeam) {
+		t.Fatalf("start number 0: err = %v, want %v", err, ErrInvalidTeam)
+	}
+	if _, err := service.CreateTeam(ctx, CreateTeam{Key: "TOK", Name: "Again"}); !errors.Is(err, ErrTeamExists) {
+		t.Fatalf("duplicate key: err = %v, want %v", err, ErrTeamExists)
+	}
+	teams, err := service.ListTeams(ctx)
+	if want := []Team{{Key: "TOK", Name: "TokfinityFde", NextNumber: 1228}}; err != nil || !slices.Equal(teams, want) {
+		t.Fatalf("teams = %#v, err = %v; want %#v", teams, err, want)
+	}
+}
