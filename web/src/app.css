@@ -52,12 +52,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .error { margin: 0 0 14px; padding: 8px 10px; color: #f1a7ad; background: #321b20; border: 1px solid #5a2932; border-radius: 4px; font-size: 11px; }
 
 .status-icon { width: 12px; height: 12px; border: 2px solid #676972; border-radius: 50%; }
-.status-icon-ready { border-color: #a6a8b1; }
+.status-icon-todo { border-color: #a6a8b1; }
+.status-icon-agent_ready { border-color: #b49bdd; }
+.status-icon-canceled { border-color: #9c626c; background: #9c626c; }
 .status-icon-in_progress { border-color: #6f78dd; border-right-color: #343741; }
 .status-icon-in_review { border-color: #5a9bc0; border-bottom-color: #343741; }
 .status-icon-done { background: #4e9b68; border-color: #4e9b68; box-shadow: inset 0 0 0 2px #18191e; }
 
-.board { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 14px; }
+.board { display: grid; grid-template-columns: repeat(7, minmax(220px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 14px; }
 .column { min-height: 420px; padding: 0 8px 10px; }
 .column > header { min-height: 46px; padding: 9px 3px 8px; border-bottom: 1px solid #292a2f; }
 .column > header > div { display: flex; align-items: center; gap: 7px; }
@@ -102,7 +104,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .content { padding: 18px 12px 28px; }
   .composer { grid-template-columns: 24px minmax(0, 1fr) auto; }
   .composer label + label { display: none; }
-  .board { grid-template-columns: repeat(5, minmax(220px, 78vw)); }
+  .board { grid-template-columns: repeat(7, minmax(220px, 78vw)); }
 }
 
 @media (max-width: 480px) {

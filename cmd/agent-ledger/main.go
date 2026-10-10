@@ -18,12 +18,13 @@ import (
 func main() {
 	data := flag.String("data", "agent-ledger.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
+	prefix := flag.String("prefix", "AL", "Issue identifier prefix")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	service, err := app.Open(*data)
+	service, err := app.Open(*data, *prefix)
 	if err != nil {
 		log.Fatal(err)
 	}

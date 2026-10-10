@@ -30,7 +30,13 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 }
 
 func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
-	issues, err := s.service.List(r.Context(), app.Status(r.URL.Query().Get("status")))
+	status := app.Status(r.URL.Query().Get("status"))
+	limit := -1
+	input := app.ListIssues{Limit: &limit}
+	if r.URL.Query().Has("status") {
+		input.Status = &status
+	}
+	issues, err := s.service.List(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -60,7 +66,7 @@ func (s *server) moveIssue(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	issue, err := s.service.Move(r.Context(), r.PathValue("identifier"), input.Status)
+	issue, err := s.service.Update(r.Context(), app.UpdateIssue{Identifier: r.PathValue("identifier"), Status: &input.Status})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -86,7 +92,7 @@ func writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus):
+	case errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrSelfParent):
 		status = http.StatusBadRequest
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestIssueLifecycle(t *testing.T) {
-	service, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	service, err := Open(filepath.Join(t.TempDir(), "test.db"), "AL")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,19 +22,36 @@ func TestIssueLifecycle(t *testing.T) {
 		t.Fatalf("unexpected issue: %#v", issue)
 	}
 
-	issue, err = service.Move(ctx, issue.Identifier, StatusReady)
+	issue, err = service.Update(ctx, UpdateIssue{Identifier: issue.Identifier, Status: new(StatusAgentReady)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if issue.Status != StatusReady {
-		t.Fatalf("status = %q, want %q", issue.Status, StatusReady)
+	if issue.Status != StatusAgentReady {
+		t.Fatalf("status = %q, want %q", issue.Status, StatusAgentReady)
 	}
 
-	issues, err := service.List(ctx, StatusReady)
+	issues, err := service.List(ctx, ListIssues{Status: new(StatusAgentReady)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(issues) != 1 || issues[0].Identifier != issue.Identifier {
 		t.Fatalf("unexpected list: %#v", issues)
+	}
+
+	// Repeating a status and editing other fields must not add status events.
+	for _, update := range []UpdateIssue{
+		{Identifier: issue.Identifier, Status: new(StatusAgentReady)},
+		{Identifier: issue.Identifier, Description: new("Updated context")},
+	} {
+		if _, err := service.Update(ctx, update); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var history string
+	if err := service.db.QueryRowContext(ctx, `SELECT group_concat(kind || ':' || detail, ',') FROM (SELECT kind, detail FROM events ORDER BY id)`).Scan(&history); err != nil {
+		t.Fatal(err)
+	}
+	if history != "created:triage,status_changed:triage -> agent_ready" {
+		t.Fatalf("unexpected event history: %s", history)
 	}
 }

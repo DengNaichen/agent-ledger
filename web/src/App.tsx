@@ -2,10 +2,12 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const columns = [
   { status: "triage", label: "Triage", hint: "Worth keeping?" },
-  { status: "ready", label: "Ready", hint: "Clear enough to start" },
+  { status: "todo", label: "Todo", hint: "Planned work" },
+  { status: "agent_ready", label: "Agent ready", hint: "Clear enough to start" },
   { status: "in_progress", label: "In progress", hint: "One active commitment" },
   { status: "in_review", label: "In review", hint: "Prove it works" },
   { status: "done", label: "Done", hint: "Merged and verified" },
+  { status: "canceled", label: "Canceled", hint: "No longer planned" },
 ] as const;
 
 type Status = (typeof columns)[number]["status"];
