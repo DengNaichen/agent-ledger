@@ -50,6 +50,26 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TEXT NOT NULL
 );
 
+-- issue_identifier has no foreign key: a pull request may name an issue that
+-- is created later.
+CREATE TABLE IF NOT EXISTS pull_requests (
+    repo TEXT NOT NULL,
+    number INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    head_ref TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('open', 'draft', 'merged', 'closed')),
+    issue_identifier TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    linkback_posted_at TEXT,
+    PRIMARY KEY (repo, number, issue_identifier)
+);
+
+CREATE TABLE IF NOT EXISTS github_sync (
+    repo TEXT PRIMARY KEY NOT NULL,
+    last_updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS issues_status_updated_idx ON issues(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS issues_parent_idx ON issues(parent);
 CREATE INDEX IF NOT EXISTS events_issue_created_idx ON events(issue_id, created_at DESC);

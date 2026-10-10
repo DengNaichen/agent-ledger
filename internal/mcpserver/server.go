@@ -67,7 +67,7 @@ func New(service *app.Service) *mcp.Server {
 			issues, err := service.List(ctx, input)
 			return nil, listOutput{Issues: app.Summaries(issues)}, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "get_issue", Description: "Get a complete issue with comments, links, parent identifier, children summaries, and blocks, blocked_by, related summaries. " + statuses + types},
+	mcp.AddTool(server, &mcp.Tool{Name: "get_issue", Description: "Get a complete issue with comments, links, linked GitHub pull requests, parent identifier, children summaries, and blocks, blocked_by, related summaries. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input identifierInput) (*mcp.CallToolResult, app.IssueDetails, error) {
 			issue, err := service.Details(ctx, input.Identifier)
 			return nil, issue, err
