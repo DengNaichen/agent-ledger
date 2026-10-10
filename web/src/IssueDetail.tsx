@@ -1,13 +1,14 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, columns, Comment, Issue, IssueDetails, IssueMeta, IssueSummary, NavLink, Status, StatusSelect } from "./shared";
+import { api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusSelect } from "./shared";
 
 const remarkPlugins = [remarkGfm];
 
-export function IssueDetail({ identifier, setError }: { identifier: string; setError: (message: string) => void }) {
+const timestamp = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+export function IssueDetail({ identifier, setError, editing, closeEditor }: { identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
   const [issue, setIssue] = useState<IssueDetails | null>(null);
-  const [editing, setEditing] = useState(false);
   const [comment, setComment] = useState("");
   const [posting, setPosting] = useState(false);
 
@@ -50,78 +51,92 @@ export function IssueDetail({ identifier, setError }: { identifier: string; setE
     { label: "Related", issues: issue.related },
   ].filter((group) => group.issues.length > 0);
 
+  const properties = (
+    <dl className="properties">
+      <dt>Status</dt>
+      <dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd>
+      <dt>Type</dt>
+      <dd>{issue.type ? <span className="type-label">{issue.type}</span> : <span className="none">None</span>}</dd>
+      <dt>Project</dt>
+      <dd>{issue.project ?? <span className="none">None</span>}</dd>
+      <dt>Parent</dt>
+      <dd>{issue.parent ? <NavLink to={`/issue/${issue.parent}`}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd>
+      <dt>Created</dt>
+      <dd>{timestamp(issue.createdAt)}</dd>
+      <dt>Updated</dt>
+      <dd>{timestamp(issue.updatedAt)}</dd>
+    </dl>
+  );
+
   return (
-    <article className="detail">
-      <header className="detail-header">
-        <div className="detail-topline">
+    <div className="detail">
+      <article className="detail-main">
+        <div className="detail-content">
           <span className="identifier">{issue.identifier}</span>
-          <button type="button" className="detail-button" onClick={() => setEditing(true)}>Edit</button>
-        </div>
-        <h1>{issue.title}</h1>
-        <div className="detail-properties">
-          <StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} />
-          <IssueMeta issue={issue} />
-          {issue.parent && <span>Parent <NavLink to={`/issue/${issue.parent}`}>{issue.parent}</NavLink></span>}
-        </div>
-      </header>
+          <h1>{issue.title}</h1>
+          <div className="detail-inline-properties">{properties}</div>
 
-      <MarkdownText text={issue.description} />
+          <MarkdownText text={issue.description} />
 
-      {issue.children.length > 0 && (
-        <section className="detail-section">
-          <h2>Sub-issues</h2>
-          <IssueRows issues={issue.children} />
-        </section>
-      )}
+          {issue.children.length > 0 && (
+            <section className="detail-section">
+              <h2>Sub-issues</h2>
+              <IssueRows issues={issue.children} />
+            </section>
+          )}
 
-      {relations.length > 0 && (
-        <section className="detail-section">
-          <h2>Relations</h2>
-          {relations.map((group) => (
-            <div key={group.label}>
-              <h3>{group.label}</h3>
-              <IssueRows issues={group.issues} />
-            </div>
-          ))}
-        </section>
-      )}
+          {relations.length > 0 && (
+            <section className="detail-section">
+              <h2>Relations</h2>
+              {relations.map((group) => (
+                <div key={group.label}>
+                  <h3>{group.label}</h3>
+                  <IssueRows issues={group.issues} />
+                </div>
+              ))}
+            </section>
+          )}
 
-      {issue.links.length > 0 && (
-        <section className="detail-section">
-          <h2>Links</h2>
-          <ul className="detail-rows">
-            {issue.links.map((link, index) => (
-              <li key={index}>
-                <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
-                <small className="link-url">{link.url}</small>
-              </li>
+          {issue.links.length > 0 && (
+            <section className="detail-section">
+              <h2>Links</h2>
+              <ul className="detail-rows">
+                {issue.links.map((link, index) => (
+                  <li key={index}>
+                    <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
+                    <small className="link-url">{link.url}</small>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="detail-section">
+            <h2>Comments</h2>
+            {issue.comments.map((item, index) => (
+              <article className="comment" key={index}>
+                <time dateTime={item.created_at}>{timestamp(item.created_at)}</time>
+                <MarkdownText text={item.body} />
+              </article>
             ))}
-          </ul>
-        </section>
-      )}
+            <form className="comment-form" onSubmit={postComment}>
+              <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Leave a comment… (Markdown)" aria-label="Comment" required />
+              <button type="submit" className="button primary" disabled={posting}>{posting ? "Posting…" : "Comment"}</button>
+            </form>
+          </section>
+        </div>
+      </article>
 
-      {issue.comments.length > 0 && (
-        <section className="detail-section">
-          <h2>Comments</h2>
-          {issue.comments.map((item, index) => (
-            <article className="comment" key={index}>
-              <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString()}</time>
-              <MarkdownText text={item.body} />
-            </article>
-          ))}
-        </section>
-      )}
+      <aside className="detail-panel" aria-label="Properties">
+        <h2>Properties</h2>
+        {properties}
+      </aside>
 
-      <form className="comment-form" onSubmit={postComment}>
-        <textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Leave a comment… (Markdown)" aria-label="Comment" required />
-        <button type="submit" className="detail-button" disabled={posting}>{posting ? "Posting…" : "Comment"}</button>
-      </form>
-
-      {editing && <IssueEditor issue={issue} onClose={() => setEditing(false)} onSave={(updated) => {
+      {editing && <IssueEditor issue={issue} onClose={closeEditor} onSave={(updated) => {
         setIssue({ ...issue, ...updated });
-        setEditing(false);
+        closeEditor();
       }} />}
-    </article>
+    </div>
   );
 }
 
@@ -145,6 +160,7 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
 
 function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => void; onSave: (issue: Issue) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(issue.title);
   const [description, setDescription] = useState(issue.description);
   const [status, setStatus] = useState(issue.status);
@@ -154,6 +170,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
   useEffect(() => {
     const element = dialog.current!;
     element.showModal();
+    titleInput.current!.focus();
     return () => element.close();
   }, []);
 
@@ -182,17 +199,17 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
       <form onSubmit={save}>
         <header>
           <h2 id="issue-dialog-title">{issue.identifier}</h2>
-          <button type="button" aria-label="Close issue" onClick={onClose}>×</button>
+          <button type="button" className="ghost" aria-label="Close issue" onClick={onClose}>×</button>
         </header>
-        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required autoFocus /></label>
+        <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
         <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
         <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
           {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
         </select></label>
         {error && <p className="error" role="alert">{error}</p>}
         <footer>
-          <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+          <button type="button" className="button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="button primary" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
         </footer>
       </form>
     </dialog>

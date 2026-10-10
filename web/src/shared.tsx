@@ -58,7 +58,6 @@ export async function api<T>(path: string, method = "GET", body?: object): Promi
 export function navigate(path: string) {
   window.history.pushState(null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
-  window.scrollTo(0, 0);
 }
 
 export function NavLink({ to, className, children }: { to: string; className?: string; children: ReactNode }) {

@@ -14,7 +14,7 @@ Open <http://localhost:8787>. Data is stored in `agent-ledger.db` by default. Id
 
 The issue model requires a fresh database. Delete an old development database and its `-wal`/`-shm` files while the server is stopped; no migrations are provided.
 
-Use the sidebar to filter by status and click list group headers to collapse or expand them. Click an issue to open its page at `/issue/<identifier>`: the description and comments render as Markdown, relations and sub-issues link to each other, and you can change the status, add a comment, or use Edit for the title and description. In board view, drag a card by its grip to change status, or use its status menu. The `+` button focuses the new-issue title; new issues use the selected status filter (or Triage under All issues).
+Use the sidebar to filter by status or Project; active filters appear as chips above the list, and their × clears them. Click list group headers to collapse or expand them. Click an issue to open its page at `/issue/<identifier>`: the description and comments render as Markdown, relations and sub-issues link to each other, the properties panel shows and changes the status, and Edit changes the title and description. In list and board view, click an issue's status icon to change its status; in board view you can also drag a card by its grip. New issue opens a dialog for the title and description; new issues use the selected status filter (or Triage under All issues) and the selected Project.
 
 For frontend hot reload, keep the Go server running and start:
 
