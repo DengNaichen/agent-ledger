@@ -111,6 +111,20 @@ export function IssueDetail({ identifier, setError, editing, closeEditor }: { id
             </section>
           )}
 
+          {issue.pull_requests.length > 0 && (
+            <section className="detail-section">
+              <h2>Pull requests</h2>
+              <ul className="detail-rows">
+                {issue.pull_requests.map((pull) => (
+                  <li key={`${pull.repo}#${pull.number}`}>
+                    <a href={pull.url} target="_blank" rel="noreferrer"><span className="pull-ref">{pull.repo}#{pull.number}</span> {pull.title}</a>
+                    <span className={`pull-state pull-state-${pull.state}`}>{pull.state}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section className="detail-section">
             <h2>Comments</h2>
             {issue.comments.map((item, index) => (
