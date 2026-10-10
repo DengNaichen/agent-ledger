@@ -6,7 +6,7 @@
 
 一个 Go 进程承载 REST、MCP 和嵌入的 React 页面，SQLite 保存共享状态。前端源文件在 `web/src`，`internal/web/dist/app` 是构建输出，不手工修改。
 
-项目用自身跟踪开发：维护者实例在 `http://127.0.0.1:8700`，通过 `.mcp.json` 或 `.codex/config.toml` 配置的 `inftask` MCP 访问；MCP 工具没加载时，直接用 HTTP JSON-RPC 调实例 `/mcp` 的 `tools/call`，curl 示例见 [开发](docs/DEVELOPMENT.md)。开发服务使用临时数据库和默认端口 8787，不得接触维护者实例的数据。多个 agent 并行时 8787 可能被占用：先用 `lsof -nP -iTCP:<端口> -sTCP:LISTEN` 检查，被占就换一个空闲端口并用 `-addr` 指定；永远不用 8700。
+项目用自身跟踪开发：维护者实例在 `http://127.0.0.1:8700`，通过 `.mcp.json` 或 `.codex/config.toml` 配置的 `inftask` MCP 访问；MCP 工具没加载时，直接用 HTTP JSON-RPC 调实例 `/mcp` 的 `tools/call`，curl 示例见 [开发](docs/DEVELOPMENT.md)。本仓库的 team 是 `AL`：`create_issue` 都带 `"team": "AL"`。开发服务使用临时数据库和默认端口 8787，不得接触维护者实例的数据。多个 agent 并行时 8787 可能被占用：先用 `lsof -nP -iTCP:<端口> -sTCP:LISTEN` 检查，被占就换一个空闲端口并用 `-addr` 指定；永远不用 8700。
 
 ## 工作策略
 

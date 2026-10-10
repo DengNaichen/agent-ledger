@@ -10,11 +10,11 @@ npm --prefix web run build
 go run ./cmd/inftask
 ```
 
-Open <http://localhost:8787>. Data is stored in `inftask.db` by default. Identifiers use `AL-<id>`; pass `-prefix TOK` to use `TOK-<id>`.
+Open <http://localhost:8787>. Data is stored in `inftask.db` by default. Every issue belongs to a team, and each team numbers its own issues: team `AL` issues `AL-1`, `AL-2`, and so on, independently of team `TOK`. A new database has no teams; create one with the `create_team` MCP tool before creating issues.
 
-New databases use the current schema directly. Existing databases use the append-only migration mechanism; the migration list is currently empty, so arbitrary legacy schemas are not automatically converted. Do not delete the database to apply a schema change. See [data reliability](docs/rules/RELIABILITY.md).
+New databases use the current schema directly. Existing databases use the append-only migration mechanism. Migration 1 introduces teams: each identifier prefix already in the database becomes a team, and its numbering continues after its highest number. Arbitrary legacy schemas are not automatically converted. Do not delete the database to apply a schema change. See [data reliability](docs/rules/RELIABILITY.md).
 
-Use the sidebar to filter by status or Project, the search box (press Enter) to match titles and descriptions, and the type menu to filter by type; active filters appear as chips above the list, and their × clears them. Click list group headers to collapse or expand them. Click an issue to open its page at `/issue/<identifier>`: the description and comments render as Markdown, relations and sub-issues link to each other, linked pull requests show their state and open on GitHub, the properties panel shows and changes the status, and Edit changes the title and description. In list and board view, click an issue's status icon to change its status; in board view you can also drag a card by its grip. New issue opens a dialog for the title and description; new issues use the selected status filter (or Triage under All issues) and the selected Project.
+Use the sidebar to filter by status or Project, the search box (press Enter) to match titles and descriptions, and the type menu to filter by type; active filters appear as chips above the list, and their × clears them. Click list group headers to collapse or expand them. Click an issue to open its page at `/issue/<identifier>`: the description and comments render as Markdown, relations and sub-issues link to each other, linked pull requests show their state and open on GitHub, the properties panel shows and changes the status, and Edit changes the title and description. In list and board view, click an issue's status icon to change its status; in board view you can also drag a card by its grip. New issue opens a dialog for the title, description, and team (the first team is preselected); new issues use the selected status filter (or Triage under All issues) and the selected Project.
 
 Use **Labels** in the sidebar to create, edit, archive, restore, and merge global issue labels. Ungrouped labels are multi-select; each group allows one value per issue. Open **Edit labels** on an issue, or select issues in the list/board and choose **Change labels** for an atomic batch operation. The Labels filter supports any, all, none of the selected labels/groups, and issues with no labels. Archived labels remain on existing issues and in filters. Labels are independent of type, status, and Project.
 
@@ -41,7 +41,7 @@ GITHUB_TOKEN=$(gh auth token) inftask -github-repo owner/name -github-repo owner
 ```
 
 - `-github-repo owner/name` turns on sync for a repository and can be repeated; without it nothing syncs. `GITHUB_TOKEN` must allow reading the repository's pull requests. When `-github-repo` is given without `GITHUB_TOKEN`, the server exits at startup.
-- A pull request links to every issue whose identifier (`AL-<n>` with the configured prefix, in any case) appears in its branch name or title, such as branch `al-2-github-sync` or title `AL-2 Sync pull requests`. The pull request description is ignored because it often mentions other issues. A pull request may name an issue that does not exist yet; it shows on the issue once the issue is created.
+- A pull request links to every issue whose identifier (`<team key>-<n>` for any existing team, in any case) appears in its branch name or title, such as branch `al-2-github-sync` or title `AL-2 Sync pull requests`. The teams are read again on every sync, so a new team's identifiers are recognized from the next sync on; pull requests read before the team existed are not read again. The pull request description is ignored because it often mentions other issues. A pull request may name an issue of an existing team that does not exist yet; it shows on the issue once the issue is created.
 - `get_issue` and `GET /api/issues/<identifier>` list linked pull requests under `pull_requests` with repo, number, title, url, state (`open`, `draft`, `merged`, or `closed`), and `updated_at`.
 - Status only moves forward. An open, non-draft pull request moves an issue in `triage`, `todo`, `agent_ready`, or `in_progress` to `in_review`. A merged pull request moves an issue that is not `done` or `canceled` to `done`. Draft pull requests, pull requests closed without merging, and pull requests reopened after their issue is done change nothing. Each change adds a `status_changed` event whose detail ends with `via owner/name#<number>`.
 - Each sync reads pull requests by most recent update and stops at the first one updated before the previous sync; the first sync reads them all. A repository that fails is logged and read again in the next round.
@@ -60,9 +60,11 @@ See [cloud deployment and recovery](docs/DEVELOPMENT.md#云端团队部署) for 
 
 The running server exposes these tools over streamable HTTP at `/mcp`:
 
-- `list_issues`: filter by status, type, Project name, parent identifier, title/description query, and labels (AND). `label_ids` and `label_group_ids` select predicates combined using `label_mode`: `any` (default), `all`, or `none`; `unlabeled` requires empty selections. Returns summaries including labels, ordered by `updated_at` descending, with a default limit of 50.
+- `list_issues`: filter by status, type, team key, Project name, parent identifier, title/description query, and labels (AND). `label_ids` and `label_group_ids` select predicates combined using `label_mode`: `any` (default), `all`, or `none`; `unlabeled` requires empty selections. Returns summaries including labels, ordered by `updated_at` descending, with a default limit of 50.
 - `get_issue`: retrieve the full issue, comments, links, linked GitHub pull requests, parent identifier, children summaries, and `blocks`, `blocked_by`, and `related` summaries.
-- `create_issue`: create an issue with a required title; optionally set description, status, type, Project, and parent.
+- `create_issue`: create an issue with a required team key and title; optionally set description, status, type, Project, and parent. There is no default team. The issue gets the team's next number in one transaction with the insert.
+- `list_teams`: list teams with their key, name, and `next_number`.
+- `create_team`: create a team with a key of 2 to 6 uppercase letters or digits starting with a letter, and a required name. Numbering starts at 1. A key cannot be changed, and teams cannot be renamed or deleted.
 - `update_issue`: update supplied fields only; an empty string clears type, Project, or parent.
 - `add_comment`: append a comment; comments cannot be edited or deleted.
 - `add_relation`, `remove_relation`: manage directed `blocks` (or its inverse `blocked_by`) and undirected `related` relations. Duplicate additions succeed without creating duplicates; self-relations are forbidden.
@@ -75,9 +77,9 @@ The running server exposes these tools over streamable HTTP at `/mcp`:
 - `list_projects`: list unarchived Projects by default; set `include_archived` to include all.
 - `create_project`, `update_project`: create named Projects with outcome descriptions, or update description and archived state by name. Names are unique and cannot be changed.
 
-Statuses are `triage` (the default), `todo`, `agent_ready`, `in_progress`, `in_review`, `done`, and `canceled`. Optional types are `spec`, `feature`, `bug`, `improvement`, and `chore`. Project and parent references must already exist. An issue cannot be its own parent; parent cycles are not checked.
+Statuses are `triage` (the default), `todo`, `agent_ready`, `in_progress`, `in_review`, `done`, and `canceled`. Optional types are `spec`, `feature`, `bug`, `improvement`, and `chore`. Team, Project, and parent references must already exist. An issue cannot be its own parent; parent cycles are not checked.
 
-Missing issues or Projects return not-found errors. SQLite constraints enforce unique Project names, valid stored values, foreign keys, and the prohibition on self-parenting and self-relations. Only issue creation and status changes add events.
+Missing issues, teams, or Projects return not-found errors. SQLite constraints enforce unique Project names, valid stored values, foreign keys, and the prohibition on self-parenting and self-relations. Only issue creation and status changes add events.
 
 It is the only process that opens the database, so the page and every agent see the same data. Keep the server running while agents work:
 
