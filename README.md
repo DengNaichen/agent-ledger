@@ -12,7 +12,7 @@ go run ./cmd/agent-ledger
 
 Open <http://localhost:8787>. Data is stored in `agent-ledger.db` by default. Identifiers use `AL-<id>`; pass `-prefix TOK` to use `TOK-<id>`.
 
-The issue model requires a fresh database. Delete an old development database and its `-wal`/`-shm` files while the server is stopped; no migrations are provided.
+New databases use the current schema directly. Existing databases use the append-only migration mechanism; the migration list is currently empty, so arbitrary legacy schemas are not automatically converted. Do not delete the database to apply a schema change. See [data reliability](docs/rules/RELIABILITY.md).
 
 Use the sidebar to filter by status or Project; active filters appear as chips above the list, and their × clears them. Click list group headers to collapse or expand them. Click an issue to open its page at `/issue/<identifier>`: the description and comments render as Markdown, relations and sub-issues link to each other, the properties panel shows and changes the status, and Edit changes the title and description. In list and board view, click an issue's status icon to change its status; in board view you can also drag a card by its grip. New issue opens a dialog for the title and description; new issues use the selected status filter (or Triage under All issues) and the selected Project.
 
@@ -71,7 +71,7 @@ codex mcp add agent_ledger --url http://127.0.0.1:8787/mcp
 claude mcp add --transport http agent-ledger http://127.0.0.1:8787/mcp
 ```
 
-Browser requests from other sites and requests with a non-local `Host` header are rejected.
+The server binds to loopback by default and wraps requests in Go cross-origin protection. There is no separate local `Host` allowlist or user authentication layer; see [security boundaries](docs/rules/SECURITY.md).
 
 ## Validate
 
