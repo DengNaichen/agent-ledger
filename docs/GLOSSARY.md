@@ -8,6 +8,7 @@
 | agent_ready | 通过仓库 ticket skill 的执行门槛后进入 Agent 队列。门槛是贡献流程，不能宣称 Service 自动审核 ticket 描述。 |
 | in_progress / in_review / done / canceled | 正在处理、PR 可审阅、合并后完成、取消或被替代。GitHub 同步仅按源码中的特定规则自动推进。 |
 | type | 可选分类：`spec`、`feature`、`bug`、`improvement`、`chore`；与 status 相互独立。 |
+| label / label group | 全局 issue 标签；普通标签多选，单层标签组内互斥。标签 ID 稳定、名称可改、创建后所属组固定；归档保留关联和筛选，合并转移关联并删除源 ID。与 type、Project 和 status 独立。 |
 | parent / children | 工作归属与子任务。不能自引用；当前服务不检查较长的 parent 环。 |
 | blocks / blocked_by | 有方向的阻塞关系；`blocked_by` 以反向 `blocks` 存储。 |
 | related | 无方向关联，数据库规范化两端顺序以避免重复。与 parent 的归属含义不同。 |

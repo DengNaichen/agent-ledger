@@ -16,6 +16,12 @@
 
 增加状态时，核对后端 `Statuses`、schema 的 CHECK、MCP 描述、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
 
+## 标签
+
+`internal/app/labels.go` 管理全局标签、单层互斥组、事务内增量批量关联、合并及筛选。`issue_labels` 连接 issue 和标签；SQLite trigger 阻止同组双选，Service 添加前删除旧组值。标签新增表由幂等 schema 在现有库启动时安装，不改写已有表。
+
+`web/src/Labels.tsx` 提供 `/labels` 管理页、详情/批量选择器和筛选对话框；标签类型与徽标在 `shared.tsx`。REST 标签路由在 `internal/httpapi/labels.go`，MCP 适配在 `internal/mcpserver/labels.go`。
+
 ## 外部同步
 
 `internal/app/github.go` 轮询配置的 GitHub repository，从 PR 分支名和标题识别 issue identifier，记录 PR 并自动推进状态；PR 描述不参与匹配。启用 linkback 时还会向 GitHub 评论写入 ticket 内容，见 [安全边界](rules/SECURITY.md)。同步游标和 PR 记录持久化在 SQLite，不能视作纯浏览器功能。`POST /webhooks/github` 只验签并通知同一个串行 worker 读取最新状态；重复通知合并，轮询仍补漏。

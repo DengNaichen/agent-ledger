@@ -40,6 +40,7 @@ var Statuses = []Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProg
 var schema string
 
 type IssueSummary struct {
+	Labels     []Label `json:"labels"`
 	Identifier string  `json:"identifier"`
 	Title      string  `json:"title"`
 	Status     Status  `json:"status"`
@@ -50,6 +51,7 @@ type IssueSummary struct {
 }
 
 type Issue struct {
+	Labels      []Label `json:"labels"`
 	Identifier  string  `json:"identifier"`
 	Title       string  `json:"title"`
 	Status      Status  `json:"status"`
@@ -73,12 +75,15 @@ type IssueDetails struct {
 }
 
 type ListIssues struct {
-	Status  *Status `json:"status,omitempty" jsonschema:"filter by status: triage, todo, agent_ready, in_progress, in_review, done, or canceled"`
-	Type    *string `json:"type,omitempty" jsonschema:"filter by type: spec, feature, bug, improvement, chore; empty string matches untyped issues"`
-	Project string  `json:"project,omitempty" jsonschema:"filter by exact Project name"`
-	Parent  string  `json:"parent,omitempty" jsonschema:"filter by parent issue identifier, such as AL-1"`
-	Query   string  `json:"query,omitempty" jsonschema:"LIKE match against title or description; percent and underscore are SQL wildcards"`
-	Limit   *int    `json:"limit,omitempty" jsonschema:"maximum results, defaults to 50; zero returns none and negative means unlimited"`
+	LabelIDs      []int64 `json:"label_ids,omitempty" jsonschema:"selected label IDs, including archived labels"`
+	LabelGroupIDs []int64 `json:"label_group_ids,omitempty" jsonschema:"selected groups; each matches any child label"`
+	LabelMode     string  `json:"label_mode,omitempty" jsonschema:"any (default), all, none, or unlabeled; unlabeled requires empty selections"`
+	Status        *Status `json:"status,omitempty" jsonschema:"filter by status: triage, todo, agent_ready, in_progress, in_review, done, or canceled"`
+	Type          *string `json:"type,omitempty" jsonschema:"filter by type: spec, feature, bug, improvement, chore; empty string matches untyped issues"`
+	Project       string  `json:"project,omitempty" jsonschema:"filter by exact Project name"`
+	Parent        string  `json:"parent,omitempty" jsonschema:"filter by parent issue identifier, such as AL-1"`
+	Query         string  `json:"query,omitempty" jsonschema:"LIKE match against title or description; percent and underscore are SQL wildcards"`
+	Limit         *int    `json:"limit,omitempty" jsonschema:"maximum results, defaults to 50; zero returns none and negative means unlimited"`
 }
 
 type CreateIssue struct {
@@ -212,7 +217,18 @@ func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue,
 		}
 		issues = append(issues, issue)
 	}
-	return issues, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	for i := range issues {
+		labels, err := s.issueLabels(ctx, issues[i].Identifier)
+		if err != nil {
+			return nil, err
+		}
+		issues[i].Labels = labels
+	}
+	return issues, nil
 }
 
 func Summaries(issues []Issue) []IssueSummary {
@@ -220,7 +236,7 @@ func Summaries(issues []Issue) []IssueSummary {
 	for _, issue := range issues {
 		summaries = append(summaries, IssueSummary{
 			Identifier: issue.Identifier, Title: issue.Title, Status: issue.Status, Type: issue.Type,
-			Project: issue.Project, Parent: issue.Parent, UpdatedAt: issue.UpdatedAt,
+			Project: issue.Project, Parent: issue.Parent, UpdatedAt: issue.UpdatedAt, Labels: issue.Labels,
 		})
 	}
 	return summaries
@@ -252,6 +268,12 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		where += ` AND (title LIKE ? OR description LIKE ?)`
 		args = append(args, "%"+input.Query+"%", "%"+input.Query+"%")
 	}
+	labelWhere, labelArgs, err := s.labelFilter(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	where += labelWhere
+	args = append(args, labelArgs...)
 	limit := 50
 	if input.Limit != nil {
 		limit = *input.Limit
@@ -307,6 +329,10 @@ func (s *Service) Get(ctx context.Context, identifier string) (Issue, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, ErrNotFound
 	}
+	if err != nil {
+		return Issue{}, err
+	}
+	issue.Labels, err = s.issueLabels(ctx, identifier)
 	return issue, err
 }
 

@@ -5,15 +5,22 @@ import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Projec
 
 import { Session } from "./Session";
 
+import { emptyLabelFilter, LabelFilter, LabelFilterValue, LabelManager, LabelPicker, useLabels } from "./Labels";
+
 type ViewMode = "board" | "list";
 
 const issueTypes = ["spec", "feature", "bug", "improvement", "chore"];
 
 function App() {
+  const catalog = useLabels();
+  const [labelFilter, setLabelFilter] = useState<LabelFilterValue>(emptyLabelFilter);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [batchLabels, setBatchLabels] = useState(false);
   const [path, setPath] = useState(window.location.pathname);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadVersion = useRef(0);
   const [error, setError] = useState("");
   const [view, setView] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<Status | "all">("all");
@@ -24,6 +31,7 @@ function App() {
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | null>(null);
+  const managingLabels = path === "/labels";
   const detailIdentifier = path.startsWith("/issue/") ? path.slice("/issue/".length) : "";
 
   useEffect(() => {
@@ -41,7 +49,7 @@ function App() {
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
-  }, [path, project, type, query]);
+  }, [path, project, type, query, labelFilter]);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status)])) as Record<Status, Issue[]>,
@@ -49,35 +57,46 @@ function App() {
   );
 
   const visibleColumns = columns.filter((column) => filter === "all" || column.status === filter);
-  const heading = project || "All issues";
+  const heading = managingLabels ? "Labels" : project || "All issues";
+  const selectedVisible = selected.filter((id) => issues.some((issue) => issue.identifier === id && (filter === "all" || issue.status === filter)));
+  function toggleIssue(id: string) { setSelected((ids) => ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]); }
   const visibleCount = visibleColumns.reduce((count, column) => count + grouped[column.status].length, 0);
 
   function selectFilter(status: Status | "all", nextProject: string) {
     setFilter(status);
     setProject(nextProject);
     setCollapsed({});
-    if (detailIdentifier) navigate("/");
+    setSelected([]);
+    if (path !== "/") navigate("/");
   }
 
   async function loadIssues() {
+    const version = ++loadVersion.current;
     const params = new URLSearchParams({ project, query });
     if (type) params.set("type", type);
+    params.set("label_mode", labelFilter.mode);
+    labelFilter.labels.forEach((id) => params.append("label_id", String(id)));
+    labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
     try {
       const [issueData, projectData] = await Promise.all([
         api<{ issues: Issue[] }>(`/api/issues?${params}`),
         api<{ projects: Project[] }>("/api/projects"),
       ]);
-      setIssues(issueData.issues);
-      setProjects(projectData.projects);
+      if (version === loadVersion.current) {
+        setIssues(issueData.issues);
+        setProjects(projectData.projects);
+        setError("");
+      }
     } catch (cause) {
-      setError((cause as Error).message);
+      if (version === loadVersion.current) setError((cause as Error).message);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   }
 
   function addIssue(issue: Issue) {
-    setIssues((current) => [issue, ...current]);
+    if (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0)) setIssues((current) => [issue, ...current]);
+    else void loadIssues();
     setCollapsed((current) => ({ ...current, [issue.status]: false }));
     setDialog(null);
   }
@@ -112,11 +131,13 @@ function App() {
 
         <Session />
         <div className="sidebar-label">Workspace</div>
-        <button type="button" className={`nav-item ${filter === "all" && !project ? "active" : ""}`} aria-pressed={filter === "all" && !project} onClick={() => selectFilter("all", "")}>
+        <button type="button" className={`nav-item ${filter === "all" && !project && !managingLabels ? "active" : ""}`} aria-pressed={filter === "all" && !project && !managingLabels} onClick={() => selectFilter("all", "")}>
           <List className="icon" />
           <span className="nav-label">All issues</span>
           <small>{issues.length}</small>
         </button>
+
+        <button type="button" className={`nav-item ${managingLabels ? "active" : ""}`} onClick={() => navigate("/labels")}><Tag className="icon" /><span className="nav-label">Labels</span></button>
 
         <div className="sidebar-group">
           <div className="sidebar-label">Statuses</div>
@@ -149,14 +170,14 @@ function App() {
               <span>{heading}</span>
             )}
           </nav>
-          {detailIdentifier ? (
+          {managingLabels ? <NavLink to="/">Back to issues</NavLink> : detailIdentifier ? (
             <button type="button" className="button" onClick={() => setDialog("edit")}>Edit</button>
           ) : (
             <button type="button" className="button" onClick={() => setDialog("new")}>New issue</button>
           )}
         </header>
 
-        {!detailIdentifier && (
+        {!detailIdentifier && !managingLabels && (
           <div className="header-row filter-row">
             <div className="chips">
               {filter !== "all" && (
@@ -204,6 +225,7 @@ function App() {
                 <option value="">All types</option>
                 {issueTypes.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
+              <LabelFilter value={labelFilter} onChange={(value) => { setLabelFilter(value); setSelected([]); }} catalog={catalog} />
               <nav className="view-switch" aria-label="Issue view">
                 <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}><List className="icon" /> List</button>
                 <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}><Columns2 className="icon" /> Board</button>
@@ -214,8 +236,9 @@ function App() {
 
         {error && <RequestError message={error} />}
 
-        {detailIdentifier ? (
-          <IssueDetail key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
+        {!detailIdentifier && !managingLabels && <div className="label-bulk-bar"><button className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button>{selectedVisible.length > 0 && <><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></>}</div>}
+        {managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
+          <IssueDetail catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
         ) : view === "board" ? (
           <section className="board" aria-label="Delivery board">
             {visibleColumns.map((column) => (
@@ -253,6 +276,7 @@ function App() {
                       }}
                       onDragEnd={() => setDropTarget(null)}
                     >
+                      <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
                       <span className="drag-handle" draggable title={`Drag ${issue.identifier} to another status`} aria-label={`Drag ${issue.identifier}`}>⠿</span>
                       <NavLink to={`/issue/${issue.identifier}`} className="card-open">
                         <span className="identifier">{issue.identifier}</span>
@@ -283,6 +307,7 @@ function App() {
                   {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
                   {grouped[column.status].map((issue) => (
                     <article className="list-row" key={issue.identifier}>
+                      <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
                       <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
                       <NavLink to={`/issue/${issue.identifier}`} className="identifier">{issue.identifier}</NavLink>
                       <NavLink to={`/issue/${issue.identifier}`} className="list-title">{issue.title}</NavLink>
@@ -297,6 +322,7 @@ function App() {
         )}
       </main>
 
+      {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
       {dialog === "new" && <NewIssueDialog status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
     </div>
   );

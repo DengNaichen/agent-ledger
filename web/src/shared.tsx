@@ -12,7 +12,11 @@ export const columns = [
 
 export type Status = (typeof columns)[number]["status"];
 
+export type Label = { id: number; name: string; color: string; description: string; group_id: number; archived: boolean };
+export type LabelGroup = { id: number; name: string };
+
 export type Issue = {
+  labels: Label[];
   identifier: string;
   title: string;
   status: Status;
@@ -25,6 +29,7 @@ export type Issue = {
 };
 
 export type IssueSummary = {
+  labels: Label[];
   identifier: string;
   title: string;
   status: Status;
@@ -121,15 +126,20 @@ export function StatusSelect({ issue, onChange }: { issue: { identifier: string;
   );
 }
 
-export function IssueMeta({ issue }: { issue: { type: string | null; project: string | null } }) {
+export function IssueMeta({ issue }: { issue: { type: string | null; project: string | null; labels: Label[] } }) {
   return (
     <span className="issue-meta">
+      {issue.labels.slice(0, 2).map((label) => <LabelBadge key={label.id} label={label} />)}
+      {issue.labels.length > 2 && <span className="label-overflow" title={issue.labels.slice(2).map((l) => l.name).join(", ")}>+{issue.labels.length - 2}</span>}
       {issue.type && <span className="type-label">{issue.type}</span>}
       {issue.project && <span className="project-label">{issue.project}</span>}
     </span>
   );
 }
 
+export function LabelBadge({ label }: { label: Label }) {
+ return <span className="label-badge" title={`${label.name}${label.archived ? " (archived)" : ""}${label.description ? ` — ${label.description}` : ""}`}><span className="label-dot" style={{ backgroundColor: label.color }} /><span>{label.name}</span>{label.archived && <small>archived</small>}</span>;
+}
 
 export function RequestError({ message }: { message: string }) {
   return <p className="error" role="alert">{message === "unauthorized" ? <>Your session expired. <a href="/auth/login" target="_blank" rel="noopener noreferrer">Sign in again</a>, then retry. Your text stays here.</> : message}</p>;

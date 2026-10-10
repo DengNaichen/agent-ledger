@@ -4,13 +4,17 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { RequestError, api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusIcon, StatusSelect } from "./shared";
 
+import { Catalog, LabelPicker } from "./Labels";
+import { LabelBadge } from "./shared";
+
 const remarkPlugins = [remarkGfm];
 
 const timestamp = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-export function IssueDetail({ identifier, setError, editing, closeEditor }: { identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
+export function IssueDetail({ catalog, identifier, setError, editing, closeEditor }: { catalog: Catalog; identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
   const [issue, setIssue] = useState<IssueDetails | null>(null);
   const [comment, setComment] = useState("");
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
@@ -77,6 +81,7 @@ export function IssueDetail({ identifier, setError, editing, closeEditor }: { id
           <h1>{issue.title}</h1>
           <div className="detail-inline-properties">{properties}</div>
 
+          <div className="detail-labels">{issue.labels.map((label) => <LabelBadge key={label.id} label={label} />)}<button className="button" onClick={() => setLabelsOpen(true)}>Edit labels</button></div>
           <MarkdownText text={issue.description} />
 
           {issue.children.length > 0 && (
@@ -147,6 +152,7 @@ export function IssueDetail({ identifier, setError, editing, closeEditor }: { id
         {properties}
       </aside>
 
+      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={async () => { const updated = await api<IssueDetails>(`/api/issues/${identifier}`); setIssue(updated); }} />}
       {editing && <IssueEditor issue={issue} onClose={closeEditor} onSave={(updated) => {
         setIssue({ ...issue, ...updated });
         closeEditor();

@@ -16,6 +16,8 @@ New databases use the current schema directly. Existing databases use the append
 
 Use the sidebar to filter by status or Project, the search box (press Enter) to match titles and descriptions, and the type menu to filter by type; active filters appear as chips above the list, and their × clears them. Click list group headers to collapse or expand them. Click an issue to open its page at `/issue/<identifier>`: the description and comments render as Markdown, relations and sub-issues link to each other, linked pull requests show their state and open on GitHub, the properties panel shows and changes the status, and Edit changes the title and description. In list and board view, click an issue's status icon to change its status; in board view you can also drag a card by its grip. New issue opens a dialog for the title and description; new issues use the selected status filter (or Triage under All issues) and the selected Project.
 
+Use **Labels** in the sidebar to create, edit, archive, restore, and merge global issue labels. Ungrouped labels are multi-select; each group allows one value per issue. Open **Edit labels** on an issue, or select issues in the list/board and choose **Change labels** for an atomic batch operation. The Labels filter supports any, all, none of the selected labels/groups, and issues with no labels. Archived labels remain on existing issues and in filters. Labels are independent of type, status, and Project.
+
 For frontend hot reload, keep the Go server running and start:
 
 ```sh
@@ -58,13 +60,18 @@ See [cloud deployment and recovery](docs/DEVELOPMENT.md#云端团队部署) for 
 
 The running server exposes these tools over streamable HTTP at `/mcp`:
 
-- `list_issues`: filter by status, type, Project name, parent identifier, or title/description query (AND). Returns summaries ordered by `updated_at` descending, with a default limit of 50.
+- `list_issues`: filter by status, type, Project name, parent identifier, title/description query, and labels (AND). `label_ids` and `label_group_ids` select predicates combined using `label_mode`: `any` (default), `all`, or `none`; `unlabeled` requires empty selections. Returns summaries including labels, ordered by `updated_at` descending, with a default limit of 50.
 - `get_issue`: retrieve the full issue, comments, links, linked GitHub pull requests, parent identifier, children summaries, and `blocks`, `blocked_by`, and `related` summaries.
 - `create_issue`: create an issue with a required title; optionally set description, status, type, Project, and parent.
 - `update_issue`: update supplied fields only; an empty string clears type, Project, or parent.
 - `add_comment`: append a comment; comments cannot be edited or deleted.
 - `add_relation`, `remove_relation`: manage directed `blocks` (or its inverse `blocked_by`) and undirected `related` relations. Duplicate additions succeed without creating duplicates; self-relations are forbidden.
 - `add_link`: attach a title and URL to an issue.
+- `list_labels`, `list_label_groups`: discover existing labels and single-select groups. Labels exclude archived entries unless `include_archived` is true.
+- `create_label`, `update_label`: create labels or edit supplied name/color/description/archived properties by stable ID. Names are trimmed and case-insensitively unique within a group; colors use `#RRGGBB`. `group_id: 0` means ungrouped; membership is fixed after creation.
+- `save_label_group`: create a group, or rename an existing group by `id`; group names are unique and groups cannot nest.
+- `change_issue_labels`: supply `identifiers` and incremental `add`/`remove` label ID arrays. The whole batch succeeds or rolls back. Adding a grouped label replaces the old selection; duplicate additions/removals are idempotent. Multiple additions in one group and overlapping add/remove arrays are rejected. Archived labels can be removed or retained, but cannot be newly applied.
+- `merge_labels`: transfer `source_id` associations to an active `target_id` in the same group, then delete the source. External filters referencing the source ID must be updated.
 - `list_projects`: list unarchived Projects by default; set `include_archived` to include all.
 - `create_project`, `update_project`: create named Projects with outcome descriptions, or update description and archived state by name. Names are unique and cannot be changed.
 

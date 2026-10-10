@@ -16,6 +16,7 @@ type server struct{ service *app.Service }
 func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s := &server{service: service}
 	mux := http.NewServeMux()
+	s.labelRoutes(mux)
 	mux.HandleFunc("GET /auth/session", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
 	})
@@ -46,6 +47,10 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Query().Has("type") {
 		input.Type = &issueType
+	}
+	if err := labelQuery(r, &input); err != nil {
+		writeError(w, err)
+		return
 	}
 	issues, err := s.service.List(r.Context(), input)
 	if err != nil {
@@ -150,9 +155,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 func writeError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound):
+	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType):
+	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType):
 		status = http.StatusBadRequest
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {

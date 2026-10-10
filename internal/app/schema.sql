@@ -73,3 +73,32 @@ CREATE TABLE IF NOT EXISTS github_sync (
 CREATE INDEX IF NOT EXISTS issues_status_updated_idx ON issues(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS issues_parent_idx ON issues(parent);
 CREATE INDEX IF NOT EXISTS events_issue_created_idx ON events(issue_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS label_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    name_key TEXT NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS labels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    name_key TEXT NOT NULL,
+    color TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    group_id INTEGER REFERENCES label_groups(id),
+    archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS labels_name_idx ON labels(COALESCE(group_id, 0), name_key);
+CREATE TABLE IF NOT EXISTS issue_labels (
+    issue TEXT NOT NULL REFERENCES issues(identifier),
+    label_id INTEGER NOT NULL REFERENCES labels(id),
+    PRIMARY KEY (issue, label_id)
+);
+CREATE INDEX IF NOT EXISTS issue_labels_label_idx ON issue_labels(label_id, issue);
+CREATE TRIGGER IF NOT EXISTS issue_labels_exclusive BEFORE INSERT ON issue_labels
+WHEN EXISTS (
+    SELECT 1 FROM issue_labels il JOIN labels old ON old.id = il.label_id
+    JOIN labels incoming ON incoming.id = NEW.label_id
+    WHERE il.issue = NEW.issue AND old.group_id = incoming.group_id AND old.id <> incoming.id
+)
+BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;
