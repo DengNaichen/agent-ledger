@@ -22,6 +22,7 @@ make test
 | 备份 | `go test ./internal/app -run TestBackup` | 每日副本与保留行为 |
 | REST 读写、跨站边界 | `go test ./internal/httpapi` | httptest 请求、临时数据库、跨站 POST 被拒绝 |
 | MCP 工具契约 | `go test ./internal/mcpserver` | MCP 客户端经 HTTP 执行工作流和非法输入 |
+| UC 云端认证 | `go test ./internal/ucauth ./cmd/inftask` | 假 UC 上的 state/cookie/PKCE/token 边界及监听配置，不证明真实 UC 配置或公网部署 |
 | GitHub 同步 | `go test ./internal/app -run TestGitHubSync` | 受控 HTTP 服务上的关联、推进、游标与仓库失败隔离，不证明真实凭据权限 |
 | UI、导航、共享外观 | `npm --prefix web run build`，另加 [UI 检查](#ui-检查) | 编译/打包与实际操作分别报告 |
 

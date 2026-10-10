@@ -259,3 +259,6 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
   .detail-content { padding: 24px 16px 48px; }
   .detail-content h1 { font-size: 22px; }
 }
+
+.session-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.session-bar a { color: var(--accent); }

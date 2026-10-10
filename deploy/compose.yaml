@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: ..
+    restart: unless-stopped
+    init: true
+    environment:
+      INFTASK_PUBLIC_URL: https://${INFTASK_DOMAIN:?Set INFTASK_DOMAIN}
+      INFONE_UC_BASE_URL: ${INFONE_UC_BASE_URL:?Set INFONE_UC_BASE_URL}
+      INFONE_UC_CLIENT_ID: ${INFONE_UC_CLIENT_ID:?Set INFONE_UC_CLIENT_ID}
+      INFONE_UC_CLIENT_SECRET: ${INFONE_UC_CLIENT_SECRET:?Set INFONE_UC_CLIENT_SECRET}
+      INFONE_UC_JWT_ISSUER: ${INFONE_UC_JWT_ISSUER:-}
+      INFONE_SHARE_DIR: /run/infone
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?Set GITHUB_TOKEN}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?Set GITHUB_WEBHOOK_SECRET}
+    command: ["-addr", "0.0.0.0:8787", "-data", "/data/inftask.db", "-github-repo", "${GITHUB_REPO:?Set GITHUB_REPO}"]
+    volumes:
+      - data:/data
+      - ${INFONE_SHARE_DIR:?Set INFONE_SHARE_DIR}:/run/infone:ro
+    expose:
+      - "8787"
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      INFTASK_DOMAIN: ${INFTASK_DOMAIN:?Set INFTASK_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+volumes:
+  data:
+  caddy_data:
+  caddy_config:

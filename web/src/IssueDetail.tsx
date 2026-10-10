@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusIcon, StatusSelect } from "./shared";
+import { RequestError, api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusIcon, StatusSelect } from "./shared";
 
 const remarkPlugins = [remarkGfm];
 
@@ -199,6 +199,8 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, description, status }),
       });
+      if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
+      if (response.ok) window.dispatchEvent(new Event("session-active"));
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       onSave(result as Issue);
@@ -221,7 +223,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
         <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
           {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
         </select></label>
-        {error && <p className="error" role="alert">{error}</p>}
+        {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" onClick={onClose}>Cancel</button>
           <button type="submit" className="button primary" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
