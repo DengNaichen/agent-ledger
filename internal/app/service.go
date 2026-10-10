@@ -56,9 +56,9 @@ type Issue struct {
 	Type        *string `json:"type"`
 	Project     *string `json:"project"`
 	Parent      *string `json:"parent"`
-	UpdatedAt   string  `json:"updatedAt"`
+	UpdatedAt   string  `json:"updated_at"`
 	Description string  `json:"description"`
-	CreatedAt   string  `json:"createdAt"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type IssueDetails struct {

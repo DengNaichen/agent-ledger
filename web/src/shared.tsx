@@ -19,9 +19,9 @@ export type Issue = {
   type: string | null;
   project: string | null;
   parent: string | null;
-  updatedAt: string;
+  updated_at: string;
   description: string;
-  createdAt: string;
+  created_at: string;
 };
 
 export type IssueSummary = {
