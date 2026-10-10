@@ -43,7 +43,7 @@ if (existing.issues.length > 0) {
 }
 
 async function issue(fields) {
-  const { issue: created } = await call("create_issue", fields);
+  const created = await call("create_issue", fields);
   console.log(`${created.identifier}\t${created.status}\t${created.type || "-"}\t${created.title}`);
   return created.identifier;
 }

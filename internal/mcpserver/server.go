@@ -16,10 +16,6 @@ type listOutput struct {
 	Issues []app.IssueSummary `json:"issues" jsonschema:"issue summaries without descriptions, ordered by updated_at descending"`
 }
 
-type issueOutput struct {
-	Issue app.Issue `json:"issue"`
-}
-
 type commentInput struct {
 	Identifier string `json:"identifier" jsonschema:"issue identifier, such as AL-1"`
 	Body       string `json:"body" jsonschema:"comment body; comments are append-only"`
@@ -73,14 +69,14 @@ func New(service *app.Service) *mcp.Server {
 			return nil, issue, err
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "create_issue", Description: "Create an issue; title is required, status defaults to triage. Project and parent must already exist. " + statuses + types},
-		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateIssue) (*mcp.CallToolResult, issueOutput, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Create(ctx, input)
-			return nil, issueOutput{Issue: issue}, err
+			return nil, issue, err
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "update_issue", Description: "Update only supplied fields. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types},
-		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateIssue) (*mcp.CallToolResult, issueOutput, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Update(ctx, input)
-			return nil, issueOutput{Issue: issue}, err
+			return nil, issue, err
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "add_comment", Description: "Append a comment to an issue. Comments cannot be edited or deleted."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input commentInput) (*mcp.CallToolResult, app.Comment, error) {

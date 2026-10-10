@@ -50,6 +50,24 @@ curl -sS http://127.0.0.1:8700/mcp \
 
 `params.name` 是工具名，`params.arguments` 是工具参数；把 `method` 换成 `tools/list` 并去掉 `params`，可列出全部工具和参数 schema。成功时结果在 `result.structuredContent`；工具出错时 `result.isError` 为 `true`，原因在 `result.content[0].text`。写操作同样走 `tools/call`。
 
+`structuredContent` 的形状：单对象工具直接返回对象，`get_issue`、`create_issue`、`update_issue` 返回 issue，`add_comment` 返回评论，`add_link` 返回链接，`create_project`、`update_project` 返回 Project。列表工具包一层：`list_issues` 在 `issues` 下，`list_projects` 在 `projects` 下。`add_relation`、`remove_relation` 返回 `{}`。
+
+正文含中文、换行、引号或反引号时，不要内联进 `-d '...'`。先把 JSON 写进临时文件，再用 `--data-binary @<文件>` 发送：
+
+```sh
+req=$(mktemp)
+cat > "$req" <<'EOF'
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_comment","arguments":{"identifier":"AL-<编号>","body":"进展：`go vet ./...` 和 `make test` 通过。\n\n- 未运行：浏览器检查\n- 风险：无"}}}
+EOF
+curl -sS http://127.0.0.1:8700/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  --data-binary @"$req"
+rm "$req"
+```
+
+heredoc 定界符带引号（`<<'EOF'`），shell 不展开其中的 `$`、反引号和 `\`。正文换行在 JSON 字符串里写成 `\n`。`--data-binary` 原样发送文件内容；`-d @<文件>` 会删掉文件里的换行和回车。
+
 ## 合并后更新维护者实例
 
 仅在服务端改动已获准合并之后，沿用原贡献指南的步骤，在主检出执行：
