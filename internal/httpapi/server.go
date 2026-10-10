@@ -23,6 +23,9 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/issues", s.createIssue)
 	mux.HandleFunc("PATCH /api/issues/{identifier}/status", s.moveIssue)
 	mux.HandleFunc("PATCH /api/issues/{identifier}", s.updateIssue)
+	mux.HandleFunc("GET /api/issues/{identifier}", s.getIssue)
+	mux.HandleFunc("POST /api/issues/{identifier}/comments", s.addComment)
+	mux.HandleFunc("GET /api/projects", s.listProjects)
 	for _, method := range []string{"GET", "POST", "DELETE"} {
 		mux.Handle(method+" /mcp", mcp)
 	}
@@ -33,7 +36,7 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	status := app.Status(r.URL.Query().Get("status"))
 	limit := -1
-	input := app.ListIssues{Limit: &limit}
+	input := app.ListIssues{Project: r.URL.Query().Get("project"), Limit: &limit}
 	if r.URL.Query().Has("status") {
 		input.Status = &status
 	}
@@ -88,6 +91,40 @@ func (s *server) updateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, issue)
+}
+
+func (s *server) getIssue(w http.ResponseWriter, r *http.Request) {
+	issue, err := s.service.Details(r.Context(), r.PathValue("identifier"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, issue)
+}
+
+func (s *server) addComment(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Body string `json:"body"`
+	}
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	comment, err := s.service.AddComment(r.Context(), r.PathValue("identifier"), input.Body)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, comment)
+}
+
+func (s *server) listProjects(w http.ResponseWriter, r *http.Request) {
+	projects, err := s.service.ListProjects(r.Context(), false)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"projects": projects})
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
