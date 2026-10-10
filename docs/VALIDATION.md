@@ -5,12 +5,11 @@
 在工作树根目录先按 [开发](DEVELOPMENT.md) 安装前端依赖。推送前执行既有 git-workflow 要求：
 
 ```sh
-npm --prefix web run build
 go vet ./...
 make test
 ```
 
-先构建前端确保 embed 资源存在；`make test` 自身也会构建前端，然后运行 `go test ./...`。前端 build 包含 TypeScript 严格类型检查和 Vite 打包，不包含组件测试或浏览器交互测试。仓库当前没有 `.github/workflows`，也没有前端 test/lint script；本地成功不等于已配置 CI 或自动 Hook。
+`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，然后运行 `go test ./...`。前端 build 包含 TypeScript 严格类型检查和 Vite 打包，不包含组件测试或浏览器交互测试。仓库当前没有 `.github/workflows`，也没有前端 test/lint script；本地成功不等于已配置 CI 或自动 Hook。
 
 ## 按改动选择证据
 
