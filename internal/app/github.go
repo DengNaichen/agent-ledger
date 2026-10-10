@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,6 @@ type GitHubSync struct {
 	token    string
 	linkback bool
 	baseURL  string
-	pattern  *regexp.Regexp
 	wake     chan struct{}
 }
 
@@ -36,7 +36,6 @@ func NewGitHubSync(service *Service, repos []string, token string, linkback bool
 		service: service, repos: repos, token: token, linkback: linkback,
 		baseURL: "https://api.github.com",
 		wake:    make(chan struct{}, 1),
-		pattern: regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(service.prefix) + `-(\d+)`),
 	}
 }
 
@@ -79,18 +78,49 @@ func (g *GitHubSync) Run(ctx context.Context) {
 	}
 }
 
+// syncAll reads the teams at the start of every round, so a team created
+// while the server runs is recognized from the next round on.
 func (g *GitHubSync) syncAll(ctx context.Context) {
+	teams, err := g.service.ListTeams(ctx)
+	if err != nil {
+		log.Printf("github sync failed to read teams: %v", err)
+		return
+	}
+	identifiers := identifierFinder(teams)
 	for _, repo := range g.repos {
-		if err := g.syncRepo(ctx, repo); err != nil {
+		if err := g.syncRepo(ctx, repo, identifiers); err != nil {
 			log.Printf("github sync %s failed: %v", repo, err)
 		}
+	}
+}
+
+// identifierFinder returns a function that finds the given teams' issue
+// identifiers in text. Keys match in any case; each identifier found is
+// spelled with the team's own key.
+func identifierFinder(teams []Team) func(text string) []string {
+	if len(teams) == 0 {
+		return func(string) []string { return nil }
+	}
+	keys := map[string]string{}
+	quoted := make([]string, 0, len(teams))
+	for _, team := range teams {
+		keys[strings.ToUpper(team.Key)] = team.Key
+		quoted = append(quoted, regexp.QuoteMeta(team.Key))
+	}
+	pattern := regexp.MustCompile(`(?i)\b(` + strings.Join(quoted, "|") + `)-(\d+)`)
+	return func(text string) []string {
+		var identifiers []string
+		for _, match := range pattern.FindAllStringSubmatch(text, -1) {
+			identifiers = append(identifiers, keys[strings.ToUpper(match[1])]+"-"+match[2])
+		}
+		return identifiers
 	}
 }
 
 // syncRepo reads pull requests by most recent update and stops at the first
 // one updated before the previous sync. The cursor moves only after the whole
 // read succeeds.
-func (g *GitHubSync) syncRepo(ctx context.Context, repo string) error {
+func (g *GitHubSync) syncRepo(ctx context.Context, repo string, identifiers func(string) []string) error {
 	db := g.service.db
 	var since string
 	if err := db.QueryRowContext(ctx, `SELECT COALESCE((SELECT last_updated_at FROM github_sync WHERE repo = ?), '')`, repo).Scan(&since); err != nil {
@@ -110,8 +140,8 @@ pages:
 			}
 			newest = max(newest, pull.UpdatedAt)
 			// When the branch and the title name the same issue, the second link changes nothing.
-			for _, match := range g.pattern.FindAllStringSubmatch(pull.Head.Ref+" "+pull.Title, -1) {
-				if err := g.link(ctx, repo, pull, g.service.prefix+"-"+match[1]); err != nil {
+			for _, identifier := range identifiers(pull.Head.Ref + " " + pull.Title) {
+				if err := g.link(ctx, repo, pull, identifier); err != nil {
 					return err
 				}
 			}

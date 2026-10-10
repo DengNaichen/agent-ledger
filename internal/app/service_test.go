@@ -2,19 +2,30 @@ package app
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
+// alTeam creates team AL, the team most tests number their issues in.
+func alTeam(t *testing.T, s *Service) {
+	t.Helper()
+	if _, err := s.CreateTeam(context.Background(), CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestIssueLifecycle(t *testing.T) {
-	service, err := Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	service, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	alTeam(t, service)
 
 	ctx := context.Background()
-	issue, err := service.Create(ctx, CreateIssue{Title: "Ship the first board", Description: "One vertical slice."})
+	issue, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Ship the first board", Description: "One vertical slice."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,5 +64,81 @@ func TestIssueLifecycle(t *testing.T) {
 	}
 	if history != "created:triage,status_changed:triage -> agent_ready" {
 		t.Fatalf("unexpected event history: %s", history)
+	}
+}
+
+func TestIssueLifecycleNumbersPerTeam(t *testing.T) {
+	service, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	ctx := context.Background()
+	for _, input := range []CreateTeam{{Key: "AL", Name: "InfTask"}, {Key: "TOK", Name: " HarnessKit "}} {
+		if team, err := service.CreateTeam(ctx, input); err != nil || team.NextNumber != 1 {
+			t.Fatalf("create team %#v: %#v, %v", input, team, err)
+		}
+	}
+
+	var identifiers []string
+	for _, team := range []string{"AL", "TOK", "AL", "TOK", "TOK"} {
+		issue, err := service.Create(ctx, CreateIssue{Team: team, Title: "Work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		identifiers = append(identifiers, issue.Identifier)
+	}
+	if want := []string{"AL-1", "TOK-1", "AL-2", "TOK-2", "TOK-3"}; !slices.Equal(identifiers, want) {
+		t.Fatalf("identifiers = %q, want %q", identifiers, want)
+	}
+
+	// Rejected issues use up no number.
+	for _, tc := range []struct {
+		input CreateIssue
+		want  error
+	}{
+		{CreateIssue{Title: "No team"}, ErrTeamRequired},
+		{CreateIssue{Team: "NOPE", Title: "Unknown team"}, ErrTeamNotFound},
+		{CreateIssue{Team: "al", Title: "Keys match exactly"}, ErrTeamNotFound},
+		{CreateIssue{Team: "AL", Title: " "}, ErrInvalidTitle},
+		{CreateIssue{Team: "AL", Title: "Missing Project", Project: "Missing"}, ErrProjectNotFound},
+	} {
+		if _, err := service.Create(ctx, tc.input); !errors.Is(err, tc.want) {
+			t.Fatalf("create %#v: err = %v, want %v", tc.input, err, tc.want)
+		}
+	}
+	if issue, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Next"}); err != nil || issue.Identifier != "AL-3" {
+		t.Fatalf("issue = %#v, err = %v; want AL-3", issue, err)
+	}
+
+	for _, input := range []CreateTeam{
+		{Key: "tok", Name: "Lowercase"}, {Key: "T", Name: "Too short"}, {Key: "TOOLONG1", Name: "Too long"},
+		{Key: "1AB", Name: "Starts with a digit"}, {Key: "A-B", Name: "Punctuation"}, {Key: "OPS", Name: " "},
+	} {
+		if _, err := service.CreateTeam(ctx, input); !errors.Is(err, ErrInvalidTeam) {
+			t.Fatalf("create team %#v: err = %v, want %v", input, err, ErrInvalidTeam)
+		}
+	}
+	if _, err := service.CreateTeam(ctx, CreateTeam{Key: "AL", Name: "Again"}); err == nil {
+		t.Fatal("created a second team with key AL")
+	}
+	teams, err := service.ListTeams(ctx)
+	if want := []Team{{Key: "AL", Name: "InfTask", NextNumber: 4}, {Key: "TOK", Name: "HarnessKit", NextNumber: 4}}; err != nil || !slices.Equal(teams, want) {
+		t.Fatalf("teams = %#v, err = %v; want %#v", teams, err, want)
+	}
+
+	issues, err := service.List(ctx, ListIssues{Team: "TOK"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identifiers = nil
+	for _, issue := range issues {
+		identifiers = append(identifiers, issue.Identifier)
+	}
+	if want := []string{"TOK-3", "TOK-2", "TOK-1"}; !slices.Equal(identifiers, want) {
+		t.Fatalf("TOK issues = %q, want %q", identifiers, want)
+	}
+	if _, err := service.List(ctx, ListIssues{Team: "NOPE"}); !errors.Is(err, ErrTeamNotFound) {
+		t.Fatalf("list unknown team: err = %v", err)
 	}
 }

@@ -18,13 +18,13 @@ make test
 | 改动 | 定向检查 | 证明范围 |
 | --- | --- | --- |
 | Service、输入、关系 | `go test ./internal/app -run TestIssueLifecycle` | 真实临时 SQLite 上的生命周期与业务规则 |
-| schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚 |
+| schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚、迁移 1 按前缀回填 team 和编号 |
 | 标签、互斥组、筛选与已有库安装 | `go test ./internal/app -run 'TestLabels\|TestLabelFilters\|TestLabelUpgrade'` | 真实 SQLite 上的互斥、幂等、批量回滚、归档、合并、筛选与旧数据保留 |
 | 备份 | `go test ./internal/app -run TestBackup` | 每日副本与保留行为 |
 | REST 读写、跨站边界 | `go test ./internal/httpapi` | httptest 请求、临时数据库、跨站 POST 被拒绝 |
 | MCP 工具契约 | `go test ./internal/mcpserver` | MCP 客户端经 HTTP 执行工作流和非法输入 |
 | UC 云端认证 | `go test ./internal/ucauth ./cmd/inftask` | 假 UC 上的 state/cookie/PKCE/token 边界及监听配置，不证明真实 UC 配置或公网部署 |
-| GitHub 同步 | `go test ./internal/app -run TestGitHubSync` | 受控 HTTP 服务上的关联、推进、游标与仓库失败隔离，不证明真实凭据权限 |
+| GitHub 同步 | `go test ./internal/app -run TestGitHubSync` | 受控 HTTP 服务上的关联、推进、游标、仓库失败隔离、每轮重读全部 team key 以及 webhook 用的 Notify 唤醒，不证明真实凭据权限 |
 | UI、导航、共享外观 | `npm --prefix web run build`，另加 [UI 检查](#ui-检查) | 编译/打包与实际操作分别报告 |
 
 新增测试围绕真实可发生的输入与边界；数据库不变量需要真实隔离 SQLite，不能由 mock 成功推出迁移正确。文档改动检查相对链接、路径、命令与源码的一致性，不为可逆低影响文字编辑添加实现镜像测试。
@@ -54,7 +54,7 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
    node scripts/browser/seed.mjs --url http://127.0.0.1:<端口>
    ```
 
-   脚本经 `/mcp` 写入两个 Project 和 11 张 ticket，覆盖全部状态和 type、带两个子票的 spec、blocks / blocked_by / related、一个链接，以及含表格和代码块的正文和评论，逐行打印标识符、状态、type 和标题。服务里已有 ticket 时拒绝写入并 exit 1。默认前缀的新库里 AL-2 就是这张 spec，详情页的各种元素都在它上面。
+   脚本经 `/mcp` 先建 team `AL`，再写入两个 Project 和 11 张 AL ticket，覆盖全部状态和 type、带两个子票的 spec、blocks / blocked_by / related、一个链接，以及含表格和代码块的正文和评论，逐行打印标识符、状态、type 和标题。服务里已有 ticket 时拒绝写入并 exit 1；已有 team `AL` 时 `create_team` 报错并 exit 1。AL-2 就是这张 spec，详情页的各种元素都在它上面。
 3. 在仓库外写截图列表，每项给出 `url`、`width`、`height` 和输出 `path`，再运行截图脚本：
 
    ```sh

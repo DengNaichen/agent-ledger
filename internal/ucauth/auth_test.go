@@ -329,11 +329,14 @@ func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 func TestAuthenticatedMCPWritesSharedBoard(t *testing.T) {
 	f := newFixture(t)
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
+	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	if _, err := service.CreateTeam(context.Background(), app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
+		t.Fatal(err)
+	}
 	server := httptest.NewServer(f.auth.Handler(httpapi.New(service, http.NotFoundHandler(), mcpserver.Handler(service))))
 	defer server.Close()
 	client := mcp.NewClient(&mcp.Implementation{Name: "uc-test", Version: "1"}, nil)
@@ -342,7 +345,7 @@ func TestAuthenticatedMCPWritesSharedBoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close()
-	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "create_issue", Arguments: map[string]any{"title": "Shared UC issue"}})
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "create_issue", Arguments: map[string]any{"team": "AL", "title": "Shared UC issue"}})
 	if err != nil || result.IsError {
 		t.Fatal(err, result)
 	}

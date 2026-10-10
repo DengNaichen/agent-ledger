@@ -55,6 +55,8 @@ export type IssueDetails = Issue & {
 
 export type Project = { name: string; description: string; archived: boolean };
 
+export type Team = { key: string; name: string; next_number: number };
+
 export async function api<T>(path: string, method = "GET", body?: object): Promise<T> {
   const response = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (response.status === 401) window.dispatchEvent(new Event("session-expired"));

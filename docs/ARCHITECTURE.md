@@ -4,7 +4,7 @@
 
 `cmd/inftask/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务。配置 UC 时由 `internal/ucauth` 包裹页面、REST 和 MCP，承接网页会话与 MCP OAuth；单独挂载验签的 webhook 入口。`internal/httpapi` 挂载 `/api`、`/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
 
-`internal/app/service.go` 持有单连接 SQLite 访问、模型、输入校验和业务操作。它直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
+`internal/app/service.go` 持有单连接 SQLite 访问、模型、输入校验和业务操作；建票在同一事务里把 team 的 `next_number` 加一并插入 issue。它直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 
 `web/src/App.tsx` 管列表、看板、筛选、新建和路径切换；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper、导航和状态控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
 
@@ -24,7 +24,7 @@
 
 ## 外部同步
 
-`internal/app/github.go` 轮询配置的 GitHub repository，从 PR 分支名和标题识别 issue identifier，记录 PR 并自动推进状态；PR 描述不参与匹配。启用 linkback 时还会向 GitHub 评论写入 ticket 内容，见 [安全边界](rules/SECURITY.md)。同步游标和 PR 记录持久化在 SQLite，不能视作纯浏览器功能。`POST /webhooks/github` 只验签并通知同一个串行 worker 读取最新状态；重复通知合并，轮询仍补漏。
+`internal/app/github.go` 轮询配置的 GitHub repository，每轮按当时的全部 team key 从 PR 分支名和标题识别 issue identifier，记录 PR 并自动推进状态；PR 描述不参与匹配。启用 linkback 时还会向 GitHub 评论写入 ticket 内容，见 [安全边界](rules/SECURITY.md)。同步游标和 PR 记录持久化在 SQLite，不能视作纯浏览器功能。`POST /webhooks/github` 只验签并通知同一个串行 worker 读取最新状态；重复通知合并，轮询仍补漏。
 
 云端仍为单实例 SQLite，共享看板没有 tenant/workspace 隔离。UC 凭据通过配置注入，登录流程、网页会话、MCP 短期授权码在进程内存中，重启后失效；部署入口见 [开发](DEVELOPMENT.md#云端团队部署)。
 

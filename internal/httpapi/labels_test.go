@@ -6,17 +6,12 @@ import (
 	"github.com/DengNaichen/inftask/internal/app"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestLabelAPI(t *testing.T) {
-	s, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
+	s := openService(t)
 	h := New(s, http.NotFoundHandler(), http.NotFoundHandler())
 	request := func(method, path, body string, status int) []byte {
 		t.Helper()
@@ -36,7 +31,7 @@ func TestLabelAPI(t *testing.T) {
 	request("POST", "/api/labels", `{"name":"bad","color":"#123456","unknown":true}`, 400)
 	request("POST", "/api/labels", fmt.Sprintf(`{"name":"low","color":"#123456","group_id":%d}`, g.ID), 400)
 	var i app.Issue
-	json.Unmarshal(request("POST", "/api/issues", `{"title":"A"}`, 201), &i)
+	json.Unmarshal(request("POST", "/api/issues", `{"team":"AL","title":"A"}`, 201), &i)
 	change := fmt.Sprintf(`{"identifiers":[%q],"add":[%d]}`, i.Identifier, l.ID)
 	request("POST", "/api/issue-labels", change, 200)
 	var detail app.IssueDetails

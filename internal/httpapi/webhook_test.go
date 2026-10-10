@@ -6,18 +6,12 @@ import (
 	"encoding/hex"
 	"github.com/DengNaichen/inftask/internal/app"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestGitHubWebhook(t *testing.T) {
-	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"), "AL")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
-	sync := app.NewGitHubSync(service, []string{"team/repo"}, "", false)
+	sync := app.NewGitHubSync(openService(t), []string{"team/repo"}, "", false)
 	handler := GitHubWebhook(sync, "webhook-secret")
 	for _, tc := range []struct {
 		name, body, event, secret string

@@ -5,7 +5,7 @@ description: "Create and update InfTask tickets: choose the Project by outcome, 
 
 # Ticket
 
-Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. Identifiers come only from `create_issue` results; never guess the next number.
+Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
 
 ## Project
 

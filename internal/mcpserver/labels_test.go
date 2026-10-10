@@ -16,7 +16,7 @@ func TestLabelsOverMCP(t *testing.T) {
 	call(t, session, "save_label_group", map[string]any{"name": "Risk"}, &g)
 	call(t, session, "create_label", map[string]any{"name": "Low", "color": "#123456", "group_id": g.ID}, &l)
 	call(t, session, "create_label", map[string]any{"name": "High", "color": "#abcdef", "group_id": g.ID}, &other)
-	call(t, session, "create_issue", map[string]any{"title": "A"}, &issue)
+	call(t, session, "create_issue", map[string]any{"team": "AL", "title": "A"}, &issue)
 	call(t, session, "change_issue_labels", map[string]any{"identifiers": []string{issue.Identifier}, "add": []int64{l.ID}}, &ignored)
 	var detail app.IssueDetails
 	call(t, session, "get_issue", map[string]any{"identifier": issue.Identifier}, &detail)
