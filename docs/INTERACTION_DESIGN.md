@@ -10,13 +10,21 @@ Sidebar 的 Workspace 有 All issues、All projects 与 Labels；每个 Team 有
 
 范围 URL：`/<slug>/` 是全部任务，`/<slug>/projects` 是全部项目，`/<slug>/team/<key>/issues` 与 `/<slug>/team/<key>/projects` 是 Team 范围，`/<slug>/project/<id>` 是项目全部任务；Project 使用稳定 id，Team 使用不可变 key（保留迁移产生的历史 key），已有 issue 详情路径继续可用。直达、刷新、前后退恢复范围。每次进入 sidebar 目的地或项目都清空 status、type、priority、标签、搜索、显式 Team 筛选和批量选择，包括再次点击同一路径；同 workspace 内保留 list/board 和排序。
 
-`ProjectList.tsx` 是只读项目列表，默认排除归档；Team 列表依据 Project 的显式关联过滤，空项目仍展示，历史待归属项目只在全部项目中展示。进入项目不继承来源 Team，内容区提供显式 Team 筛选和可清除 chip。项目名称与说明来自 by-id 查询；归档项目直达可查看已有票，待归属/归档项目禁用新建任务并说明原因。无 Team 时提供创建入口；空项目列表说明没有当前范围的活动项目；失效范围和请求失败显示错误、Retry 与返回全部任务入口。
+`ProjectList.tsx` 展示项目列表，默认排除归档，Active projects / Archived projects 可切换活动与归档列表；Team 列表依据 Project 的显式关联过滤，空项目仍展示，历史待归属项目只在全部项目中展示。进入项目不继承来源 Team，内容区提供显式 Team 筛选和可清除 chip。项目名称与说明来自 by-id 查询；归档项目直达可查看已有票，待归属/归档项目禁用新建任务并说明原因。无 Team 时提供创建入口；空项目列表说明没有当前范围的活动项目；失效范围和请求失败显示错误、Retry 与返回全部任务入口。
 
 type、priority、标签、搜索和显式 Team 筛选参与 API 查询，项目范围使用 project_id。搜索按 Enter 提交；状态在列表数据中选择可见列。全部状态且无搜索时默认折叠 Done/Canceled；具体状态或有搜索时展开。切状态、Team 或提交搜索清除折叠覆盖，范围导航重新初始化。折叠组不渲染行，看板不折叠。新建继续沿用当前 Team、Project 和状态，未指定 Team 时仍由既有表单预选按 key 排序的第一个；完整新建归属交互另票处理。创建成功重读当前范围，筛选决定是否显示新票。
 
+## 项目管理
+
+全部项目与 Team 项目列表的 New project 打开创建表单，Team 范围预选当前 Team，全局范围必须显式选择至少一个 Team。名称、说明和多 Team 使用共享 modal 与原生 checkbox；保存成功保留列表范围并重读，展示 View project 入口，空项目立即按关联可见。归档列表发起创建后回到活动列表。
+
+稳定项目页展示说明、关联 Team 和任务，Edit project 修改名称、说明或关联，URL 始终使用同一 id。历史待归属项目标明状态并提供 Assign teams / Edit project；仅修改名称或说明时省略未变化的 teams，不强迫归属。移除仍有该 Team 任务的关联由服务端拒绝，错误和草稿留在表单。Archive project 后默认列表不再展示，Archived projects 中可直达并 Restore project；归档详情仍显示原任务，新建任务禁用。
+
+保存期间禁止关闭与修改，失败保留输入可重试，取消不写入；目录读取失败不会卸载已打开的表单，范围导航卸载后旧保存回调不影响新页面。成功后重读当前范围，不由客户端猜测归属。名称空白与重名分别由Service返回必填与冲突错误。
+
 ## Team 显示名称
 
-侧栏每个 Team 的铅笔按钮和当前 Team 范围标题旁按钮打开 Rename team 对话框；窄屏可展开 Navigation 或从当前标题进入。名称去首尾空白后必填，提示 key 与已有票号保持不变。保存成功后替换 Team 缓存，侧栏、标题和新建任务的 Team 下拉立即使用服务端名称；失败保留输入并显示 role=alert。保存中禁用输入、提交和关闭，浏览器切换 workspace 导致卸载后旧响应不更新界面。取消不发送写入；Escape 关闭，焦点回到原入口。Project 改名当前由 REST/MCP 提供，项目管理表单另行交付。
+侧栏每个 Team 的铅笔按钮和当前 Team 范围标题旁按钮打开 Rename team 对话框；窄屏可展开 Navigation 或从当前标题进入。名称去首尾空白后必填，提示 key 与已有票号保持不变。保存成功后替换 Team 缓存，侧栏、标题和新建任务的 Team 下拉立即使用服务端名称；失败保留输入并显示 role=alert。保存中禁用输入、提交和关闭，浏览器切换 workspace 导致卸载后旧响应不更新界面。取消不发送写入；Escape 关闭，焦点回到原入口。Project 改名由项目编辑表单及 REST/MCP 提供。
 
 ## 项目与团队 emoji
 

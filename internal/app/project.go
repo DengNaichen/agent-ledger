@@ -149,6 +149,10 @@ func (s *Service) replaceProjectTeams(ctx context.Context, tx *sql.Tx, id int64,
 }
 
 func (s *Service) CreateProject(ctx context.Context, name, description string, teams ...string) (Project, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Project{}, ErrInvalidName
+	}
 	if len(teams) == 0 {
 		return Project{}, ErrProjectTeamsRequired
 	}
@@ -159,7 +163,7 @@ func (s *Service) CreateProject(ctx context.Context, name, description string, t
 	defer tx.Rollback()
 	result, err := tx.ExecContext(ctx, `INSERT INTO projects(workspace_id,name,description) VALUES (?,?,?)`, s.workspace, name, description)
 	if err != nil {
-		return Project{}, err
+		return Project{}, projectWriteError(err)
 	}
 	id, err := result.LastInsertId()
 	if err != nil {

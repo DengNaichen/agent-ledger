@@ -6,7 +6,8 @@ import { IssueDetail } from "./IssueDetail";
 import { IssueFilters } from "./IssueFilters";
 import { IssueViews, ViewMode } from "./IssueViews";
 import { emptyLabelFilter, LabelFilterValue, LabelManager, LabelPicker, useLabels } from "./Labels";
-import { RequestError, api, columns, IssueSummary, navigate, NavLink, pagePath, Status, Team, Workspace, workspaceSlug, Priority, IssueSort, WorkspaceRoute, workspaceRoute } from "./shared";
+import { RequestError, api, columns, IssueSummary, navigate, NavLink, pagePath, Status, Team, Project, Workspace, workspaceSlug, Priority, IssueSort, WorkspaceRoute, workspaceRoute } from "./shared";
+import { ProjectDialog, ProjectOverview } from "./ProjectManagement";
 import { ProjectList } from "./ProjectList";
 import { Sidebar } from "./Sidebar";
 import { useIssues } from "./useIssues";
@@ -78,6 +79,9 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
+  const [projectDialog, setProjectDialog] = useState<Project | "new" | null>(null);
+  const [archivedProjects, setArchivedProjects] = useState(false);
+  const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | "team" | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -88,7 +92,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const listingIssues = route.kind === "issues" || route.kind === "project";
   const detailIdentifier = route.kind === "issue" ? route.identifier : "";
 
-  const { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority } = useIssues(route, { team, type, query, priority, labelFilter }, setError);
+  const { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority } = useIssues(route, { archivedProjects, team, type, query, priority, labelFilter }, setError);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status).sort((a, b) => {
@@ -160,7 +164,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
             <button type="button" className="button" onClick={() => setDialog("edit")}>Edit</button>
           ) : listingIssues ? (
             <button type="button" className="button" disabled={!canCreate} onClick={() => setDialog("new")}>New issue</button>
-          ) : null}
+          ) : listingProjects ? <button type="button" className="button" disabled={loading} onClick={() => setProjectDialog("new")}>New project</button> : null}
         </header>
 
         {listingIssues && !scopeError && (
@@ -169,7 +173,10 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
             priority={priority} setPriority={setPriority} sort={sort} setSort={setSort} labelFilter={labelFilter} setLabelFilter={setLabelFilter}
             catalog={catalog} clearSelection={() => setSelected([])} view={view} setView={setView} visibleCount={visibleCount} />
         )}
-        {activeProject && <div className="scope-description"><p>{activeProject.description}</p><p>{activeProject.archived ? "Archived project. Existing issues remain available." : activeProject.teams.length === 0 ? "This historical project has no assigned teams yet." : `Teams: ${activeProject.teams.map((key) => teams.find((item) => item.key === key)?.name ?? key).join(", ")}`}</p></div>}
+        {activeProject && <ProjectOverview project={activeProject} teams={teams} onEdit={() => setProjectDialog(activeProject)} onSaved={loadIssues} />}
+        {listingProjects && <div className="project-actions project-list-toolbar"><button type="button" className="button" aria-pressed={!archivedProjects} onClick={() => setArchivedProjects(false)}>Active projects</button><button type="button" className="button" aria-pressed={archivedProjects} onClick={() => setArchivedProjects(true)}>Archived projects</button></div>}
+        {createdProject && <p className="scope-description" role="status">Created {createdProject.name}. <NavLink to={pagePath(`/project/${createdProject.id}`)}>View project</NavLink></p>}
+
         {scopeError && <div className="scope-message"><RequestError message={scopeError} /><button type="button" className="button" onClick={() => void loadIssues()}>Retry</button> <NavLink to={pagePath("/")}>Back to all issues</NavLink></div>}
 
         {error && <RequestError message={error} />}
@@ -178,7 +185,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
         {blockingError ? null : managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
           <IssueDetail catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
         ) : listingProjects ? (
-          <ProjectList projects={projects.filter((item) => !scopeTeam || item.teams.includes(scopeTeam))} teams={teams} loading={loading} />
+          <ProjectList projects={projects.filter((item) => item.archived === archivedProjects && (!scopeTeam || item.teams.includes(scopeTeam)))} teams={teams} loading={loading} archived={archivedProjects} />
         ) : listingIssues && !loading && teams.length === 0 ? (
           <div className="scope-message"><p>No teams yet. Create a team to start adding issues.</p><button type="button" className="button" onClick={() => setDialog("team")}>Create team</button></div>
         ) : (
@@ -188,6 +195,11 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
         )}
       </main>
 
+      {projectDialog && <ProjectDialog project={projectDialog === "new" ? undefined : projectDialog} initialTeam={scopeTeam} teams={teams} onClose={() => setProjectDialog(null)} onSaved={async (saved) => {
+        if (projectDialog === "new") { setCreatedProject(saved); setArchivedProjects(false); }
+        await loadIssues();
+        if (mounted.current) setProjectDialog(null);
+      }} />}
       {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
       {dialog === "new" && <NewIssueDialog teams={teams} team={team} status={filter === "all" ? "triage" : filter} project={activeProject?.name ?? ""} onClose={() => setDialog(null)} onCreate={addIssue} />}
       {renamingTeam && <RenameTeamDialog team={renamingTeam} onClose={() => setRenamingTeam(null)} onSaved={(updated) => { replaceTeam(updated); setRenamingTeam(null); }} />}
