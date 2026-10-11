@@ -20,6 +20,12 @@ workspace 只做分组：team、Project、标签和 PR 记录各属于一个 wor
 
 增加状态时，核对后端 `Statuses`、schema 的 CHECK、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
 
+## MCP 契约演进
+
+`internal/mcpserver` 的所有工具（含标签工具）通过 `addTool` 集中注册，保留 `outputSchema` 和 `structuredContent`。输出字段只做加法：各层输出 object 允许额外字段，包含 `properties`、`items`、`$defs` 中的对象，让缓存旧 schema 的客户端接受新增字段。删字段、改名、改类型、改语义都是破坏性变更，必须先保留旧字段过渡；既有 `required` 列表保持不变。输入 schema 保持严格，拒绝未知参数。
+
+输出 schema 在交给 go-sdk `mcp.AddTool` 前放宽，SDK 仍按该 schema 校验 handler 返回的 JSON，保留必填与类型检查；不能只修改 `tools/list` 公布的副本。首次部署此修复后，已连接客户端仍缓存旧的严格 schema，需要重连一次；取得新 schema 后，后续新增输出字段不会再因额外字段被拒绝。
+
 ## Project 与 Team
 
 `project_teams(project_id, team_id)` 保存显式多对多关联；外键保护引用，`project_teams_workspace` 插入触发器拒绝跨 workspace 关联。Project 输出既有 `projects.id` 与排序后的 Team key 数组。`project.go` 在事务中替换关联，移除仍有任务（含已关闭任务）的 Team 会整体回滚。`issue.go` 在建票或更新事务内校验 Team 兼容与归档状态，失败建票不消耗编号；省略 Project 不改归属，显式提交当前归档 Project 也允许编辑其它字段。

@@ -86,27 +86,27 @@ func New(service *app.Service) *mcp.Server {
 	typeList := strings.Join(app.Types, ", ")
 	statuses := "Statuses: " + statusList + ". "
 	types := "Types: " + typeList + "; empty string means no type. "
-	mcp.AddTool(server, issueTool[app.ListIssues](&mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, including priority. Default sort: priority for status=agent_ready, otherwise newest updated first. Explicit sort=priority or updated overrides; no priority sorts last; ties use newest updated then newest id. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types}, statusList, typeList),
+	addTool(server, issueTool[app.ListIssues](&mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, including priority. Default sort: priority for status=agent_ready, otherwise newest updated first. Explicit sort=priority or updated overrides; no priority sorts last; ties use newest updated then newest id. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types}, statusList, typeList),
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ListIssues) (*mcp.CallToolResult, listOutput, error) {
 			issues, err := service.List(ctx, input)
 			return nil, listOutput{Issues: app.Summaries(issues)}, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "get_issue", Description: "Get a complete issue with comments, links, linked GitHub pull requests, parent identifier, children summaries, and blocks, blocked_by, related summaries. " + statuses + types},
+	addTool(server, &mcp.Tool{Name: "get_issue", Description: "Get a complete issue with comments, links, linked GitHub pull requests, parent identifier, children summaries, and blocks, blocked_by, related summaries. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input identifierInput) (*mcp.CallToolResult, app.IssueDetails, error) {
 			issue, err := service.Details(ctx, input.Identifier)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, issueTool[app.CreateIssue](&mcp.Tool{Name: "create_issue", Description: "Create an issue in a team; team and title are required, status defaults to triage. There is no default team: use the team key the repository names, or list_teams. The identifier is <team key>-<n>, where n is the team's next number. Project and parent must already exist. " + statuses + types}, statusList, typeList),
+	addTool(server, issueTool[app.CreateIssue](&mcp.Tool{Name: "create_issue", Description: "Create an issue in a team; team and title are required, status defaults to triage. There is no default team: use the team key the repository names, or list_teams. The identifier is <team key>-<n>, where n is the team's next number. Project and parent must already exist. " + statuses + types}, statusList, typeList),
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Create(ctx, input)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, issueTool[app.UpdateIssue](&mcp.Tool{Name: "update_issue", Description: "Update only supplied fields; omitted priority is unchanged and priority=0 clears it. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types}, statusList, typeList),
+	addTool(server, issueTool[app.UpdateIssue](&mcp.Tool{Name: "update_issue", Description: "Update only supplied fields; omitted priority is unchanged and priority=0 clears it. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types}, statusList, typeList),
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Update(ctx, input)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "add_comment", Description: "Append a comment to an issue. Comments cannot be edited or deleted."},
+	addTool(server, &mcp.Tool{Name: "add_comment", Description: "Append a comment to an issue. Comments cannot be edited or deleted."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input commentInput) (*mcp.CallToolResult, app.Comment, error) {
 			comment, err := service.AddComment(ctx, input.Identifier, input.Body)
 			return nil, comment, err
@@ -118,48 +118,48 @@ func New(service *app.Service) *mcp.Server {
 		{"add_relation", "Add a relation; duplicate additions succeed without changing it.", false},
 		{"remove_relation", "Remove a relation; removing an absent relation succeeds.", true},
 	} {
-		mcp.AddTool(server, &mcp.Tool{Name: operation.name, Description: operation.description + " Kinds: blocks (this issue blocks other), blocked_by (other blocks this issue), related (undirected). Self-relations are forbidden."},
+		addTool(server, &mcp.Tool{Name: operation.name, Description: operation.description + " Kinds: blocks (this issue blocks other), blocked_by (other blocks this issue), related (undirected). Self-relations are forbidden."},
 			func(ctx context.Context, _ *mcp.CallToolRequest, input relationInput) (*mcp.CallToolResult, struct{}, error) {
 				err := service.Relation(ctx, input.Identifier, input.Kind, input.Other, operation.remove)
 				return nil, struct{}{}, err
 			})
 	}
-	mcp.AddTool(server, &mcp.Tool{Name: "add_link", Description: "Attach a titled URL to an issue."},
+	addTool(server, &mcp.Tool{Name: "add_link", Description: "Attach a titled URL to an issue."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input linkInput) (*mcp.CallToolResult, app.Link, error) {
 			link, err := service.AddLink(ctx, input.Identifier, input.Title, input.URL)
 			return nil, link, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "list_teams", Description: "List teams by key. Each team numbers its own issues <key>-<n>; next_number is the number its next issue gets."},
+	addTool(server, &mcp.Tool{Name: "list_teams", Description: "List teams by key. Each team numbers its own issues <key>-<n>; next_number is the number its next issue gets."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, teamsOutput, error) {
 			teams, err := service.ListTeams(ctx)
 			return nil, teamsOutput{Teams: teams}, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. start_number makes numbering begin above numbers the team already used elsewhere, such as a team imported from another tracker. Optional emoji chooses a Unicode emoji icon. A key cannot be changed, and teams cannot be renamed or deleted."},
+	addTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. start_number makes numbering begin above numbers the team already used elsewhere, such as a team imported from another tracker. Optional emoji chooses a Unicode emoji icon. A key cannot be changed, and teams cannot be renamed or deleted."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateTeam) (*mcp.CallToolResult, app.Team, error) {
 			team, err := service.CreateTeam(ctx, input)
 			return nil, team, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "update_team", Description: "Update a team display name or emoji by key; omitted fields are unchanged and empty emoji clears it. Name must be nonempty. Key and numbering cannot be changed."},
+	addTool(server, &mcp.Tool{Name: "update_team", Description: "Update a team display name or emoji by key; omitted fields are unchanged and empty emoji clears it. Name must be nonempty. Key and numbering cannot be changed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateTeam) (*mcp.CallToolResult, app.Team, error) {
 			team, err := service.UpdateTeam(ctx, input)
 			return nil, team, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "list_projects", Description: "List Projects alphabetically; archived Projects are excluded unless include_archived is true."},
+	addTool(server, &mcp.Tool{Name: "list_projects", Description: "List Projects alphabetically; archived Projects are excluded unless include_archived is true."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input listProjectsInput) (*mcp.CallToolResult, projectsOutput, error) {
 			projects, err := service.ListProjects(ctx, input.IncludeArchived, input.Team)
 			return nil, projectsOutput{Projects: projects}, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_project", Description: "Create a Project with a unique name, at least one Team key in teams, and an optional outcome description. New Projects are unarchived."},
+	addTool(server, &mcp.Tool{Name: "create_project", Description: "Create a Project with a unique name, at least one Team key in teams, and an optional outcome description. New Projects are unarchived."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input createProjectInput) (*mcp.CallToolResult, app.Project, error) {
 			project, err := service.CreateProject(ctx, input.Name, input.Description, input.Teams...)
 			return nil, project, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "get_project", Description: "Get a Project by stable id or current name; both must match when supplied."},
+	addTool(server, &mcp.Tool{Name: "get_project", Description: "Get a Project by stable id or current name; both must match when supplied."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ProjectRef) (*mcp.CallToolResult, app.Project, error) {
 			p, err := service.GetProject(ctx, input)
 			return nil, p, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "update_project", Description: "Find a Project by stable id or current name and update only supplied new_name, teams, description, archived, or emoji fields. Empty emoji restores the default icon. Current name remains a lookup reference; new_name renames without changing the stable id."},
+	addTool(server, &mcp.Tool{Name: "update_project", Description: "Find a Project by stable id or current name and update only supplied new_name, teams, description, archived, or emoji fields. Empty emoji restores the default icon. Current name remains a lookup reference; new_name renames without changing the stable id."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateProject) (*mcp.CallToolResult, app.Project, error) {
 			project, err := service.UpdateProject(ctx, input)
 			return nil, project, err
