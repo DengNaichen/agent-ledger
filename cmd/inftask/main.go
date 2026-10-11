@@ -28,7 +28,7 @@ func main() {
 	data := flag.String("data", "inftask.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
 	var repos []app.GitHubRepo
-	flag.Func("github-repo", "Sync pull requests from a GitHub repository into a workspace, as <slug>=<owner>/<name> (repeatable; needs GITHUB_TOKEN)", gitHubRepoFlag(&repos))
+	flag.Func("github-repo", "Sync pull requests from a GitHub repository into a workspace, as <slug>=<owner>/<name> (comma-separated or repeatable; needs GITHUB_TOKEN)", gitHubRepoFlag(&repos))
 	linkback := flag.Bool("github-linkback", false, "Comment the issue title and description on open pull requests when they are first linked")
 	flag.Parse()
 	token := os.Getenv("GITHUB_TOKEN")
@@ -72,15 +72,18 @@ func main() {
 	serve(ctx, *addr, handler)
 }
 
-// gitHubRepoFlag parses a -github-repo value, which binds a repository to the
-// workspace whose issues its pull requests link to.
+// gitHubRepoFlag parses comma-separated workspace/repository bindings.
 func gitHubRepoFlag(repos *[]app.GitHubRepo) func(string) error {
 	return func(value string) error {
-		workspace, repo, found := strings.Cut(value, "=")
-		if !found || workspace == "" {
-			return errors.New("use <slug>=<owner>/<name>, such as default=DengNaichen/inftask")
+		var bindings []app.GitHubRepo
+		for _, binding := range strings.Split(value, ",") {
+			workspace, repo, found := strings.Cut(binding, "=")
+			if !found || workspace == "" {
+				return errors.New("use <slug>=<owner>/<name>, such as default=DengNaichen/inftask")
+			}
+			bindings = append(bindings, app.GitHubRepo{Workspace: workspace, Repo: repo})
 		}
-		*repos = append(*repos, app.GitHubRepo{Workspace: workspace, Repo: repo})
+		*repos = append(*repos, bindings...)
 		return nil
 	}
 }

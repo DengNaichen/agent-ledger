@@ -28,3 +28,31 @@ func TestGitHubRepoFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubRepoFlagCommaSeparated(t *testing.T) {
+	var repos []app.GitHubRepo
+	flags := flag.NewFlagSet("inftask", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.Func("github-repo", "", gitHubRepoFlag(&repos))
+	err := flags.Parse([]string{"-github-repo", "default=owner/one,default=owner/two", "-github-repo", "other=owner/three"})
+	want := []app.GitHubRepo{{Workspace: "default", Repo: "owner/one"}, {Workspace: "default", Repo: "owner/two"}, {Workspace: "other", Repo: "owner/three"}}
+	if err != nil || !slices.Equal(repos, want) {
+		t.Fatalf("repos = %#v, err = %v; want %#v", repos, err, want)
+	}
+}
+
+func TestGitHubRepoFlagInvalidList(t *testing.T) {
+	for _, value := range []string{"", ",default=owner/one", "default=owner/one,", "default=owner/one,,other=owner/two", "default=owner/one,owner/two", "default=owner/one,=owner/two"} {
+		t.Run(value, func(t *testing.T) {
+			repos := []app.GitHubRepo{{Workspace: "existing", Repo: "owner/existing"}}
+			before := slices.Clone(repos)
+			err := gitHubRepoFlag(&repos)(value)
+			if err == nil || !strings.Contains(err.Error(), "<slug>=<owner>/<name>") {
+				t.Fatalf("err = %v, want format error", err)
+			}
+			if !slices.Equal(repos, before) {
+				t.Fatalf("invalid list changed repos: %#v", repos)
+			}
+		})
+	}
+}
