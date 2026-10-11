@@ -9,7 +9,9 @@ go vet ./...
 make test
 ```
 
-`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，然后运行 `go test ./...`。前端 build 包含 TypeScript 严格类型检查和 Vite 打包，不包含组件测试或浏览器交互测试。仓库当前没有 `.github/workflows`，也没有前端 test/lint script；本地成功不等于已配置 CI 或自动 Hook。
+`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，然后运行 `go test ./...`。前端 build 包含 TypeScript 严格类型检查和 Vite 打包，不包含组件测试或浏览器交互测试。仓库没有前端 test/lint script，本地成功不等于已配置自动 Hook。
+
+GitHub Actions（`.github/workflows/ci.yml`）在目标为 `main` 的 pull request 和 push 到 `main` 时，于 `ubuntu-latest` 上安装前端依赖并运行 `go vet ./...` 与 `make test`，结果与本地同一组命令。它不覆盖浏览器 UI 检查和真实 UC、GitHub 集成；是否要求 CI 通过才能合并由分支保护决定，仓库目前未设置。
 
 `git diff --name-only origin/main...HEAD` 列出的文件全部是 `.md` 时，推送前不需要 `go vet ./...` 和 `make test`，改做文档检查：相对链接和路径都存在，文中命令与 Makefile、package manifest 和源码一致。改了 `.agents/skills/` 下的 skill 时，再做 [skill 校验](#skill-校验)。
 
