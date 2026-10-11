@@ -76,10 +76,9 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
    node scripts/browser/screenshot.mjs "$shots/shots.json"
    ```
 
-   每项还可加两个可选字段：`click` 是 CSS 选择器，页面网络空闲后点击该元素，等两帧再截图，匹配不到元素时 exit 1；`scale` 是设备像素比，默认 1。看板没有自己的 URL，用 `click` 切过去；14px 的状态图标用 `scale` 放大：
+   每项还可加两个可选字段：`click` 是 CSS 选择器，页面网络空闲后点击该元素，等两帧再截图，匹配不到元素时 exit 1；`scale` 是设备像素比，默认 1。看板没有自己的 URL，需在浏览器先打开 Display，再选择 Board；这个单次点击脚本不覆盖两步切换。14px 的状态图标用 `scale` 放大：
 
    ```json
-   {"url": "http://127.0.0.1:<端口>/default/", "width": 1280, "height": 900, "path": "<目录>/board.png", "click": "nav[aria-label=\"Issue view\"] button:nth-child(2)"},
    {"url": "http://127.0.0.1:<端口>/default/", "width": 800, "height": 600, "path": "<目录>/zoom.png", "scale": 4}
    ```
 

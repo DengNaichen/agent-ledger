@@ -2,23 +2,23 @@
 
 ## 来源与复用
 
-`web/src/app.css` 的 `:root` 定义基础尺度和 light 颜色；`@media (prefers-color-scheme: dark)` 只覆盖主题颜色与 `color-scheme`。无深色偏好时使用 light，页面打开期间跟随系统变化。使用 Inter Variable，没有手动主题开关或主题偏好存储。
+`web/src/app.css` 的 `:root` 定义基础尺度和 light 颜色；`@media (prefers-color-scheme: dark)` 只覆盖主题颜色与 `color-scheme`。无深色偏好时使用 light，页面打开期间跟随系统变化。使用 Inter Variable，没有手动主题开关或主题偏好存储。`main.tsx` 在共享样式后依次加载 `issue-views.css`、`issue-detail.css` 和 `navigation.css`，分别承载列表/看板、详情/任务表单及导航/筛选的局部布局，沿用同一套 token。
 
 基础尺度保留现有紧凑密度，消费规则用 CSS custom properties；原始视觉值集中在 token 定义。同一个数值承担不同角色时可分别命名，避免改一个控件时意外改变另一个。
 
 | 类别 | Token 与用途 |
 | --- | --- |
-| 表面与交互 | `--bg` 画布、`--panel` 面板、`--raised` 抬升表面；`--hover`/`--selected`、`--button-bg`/`--button-hover`、`--chip-bg`、`--card-hover`、`--drop-bg` 分开表达状态 |
+| 表面与交互 | `--bg` 画布、`--panel` 面板、`--raised` 抬升表面、`--surface-card` 卡片；`--group-gradient-start`/`--group-gradient-end` 分组渐变；`--hover`/`--selected`、`--button-bg`/`--button-hover`、`--chip-bg`、`--card-hover`、`--drop-bg` 分开表达状态 |
 | 文字与边界 | `--text`、`--text-2`、`--text-3`、`--muted`、`--faint`；`--border`/`--border-strong` 与 `--link`/`--link-underline` |
 | 操作与反馈 | `--accent`/`--accent-hover` 配 `--accent-text`；`--success`、`--error-text`/`--error-bg`/`--error-border`；`--pr-open`/`--pr-merged`/`--pr-closed` 各有 border token |
-| 弹窗与代码 | `--dialog-bg`、`--backdrop`、`--shadow-dialog`、`--code-bg` |
+| 弹窗与代码 | `--dialog-bg`、`--backdrop`、`--shadow-dialog`、`--shadow-card`、`--code-bg` |
 | 间距与字体 | `--space-*` 是现有像素间距尺度；`--space-prose-*` 是随正文大小变化的 em 间距；`--font-size-*`、`--weight-*`、`--line-*`、`--tracking-*`、`--font-ui`、`--mono`、`--font-features`、`--font-optical-heading` 控制字体 |
-| 形状与尺寸 | `--radius*`、`--border-width`、`--focus-width`、`--icon-size`/`--icon-stroke`、`--status-icon-size`；`--sidebar-width`、`--board-column-width`、`--property-panel-width`、`--content-max-width`、`--dialog-width` 等表达组件尺寸 |
-| 其他共享值 | `--opacity-disabled`、`--duration-fast`、`--font-code-relative`、`--code-tab-size`；列表三列控件共用 `--list-control-size`，日期列用 `--list-date-width` |
+| 形状与尺寸 | `--radius*`、`--border-width`、`--focus-width`、`--icon-size`/`--icon-stroke`、`--status-icon-size`；`--sidebar-width`、`--board-column-width`、`--detail-properties-width`、`--content-max-width`、`--dialog-width`、`--composer-width` 等表达组件尺寸 |
+| 其他共享值 | `--opacity-disabled`、`--duration-fast`、`--font-code-relative`、`--code-tab-size`、`--scrollbar-thumb`；列表三种控件共用 `--list-control-size`，日期列用 `--list-date-width` |
 
-light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状态色按浅色背景调整明度。dark 保留既有配色。两套颜色都在 `app.css`，是 InfTask 的设计选择；[Refero 的 Linear 风格参考](https://styles.refero.design/style/90ce5883-bb24-4466-93f7-801cd617b0d1) 仅作为 token 组织参考，没有提供 light 配色，也不是 Linear 官方应用规范。
+light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状态色按浅色背景调整明度。dark 使用深色画布、面板和抬升卡片。AL-54 以已登录的 Linear 实际深色界面为布局与密度参考：36px 分组栏、44px 列表行、12px 主面板圆角及 8px 卡片圆角和间距。两套颜色都在 `app.css`，是 InfTask 的设计选择；不声称所有窗口、主题或像素都与 Linear 一致。[Refero 的 Linear 风格参考](https://styles.refero.design/style/90ce5883-bb24-4466-93f7-801cd617b0d1) 仅作为此前的 token 组织参考，没有提供 light 配色，也不是 Linear 官方应用规范。
 
-共享状态控件与元信息在 `shared.tsx` 的 `StatusIcon`、`StatusSelect`、`IssueMeta`；`.button`/`.primary`、`.chip`、`.error`、`.issue-dialog` 与 `.icon` 在 CSS 中统一消费。改全局角色先改已有 token 或共享规则，局部布局则定位消费选择器，不另造平行主题系统。type 筛选箭头用两片 CSS 三角形消费 `--muted`，不在 SVG data URL 中编码颜色。
+共享状态控件与元信息在 `shared.tsx` 的 `StatusIcon`、`StatusSelect`、`IssueMeta`；`.button`/`.primary`、`.chip`、`.error`、`.issue-dialog` 与 `.icon` 在 CSS 中统一消费。改全局角色先改已有 token 或共享规则，局部布局则定位消费选择器，不另造平行主题系统。滚动条全局使用 `thin`、透明轨道及 `--scrollbar-thumb`，实际呈现随浏览器和系统滚动条设置变化。
 
 允许保留的字面量边界：
 
@@ -47,11 +47,11 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 | done | 实心圆加对勾 | `--status-done` | `#5e6ad2` | `#5e6ad2` |
 | canceled | 实心圆加叉 | `--status-canceled` | `#95a2b3` | `#697789` |
 
-双箭头、对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用三列 24px 控件空间，展开箭头与复选框居中于首列，优先级居中于第二列，状态图标居中于第三列。
+双箭头、对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐。列表的选择、优先级及状态控件各占 24px；分组头紧凑排列展开箭头、状态、名称和数量，不保留任务行的空列。
 
 ## Workspace 菜单
 
-左上角 `WorkspaceMenu.tsx` 使用已有 Radix Popover 与原生 ModalDialog：触发器显示名称和 ChevronDown，长名称截断并用 title 提供完整名称；列表显示名称、slug 和当前项 Check。弹层消费已有 sidebar 宽度、主题、边界、圆角及菜单阴影 token，受视口宽高限制，名称可换行且列表内部滚动。新建和改名复用 `.issue-dialog` 表单；窄屏隐藏 sidebar 分组时保留 Workspace 触发器。
+左上角 `WorkspaceMenu.tsx` 使用已有 Radix Popover 与原生 ModalDialog：触发器显示名称和 ChevronDown，长名称截断并用 title 提供完整名称；紧凑列表显示文字头像、名称、与名称不同的 slug 和当前项 Check，长名称及 slug 用 title 提供全文。弹层消费已有 sidebar 宽度、主题、边界、圆角及菜单阴影 token，受视口宽高限制，列表内部滚动。新建和改名复用 `.issue-dialog` 表单；窄屏隐藏 sidebar 分组时保留 Workspace 触发器。账户入口位于侧栏底部，名称截断，打开账户弹层后展示身份和 Sign out。
 
 ## 项目与团队 emoji
 
@@ -63,18 +63,26 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 
 Priority 的档位与 [Linear](https://linear.app/docs/issue-property#priority) 对齐：No priority、Urgent、High、Medium、Low，对应 0–4。`shared.tsx` 的 `PriorityIcon` 自绘 16px 图形，参照官方菜单截图：未设置为三段横线，紧急为圆角方块加感叹号，其他档位为三根递增的实心柱、以亮柱数量表示级别。紧急使用 `--priority-urgent`（dark `#f2994a`、light `#a75b14`，项目自定强调色），其余消费现有文字 token；菜单阴影使用 `--shadow-priority-menu`、宽度使用 `--priority-menu-width`、未亮柱透明度使用 `--priority-muted-opacity`；不声称所有像素或取色与 Linear 完全一致。
 
-`PrioritySelect` 使用开源 `@radix-ui/react-select` 基础控件（MIT），项目 CSS 消费现有 light/dark token 控制菜单、悬停、当前项勾选和焦点；没有引入 shadcn/Tailwind。列表和看板为 24px 图标触发器，详情及创建/编辑弹窗展示图标加名称。列表共享列依次为选择、优先级、状态、编号、标题、元信息及日期，分组标题保留优先级列空位。原生 dialog 内的菜单 portal 挂到 dialog 本身，保持在 modal 的 top layer 中，否则会被遮挡或无法操作。
+`PrioritySelect` 使用开源 `@radix-ui/react-select` 基础控件（MIT），项目 CSS 消费现有 light/dark token 控制菜单、悬停、当前项勾选和焦点；没有引入 shadcn/Tailwind。列表和看板为 24px 图标触发器，详情及创建/编辑弹窗展示图标加名称。列表共享列依次为选择、优先级、编号、状态、标题、元信息及日期。原生 dialog 内的菜单 portal 挂到 dialog 本身，保持在 modal 的 top layer 中，否则会被遮挡或无法操作。
 
 ## 状态与可访问外观
 
-状态图标供侧栏、列表、看板和详情复用。列表/卡片中的原生 select 透明覆盖图标；不要把透明误认为无需保留，键盘操作与 accessible name 来自这个 select。`.status-control:focus-within` 显示焦点，链接和按钮有 `:focus-visible` 描边。禁用按钮降低不透明度并改变 cursor；保存流程见 [交互](INTERACTION_DESIGN.md)。
+状态图标供侧栏、列表、看板和详情复用。`StatusSelect` 使用 Radix Select，与优先级共享菜单表面；列表/卡片展示带 accessible name 的 24px 图标按钮，详情展示图标加名称。菜单保留全部八种状态，支持键盘操作，原生 dialog 内的 portal 挂到该 dialog。`.status-control:focus-within` 显示焦点，链接和按钮有 `:focus-visible` 描边。禁用按钮降低不透明度并改变 cursor；保存流程见 [交互](INTERACTION_DESIGN.md)。
+
+列表与卡片的复选框默认仅视觉隐藏，仍在 Tab 顺序中；条目 hover、focus-within、已选中或已有批量选择时显示。无 hover 或粗指针设备始终显示。选中条目消费 `--selected`，卡片同时强调边界。Team 改名按钮沿用 hover/focus 显示，触屏保持可见。
 
 增加状态需同时核对共享 `columns` 和 `StatusIcon` 的颜色与图形（两张表按 `Status` 类型定义，缺项时前端构建报错），再在列表、卡片及详情检查，不凭单页截图证明全部场景。仓库没有自动视觉回归测试或对比度认证。
 
 ## 范围导航与项目列表
 
-Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`；状态下拉在内容筛选栏。`ProjectList.tsx` 显示项目名称链接、说明和关联 Team，复用主题文字/边界/间距与 EntityEmoji，不新增卡片主题。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
+Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`。任务工具栏提供 Filter 和 Display 弹层：前者容纳状态、Team、type、priority 与标签筛选，后者容纳 List/Board、排序及 Select visible issues；搜索和结果数留在工具栏，已应用筛选显示可清除 chip。批量工具栏仅在当前范围有选中条目时出现。`ProjectList.tsx` 将项目名称链接、说明和关联 Team 排成紧凑行，长文本截断，复用主题文字/边界/间距与 EntityEmoji。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
 
 ## 布局
 
-桌面 `.app-shell` 是 232px 侧栏与主面板；1024px 以下详情隐藏右侧 properties、展示内联属性，列表元信息换到第二行并隐藏日期，760px 以下切换单列，侧栏目的地收进可展开 Navigation，并隐藏列表 Project 元信息。筛选控件允许换行。列表使用 CSS Grid 和 subgrid 共享列宽，编号列按当前可见条目的内容宽度分配，标题起点一致，列间距为 8px；分组条有圆角，列表左右留白为 16px，760px 以下为 8px。空组文字及第二行元信息与编号列起点对齐。最小 body 宽度为 320px。改变断点或共享尺寸时检查两侧布局、长标题、Markdown 表格/代码横向滚动与焦点可见性，按 [验证](VALIDATION.md) 分别报告构建与人工结果。
+桌面 `.app-shell` 是 220px 侧栏与圆角 12px 的主面板。列表使用 CSS Grid 和 subgrid 共享列宽，编号列按当前可见条目的内容宽度分配，标题起点一致，桌面列间距为 8px、行高 44px。分组按钮高 36px，背景从左到右微渐变；吸顶由不透明的外层承载，顶部留白与圆角后方都由面板色遮挡，滚动容器本身没有顶部 padding。列表左右留白为 16px，760px 以下为 8px；空组文字及第二行元信息与编号列起点对齐。
+
+看板横向滚动，各状态列内的卡片独立纵向滚动；列宽默认 320px，并按窄视口收缩。卡片使用 8px 圆角和间距，顶部是淡化的编号，状态在标题旁，优先级、Project、标签及 type 位于下方；没有常驻拖动符号，整张卡片仍可拖动。
+
+详情的标题、正文和属性组共用同一画布及纵向滚动区域，属性没有通高边界或独立滚动。桌面属性置于正文右侧，1024px 以下移入主内容流，窄屏保留属性、标签及日期。列表在 1024px 以下将元信息换到第二行并隐藏日期；760px 以下页面切换单列，侧栏目的地收进可展开 Navigation，列表/看板隐藏 Project 元信息。任务新建与编辑使用最大 720px 的 `.issue-composer`：标题和说明直接排列，归属及其它属性以可换行的紧凑控件展示；其它弹窗保留共享 `.issue-dialog` 尺寸。
+
+最小 body 宽度为 320px。改变断点或共享尺寸时检查两侧布局、长标题、Markdown 表格/代码横向滚动与焦点可见性，按 [验证](VALIDATION.md) 分别报告构建与人工结果。

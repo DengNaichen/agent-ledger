@@ -4,6 +4,9 @@ import "@fontsource-variable/inter/opsz.css";
 import "@fontsource-variable/inter/opsz-italic.css";
 import App from "./App";
 import "./app.css";
+import "./issue-views.css";
+import "./issue-detail.css";
+import "./navigation.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

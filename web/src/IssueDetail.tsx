@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Box, CalendarDays, Clock, CornerUpLeft, Tag, Users, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -85,35 +85,37 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   ].filter((group) => group.issues.length > 0);
 
   const properties = (
-    <dl className="properties">
-      <dt>Status</dt>
-      <dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd>
-      <dt>Priority</dt>
-      <dd><PrioritySelect priority={issue.priority} label={`Change priority for ${identifier}`} disabled={savingPriority} onChange={(next) => void changePriority(next)} /></dd>
-      <dt>Type</dt>
-      <dd>{issue.type ? <span className="type-label">{issue.type}</span> : <span className="none">None</span>}</dd>
-      <dt>Project</dt>
-      <dd>{issue.project_id !== null ? <NavLink to={pagePath(`/project/${issue.project_id}`)}>{issue.project}</NavLink> : <span className="none">None</span>}</dd>
-      <dt>Team</dt>
-      <dd>{teams.find((team) => team.key === issueTeamKey(issue.identifier))?.name ?? issueTeamKey(issue.identifier)} ({issueTeamKey(issue.identifier)})</dd>
-      <dt>Parent</dt>
-      <dd>{issue.parent ? <NavLink to={pagePath(`/issue/${issue.parent}`)}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd>
-      <dt>Created</dt>
-      <dd>{timestamp(issue.created_at)}</dd>
-      <dt>Updated</dt>
-      <dd>{timestamp(issue.updated_at)}</dd>
-    </dl>
+    <>
+      <dl className="detail-primary-properties">
+        <div><dt className="detail-property-term">Status</dt><dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd></div>
+        <div><dt className="detail-property-term">Priority</dt><dd><PrioritySelect priority={issue.priority} label={`Change priority for ${identifier}`} disabled={savingPriority} onChange={(next) => void changePriority(next)} /></dd></div>
+        <div><dt className="detail-property-term">Team</dt><dd><Users className="icon" /><span>{teams.find((team) => team.key === issueTeamKey(issue.identifier))?.name ?? issueTeamKey(issue.identifier)} ({issueTeamKey(issue.identifier)})</span></dd></div>
+        <div><dt className="detail-property-term">Type</dt><dd><Tag className="icon" />{issue.type || <span className="none">No type</span>}</dd></div>
+      </dl>
+      <dl className="detail-linked-properties">
+        <div><dt>Project</dt><dd><Box className="icon" />{issue.project_id !== null ? <NavLink to={pagePath(`/project/${issue.project_id}`)}>{issue.project}</NavLink> : <span className="none">No project</span>}</dd></div>
+        <div><dt>Parent</dt><dd><CornerUpLeft className="icon" />{issue.parent ? <NavLink to={pagePath(`/issue/${issue.parent}`)}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd></div>
+      </dl>
+    </>
   );
 
   return (
     <div className="detail">
-      <article className="detail-main">
-        <div className="detail-content">
-          <span className="identifier">{issue.identifier}</span>
-          <h1>{issue.title}</h1>
-          <div className="detail-inline-properties">{properties}</div>
-
-          <div className="detail-labels">{issue.labels.map((label) => <LabelBadge key={label.id} label={label} />)}<button className="button" onClick={() => setLabelsOpen(true)}>Edit labels</button></div>
+      <div className="detail-content">
+        <header className="detail-heading"><h1>{issue.title}</h1></header>
+        <section className="detail-properties" aria-label="Properties">
+          <h2>Properties</h2>
+          {properties}
+          <div className="detail-property-labels">
+            <div className="detail-property-labels-heading"><h3>Labels</h3><button className="ghost" onClick={() => setLabelsOpen(true)}>Edit labels</button></div>
+            <div className="detail-property-labels-values">{issue.labels.length > 0 ? issue.labels.map((label) => <LabelBadge key={label.id} label={label} />) : <span className="none">No labels</span>}</div>
+          </div>
+          <dl className="detail-property-dates">
+            <div><dt><CalendarDays className="icon" />Created</dt><dd><time dateTime={issue.created_at}>{timestamp(issue.created_at)}</time></dd></div>
+            <div><dt><Clock className="icon" />Updated</dt><dd><time dateTime={issue.updated_at}>{timestamp(issue.updated_at)}</time></dd></div>
+          </dl>
+        </section>
+        <article className="detail-main">
           <MarkdownText text={issue.description} />
 
           {issue.children.length > 0 && (
@@ -179,13 +181,8 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
               <button type="submit" className="button primary" disabled={posting}>{posting ? "Posting…" : "Comment"}</button>
             </form>
           </section>
-        </div>
-      </article>
-
-      <aside className="detail-panel" aria-label="Properties">
-        <h2>Properties</h2>
-        {properties}
-      </aside>
+        </article>
+      </div>
 
       {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={loadIssue} />}
       {editing && <IssueEditor issue={issue} teams={teams} onClose={closeEditor} onSave={async (updated) => {
@@ -266,24 +263,26 @@ function IssueEditor({ issue, teams, onClose, onSave }: { issue: Issue; teams: T
   }
 
   return (
-    <ModalDialog className="issue-dialog" aria-labelledby="issue-dialog-title" restoreFocus onClose={() => { if (!saving) onClose(); }}>
+    <ModalDialog className="issue-dialog issue-composer" aria-labelledby="issue-dialog-title" restoreFocus onClose={() => { if (!saving) onClose(); }}>
       <form onSubmit={save}>
         <header>
           <h2 id="issue-dialog-title">{issue.identifier}</h2>
           <button type="button" className="ghost" aria-label="Close issue" disabled={saving} onClick={onClose}><X className="icon" /></button>
         </header>
-        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required disabled={saving} /></label>
-        <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} /></label>
-        <label>Team<input value={`${teams.find((item) => item.key === team)?.name ?? team} (${team})`} readOnly /></label>
+        <label className="composer-title"><span className="composer-field-label">Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required disabled={saving} /></label>
+        <label className="composer-description"><span className="composer-field-label">Description</span><textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" disabled={saving} /></label>
+        <div className="composer-properties">
+          <label className="composer-property"><Users className="icon" /><span className="composer-property-name">Team</span><input value={`${teams.find((item) => item.key === team)?.name ?? team} (${team})`} readOnly /></label>
+          <IssueProjectSelect projects={projects} team={team} value={projectID} onChange={setProjectID} disabled={saving || loadingProjects || !!projectError} retainedID={issue.project_id ?? 0} fallback={issue.project ?? "Unavailable project"} />
+          <label className="composer-property"><StatusIcon status={status} /><span className="composer-property-name">Status</span><select disabled={saving} value={status} onChange={(event) => setStatus(event.target.value as Status)}>
+            {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
+          </select></label>
+          <div className="composer-property composer-priority"><span className="composer-property-name">Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="Edit issue priority" disabled={saving} /></div>
+        </div>
         <p className="dialog-hint">The team and identifier of an existing issue cannot be changed.</p>
-        <IssueProjectSelect projects={projects} team={team} value={projectID} onChange={setProjectID} disabled={saving || loadingProjects || !!projectError} retainedID={issue.project_id ?? 0} fallback={issue.project ?? "Unavailable project"} />
         {loadingProjects && <p className="dialog-hint">Loading projects…</p>}
         {projects.find((project) => project.id === projectID)?.archived && <p className="dialog-hint">You can keep this issue in its current archived project or choose an active project.</p>}
         {projectError && <><RequestError message={projectError} /><button type="button" className="button" disabled={saving} onClick={() => void loadProjects()}>Retry projects</button></>}
-        <label>Status<select disabled={saving} value={status} onChange={(event) => setStatus(event.target.value as Status)}>
-          {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
-        </select></label>
-        <div className="dialog-priority"><span>Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="Edit issue priority" disabled={saving} /></div>
         {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>

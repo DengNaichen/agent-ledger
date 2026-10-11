@@ -48,7 +48,7 @@ export function WorkspaceMenu() {
             {loading && <p className="dialog-hint">Loading workspaces…</p>}
             {error && <><RequestError message={error} /><p className="dialog-hint">Close and reopen to retry.</p></>}
             {workspaces.map((workspace) => <button key={workspace.slug} type="button" className="workspace-option" aria-current={workspace.slug === slug ? "page" : undefined} onClick={() => { setOpen(false); navigate(`/${workspace.slug}/`); }}>
-              <span><strong>{workspace.name}</strong><small>{workspace.slug}</small></span>
+              <span className="workspace-avatar" aria-hidden="true">{Array.from(workspace.name).slice(0, 2).join("").toUpperCase()}</span><span className="workspace-option-name"><strong title={workspace.name}>{workspace.name}</strong>{workspace.slug.toLowerCase() !== workspace.name.toLowerCase() && <small title={workspace.slug}>{workspace.slug}</small>}</span>
               {workspace.slug === slug && <Check className="icon" aria-label="Current workspace" />}
             </button>)}
           </div>

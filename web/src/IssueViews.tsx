@@ -25,7 +25,7 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
 
   return view === "board" ? (
-    <section className="board" aria-label="Delivery board">
+    <section className={`board ${actions.selected.length ? "selection-active" : ""}`} aria-label="Delivery board">
       {visibleColumns.map((column) => (
         <section
           className={`column ${dropTarget === column.status ? "drop-target" : ""}`}
@@ -52,7 +52,7 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
             {!loading && grouped[column.status].length === 0 && <p className="empty">No issues</p>}
             {grouped[column.status].map((issue) => (
               <article
-                className="card"
+                className={`card ${actions.selected.includes(issue.identifier) ? "is-selected" : ""}`}
                 draggable
                 key={issue.identifier}
                 onDragStart={(event) => {
@@ -69,22 +69,24 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
       ))}
     </section>
   ) : (
-    <section className="list-view" aria-label="Issue list">
+    <section className={`list-view ${actions.selected.length ? "selection-active" : ""}`} aria-label="Issue list">
       {visibleColumns.map((column) => (
         <section className="list-group" key={column.status}>
-          <button type="button" className="group-header" aria-expanded={!isCollapsed(column.status)} aria-controls={`rows-${column.status}`} onClick={() => toggleGroup(column.status)}>
-            <ChevronDown className="icon chevron" />
-            <StatusIcon status={column.status} />
-            <span>{column.label}</span>
-            <small>{grouped[column.status].length}</small>
-          </button>
+          <div className="group-header-wrap">
+            <button type="button" className="group-header" aria-expanded={!isCollapsed(column.status)} aria-controls={`rows-${column.status}`} onClick={() => toggleGroup(column.status)}>
+              <ChevronDown className="icon chevron" />
+              <StatusIcon status={column.status} />
+              <span>{column.label}</span>
+              <small>{grouped[column.status].length}</small>
+            </button>
+          </div>
           {/* A collapsed group renders no rows; the empty container keeps the header's aria-controls target. */}
           <div className="list-rows" id={`rows-${column.status}`} hidden={isCollapsed(column.status)}>
             {!isCollapsed(column.status) && <>
               {loading && <p className="list-empty">Loading…</p>}
               {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
               {grouped[column.status].map((issue) => (
-                <article className="list-row" key={issue.identifier}>
+                <article className={`list-row ${actions.selected.includes(issue.identifier) ? "is-selected" : ""}`} key={issue.identifier}>
                   <IssueControls issue={issue} view={view} actions={actions} />
                 </article>
               ))}
@@ -106,21 +108,22 @@ function IssueControls({ issue, view, actions }: { issue: IssueSummary; view: Vi
 
   return view === "board" ? <>
     {selection}
-    <span className="drag-handle" draggable title={`Drag ${issue.identifier} to another status`} aria-label={`Drag ${issue.identifier}`}>⠿</span>
-    <NavLink to={href} className="card-open">
-      <span className="identifier">{issue.identifier}</span>
-      <span className="card-title">{issue.title}</span>
+    <NavLink to={href} className="identifier card-identifier">
+      {issue.identifier}
     </NavLink>
+    <div className="card-heading">
+      {status}
+      <NavLink to={href} className="card-open card-title">{issue.title}</NavLink>
+    </div>
     <div className="card-meta">
       {priority}
-      {status}
       <IssueMeta issue={issue} />
     </div>
   </> : <>
     {selection}
     {priority}
-    {status}
     <NavLink to={href} className="identifier">{issue.identifier}</NavLink>
+    {status}
     <NavLink to={href} className="list-title">{issue.title}</NavLink>
     <IssueMeta issue={issue} />
     <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
