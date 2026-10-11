@@ -71,6 +71,10 @@ Priority 的档位与 [Linear](https://linear.app/docs/issue-property#priority) 
 
 增加状态需同时核对共享 `columns` 和 `StatusIcon` 的颜色与图形（两张表按 `Status` 类型定义，缺项时前端构建报错），再在列表、卡片及详情检查，不凭单页截图证明全部场景。仓库没有自动视觉回归测试或对比度认证。
 
+## 范围导航与项目列表
+
+Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`；状态下拉在内容筛选栏。`ProjectList.tsx` 显示项目名称链接、说明和关联 Team，复用主题文字/边界/间距与 EntityEmoji，不新增卡片主题。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
+
 ## 布局
 
-桌面 `.app-shell` 是 232px 侧栏与主面板；1024px 以下详情隐藏右侧 properties、展示内联属性，列表元信息换到第二行并隐藏日期，760px 以下切换单列并隐藏部分侧栏与 Project 元信息。筛选控件允许换行。列表使用 CSS Grid 和 subgrid 共享列宽，编号列按当前可见条目的内容宽度分配，标题起点一致，列间距为 8px；分组条有圆角，列表左右留白为 16px，760px 以下为 8px。空组文字及第二行元信息与编号列起点对齐。最小 body 宽度为 320px。改变断点或共享尺寸时检查两侧布局、长标题、Markdown 表格/代码横向滚动与焦点可见性，按 [验证](VALIDATION.md) 分别报告构建与人工结果。
+桌面 `.app-shell` 是 232px 侧栏与主面板；1024px 以下详情隐藏右侧 properties、展示内联属性，列表元信息换到第二行并隐藏日期，760px 以下切换单列，侧栏目的地收进可展开 Navigation，并隐藏列表 Project 元信息。筛选控件允许换行。列表使用 CSS Grid 和 subgrid 共享列宽，编号列按当前可见条目的内容宽度分配，标题起点一致，列间距为 8px；分组条有圆角，列表左右留白为 16px，760px 以下为 8px。空组文字及第二行元信息与编号列起点对齐。最小 body 宽度为 320px。改变断点或共享尺寸时检查两侧布局、长标题、Markdown 表格/代码横向滚动与焦点可见性，按 [验证](VALIDATION.md) 分别报告构建与人工结果。

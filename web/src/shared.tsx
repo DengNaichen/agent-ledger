@@ -71,6 +71,31 @@ export function workspaceSlug() {
   return window.location.pathname.split("/")[1];
 }
 
+export type WorkspaceRoute =
+  | { kind: "issues"; team: string }
+  | { kind: "projects"; team: string }
+  | { kind: "project"; id: number }
+  | { kind: "issue"; identifier: string }
+  | { kind: "labels" }
+  | { kind: "invalid" };
+
+export function workspaceRoute(path: string): WorkspaceRoute {
+  const route = "/" + path.split("/").slice(2).join("/");
+  if (route === "/") return { kind: "issues", team: "" };
+  if (route === "/projects") return { kind: "projects", team: "" };
+  if (route === "/labels") return { kind: "labels" };
+  const team = route.match(/^\/team\/([^/]+)\/(issues|projects)$/);
+  if (team) {
+    try { return { kind: team[2] as "issues" | "projects", team: decodeURIComponent(team[1]) }; }
+    catch { return { kind: "invalid" }; }
+  }
+  const project = route.match(/^\/project\/([1-9][0-9]*)$/);
+  if (project && Number.isSafeInteger(Number(project[1]))) return { kind: "project", id: Number(project[1]) };
+  const issue = route.match(/^\/issue\/(.+)$/);
+  if (issue) return { kind: "issue", identifier: issue[1] };
+  return { kind: "invalid" };
+}
+
 export const pagePath = (path: string) => `/${workspaceSlug()}${path}`;
 
 export const apiPath = (path: string) => `/api/w/${workspaceSlug()}${path}`;

@@ -1,71 +1,39 @@
-import { List, Pencil, Plus, Tag } from "lucide-react";
+import { Box, List, Menu, Pencil, Plus, Tag } from "lucide-react";
+import { useState } from "react";
 import { EmojiPicker } from "./EmojiPicker";
 import { Session } from "./Session";
 import { WorkspaceMenu } from "./WorkspaceMenu";
-import { columns, IssueSummary, navigate, pagePath, Project, Status, StatusIcon, Team } from "./shared";
+import { NavLink, pagePath, Team, WorkspaceRoute } from "./shared";
 
-export function Sidebar({ issueCount, grouped, teams, projects, filter, project, team, managingLabels, selectFilter, onCreateTeam, onRenameTeam, changeTeamEmoji, changeProjectEmoji }: {
-  issueCount: number;
-  grouped: Record<Status, IssueSummary[]>;
+export function Sidebar({ route, teams, onCreateTeam, onRenameTeam, changeTeamEmoji }: {
+  route: WorkspaceRoute;
   teams: Team[];
-  projects: Project[];
-  filter: Status | "all";
-  project: string;
-  team: string;
-  managingLabels: boolean;
-  selectFilter: (status: Status | "all", project: string, team?: string) => void;
   onCreateTeam: () => void;
   onRenameTeam: (team: Team) => void;
   changeTeamEmoji: (team: Team, emoji: string) => Promise<void>;
-  changeProjectEmoji: (project: Project, emoji: string) => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const active = (kind: "issues" | "projects", team = "") => route.kind === kind && route.team === team;
   return (
-    <aside className="sidebar">
-      <WorkspaceMenu />
-
+    <aside className="sidebar scope-sidebar">
+      <div className="sidebar-top"><WorkspaceMenu /><button type="button" className="button navigation-toggle" aria-expanded={expanded} aria-controls="workspace-navigation" onClick={() => setExpanded(!expanded)}><Menu className="icon" />Navigation</button></div>
       <Session />
-      <div className="sidebar-label">Workspace</div>
-      <button type="button" className={`nav-item ${filter === "all" && !project && !team && !managingLabels ? "active" : ""}`} aria-pressed={filter === "all" && !project && !team && !managingLabels} onClick={() => selectFilter("all", "", "")}>
-        <List className="icon" />
-        <span className="nav-label">All issues</span>
-        <small>{issueCount}</small>
-      </button>
-
-      <button type="button" className={`nav-item ${managingLabels ? "active" : ""}`} onClick={() => navigate(pagePath("/labels"))}><Tag className="icon" /><span className="nav-label">Labels</span></button>
-
-      <div className="sidebar-group">
-        <div className="sidebar-label sidebar-heading">
-          <span>Teams</span>
-          <button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={onCreateTeam}><Plus className="icon" /></button>
-        </div>
-        {teams.map((item) => (
-          <div key={item.key} className={`nav-item entity-nav ${team === item.key && !managingLabels ? "active" : ""}`}>
+      <nav id="workspace-navigation" className={`scope-navigation ${expanded ? "expanded" : ""}`} aria-label="Workspace navigation">
+        <div className="sidebar-label">Workspace</div>
+        <NavLink className={`nav-item ${active("issues") ? "active" : ""}`} to={pagePath("/")}><List className="icon" /><span className="nav-label">All issues</span></NavLink>
+        <NavLink className={`nav-item ${active("projects") ? "active" : ""}`} to={pagePath("/projects")}><Box className="icon" /><span className="nav-label">All projects</span></NavLink>
+        <NavLink className={`nav-item ${route.kind === "labels" ? "active" : ""}`} to={pagePath("/labels")}><Tag className="icon" /><span className="nav-label">Labels</span></NavLink>
+        <div className="sidebar-label sidebar-heading"><span>Teams</span><button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={onCreateTeam}><Plus className="icon" /></button></div>
+        {teams.map((item) => <section key={item.key} className="team-navigation" aria-label={`${item.name} navigation`}>
+          <div className="nav-item entity-nav team-heading">
             <EmojiPicker value={item.emoji} teamKey={item.key} label={`Change emoji for team ${item.name}`} onChange={(emoji) => changeTeamEmoji(item, emoji)} />
-            <button type="button" className="entity-link" aria-pressed={team === item.key && !managingLabels} onClick={() => selectFilter("all", "", item.key)}>
-              <span className="nav-label">{item.name}</span><small>{item.key}</small>
-            </button>
+            <span className="nav-label" title={item.name}>{item.name}</span>
             <button type="button" className="ghost" aria-label={`Rename team ${item.name}`} title="Rename team" onClick={() => onRenameTeam(item)}><Pencil className="icon" /></button>
           </div>
-        ))}
-
-        <div className="sidebar-label">Statuses</div>
-        {columns.map((column) => (
-          <button type="button" key={column.status} className={`nav-item ${filter === column.status ? "active" : ""}`} aria-pressed={filter === column.status} onClick={() => selectFilter(column.status, project)}>
-            <StatusIcon status={column.status} />
-            <span className="nav-label">{column.label}</span>
-            <small>{grouped[column.status].length}</small>
-          </button>
-        ))}
-
-        {projects.length > 0 && <div className="sidebar-label">Projects</div>}
-        {projects.map((item) => (
-          <div key={item.name} title={item.description} className={`nav-item entity-nav ${project === item.name ? "active" : ""}`}>
-            <EmojiPicker value={item.emoji} label={`Change emoji for project ${item.name}`} onChange={(emoji) => changeProjectEmoji(item, emoji)} />
-            <button type="button" className="entity-link" aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}><span className="nav-label">{item.name}</span></button>
-          </div>
-        ))}
-      </div>
-
+          <NavLink className={`nav-item team-destination ${active("issues", item.key) ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(item.key)}/issues`)}><List className="icon" />Issues</NavLink>
+          <NavLink className={`nav-item team-destination ${active("projects", item.key) ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(item.key)}/projects`)}><Box className="icon" />Projects</NavLink>
+        </section>)}
+      </nav>
       <div className="sidebar-footer"><span /> Shared workspace</div>
     </aside>
   );

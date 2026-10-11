@@ -2,17 +2,21 @@
 
 ## 导航与任务上下文
 
-`shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 的 `WorkspaceView` 将筛选、视图和折叠状态保存在组件内存中，经属性交给侧边栏、筛选栏和看板/列表，不持久化到 URL 或 localStorage；刷新不能承诺恢复这些选择。
+`shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 的 `WorkspaceView` 持有当前路径、列表/看板及排序偏好；`ScopeView` 每次 History 导航重新挂载，将筛选、批量选择、折叠与弹窗留在当前目的地。刷新恢复 URL 范围，但不恢复临时筛选或视图偏好。
 
 左上角 `WorkspaceMenu.tsx` 显示当前 workspace 名称与箭头，菜单按 slug 列出全部 workspace、标记当前项，提供 Create workspace… 与 Rename workspace…。切换及创建成功都进入对应 `/<slug>/`，组件重新挂载并重置原 workspace 的筛选、选择和视图；浏览器前进后退按 URL 恢复 workspace。创建填 slug 和名称，改名只填名称；保存期间禁用输入和关闭，浏览器导航离开不会取消已发送的写入，但旧响应不会再导航或更新弹窗。成功后显示服务端返回的名称，失败保留输入并显示 role=alert。菜单重新打开时重读列表，加载失败可关闭重开；菜单及弹窗支持 Tab/Enter 和 Escape，关闭后焦点回到左上角入口。窄屏保留该入口。
 
-侧边栏 Teams 分组列出全部 team，点一个 team 只看该 team 的票，筛选栏出现可清除的 team chip，All issues 清除 team、状态和 Project 筛选；team 筛选和 Project 筛选一样只在内存中，窄屏下侧边栏分组隐藏。Teams 旁的 “+” 打开 Create team 弹窗：key、名称和可选的起始编号，成功后切到新 team，失败保留输入并显示 role=alert。
+Sidebar 的 Workspace 有 All issues、All projects 与 Labels；每个 Team 有 Issues、Projects，Team 名称旁保留 emoji 与改名入口。侧栏不再显示状态或局部结果数；状态选择器和当前结果数放在任务内容区。窄屏用 Navigation 按钮展开同一组目的地，选择后收起。Teams 旁的 “+” 沿用 Create team 弹窗，成功后进入新 Team 的 Issues 范围，失败保留输入并显示 role=alert。
 
-Team、Project、type、priority、标签条件和搜索词参与 API 查询，搜索框按 Enter 才提交搜索词；状态筛选在列表数据中选择可见列。列表视图在查看全部状态且没有搜索词时默认折叠 Done 和 Canceled；选中单个状态或有搜索词时，所有分组默认展开。点击分组头展开或收起，覆盖默认状态；切换状态、team 或 Project 筛选，以及提交或清除搜索词时，折叠回到默认状态。折叠的分组只显示分组头和计数，不渲染行；看板不折叠。在详情页选择筛选会返回列表。创建弹窗沿用当前 Project 和状态；All issues 下使用 triage。弹窗的 team 下拉预选正在查看的 team，没有 team 筛选时预选按 key 排序的第一个；还没有 team 时显示提示并禁用提交。创建成功后展开所在状态组；有具体标签筛选或新票不属于正在查看的 team 时重读列表，由筛选结果决定新 issue 是否显示。
+范围 URL：`/<slug>/` 是全部任务，`/<slug>/projects` 是全部项目，`/<slug>/team/<key>/issues` 与 `/<slug>/team/<key>/projects` 是 Team 范围，`/<slug>/project/<id>` 是项目全部任务；Project 使用稳定 id，Team 使用不可变 key（保留迁移产生的历史 key），已有 issue 详情路径继续可用。直达、刷新、前后退恢复范围。每次进入 sidebar 目的地或项目都清空 status、type、priority、标签、搜索、显式 Team 筛选和批量选择，包括再次点击同一路径；同 workspace 内保留 list/board 和排序。
+
+`ProjectList.tsx` 是只读项目列表，默认排除归档；Team 列表依据 Project 的显式关联过滤，空项目仍展示，历史待归属项目只在全部项目中展示。进入项目不继承来源 Team，内容区提供显式 Team 筛选和可清除 chip。项目名称与说明来自 by-id 查询；归档项目直达可查看已有票，待归属/归档项目禁用新建任务并说明原因。无 Team 时提供创建入口；空项目列表说明没有当前范围的活动项目；失效范围和请求失败显示错误、Retry 与返回全部任务入口。
+
+type、priority、标签、搜索和显式 Team 筛选参与 API 查询，项目范围使用 project_id。搜索按 Enter 提交；状态在列表数据中选择可见列。全部状态且无搜索时默认折叠 Done/Canceled；具体状态或有搜索时展开。切状态、Team 或提交搜索清除折叠覆盖，范围导航重新初始化。折叠组不渲染行，看板不折叠。新建继续沿用当前 Team、Project 和状态，未指定 Team 时仍由既有表单预选按 key 排序的第一个；完整新建归属交互另票处理。创建成功重读当前范围，筛选决定是否显示新票。
 
 ## Team 显示名称
 
-侧栏每个 Team 的铅笔按钮和选中 Team 的标题旁按钮打开 Rename team 对话框；窄屏侧栏分组隐藏时仍可从选中标题进入。名称去首尾空白后必填，提示 key 与已有票号保持不变。保存成功后替换 Team 缓存，侧栏、标题和新建任务的 Team 下拉立即使用服务端名称；失败保留输入并显示 role=alert。保存中禁用输入、提交和关闭，浏览器切换 workspace 导致卸载后旧响应不更新界面。取消不发送写入；Escape 关闭，焦点回到原入口。Project 改名当前由 REST/MCP 提供，项目管理表单另行交付。
+侧栏每个 Team 的铅笔按钮和当前 Team 范围标题旁按钮打开 Rename team 对话框；窄屏可展开 Navigation 或从当前标题进入。名称去首尾空白后必填，提示 key 与已有票号保持不变。保存成功后替换 Team 缓存，侧栏、标题和新建任务的 Team 下拉立即使用服务端名称；失败保留输入并显示 role=alert。保存中禁用输入、提交和关闭，浏览器切换 workspace 导致卸载后旧响应不更新界面。取消不发送写入；Escape 关闭，焦点回到原入口。Project 改名当前由 REST/MCP 提供，项目管理表单另行交付。
 
 ## 项目与团队 emoji
 
@@ -32,11 +36,11 @@ priority 独立于 status/type/标签。列表、看板及详情的选择器逐�
 
 ## 写入完成点
 
-列表/看板移动状态先乐观更新，失败恢复此前整个 issues 快照并展示错误；详情状态等待响应后更新。两处都不能把发出请求当作持久化完成。当前整列表回滚和未取消的异步加载可能受交错请求影响，不能宣称已解决旧响应覆盖新状态。
+列表/看板移动状态先乐观更新，失败恢复该票此前值并展示错误；详情状态等待响应后更新。两处都不能把发出请求当作持久化完成。失败仅恢复发起时的该票，范围或查询已改变时不再应用旧写入回调；不保证同一票多次交错写入的顺序。
 
 新建与编辑使用原生 dialog，打开后聚焦标题；保存期间禁用提交按钮，成功关闭，失败保留内容并显示 role=alert。关闭/取消没有未保存草稿保护，不能承诺关闭后可恢复。评论成功后追加响应并清空输入，失败保留文本，提交期间禁用按钮。
 
-页面在窗口重新获得焦点时重新加载数据，未使用 WebSocket 推送；列表还会随路径、Project、type、标签条件和已提交的搜索词变化加载。列表只应用最新一次加载的响应，防止较早筛选响应覆盖较新结果；这不覆盖状态写入与加载之间的并发。详情首次加载失败可能仍显示 Loading 与全局错误，当前没有独立重试按钮。
+页面在窗口重新获得焦点时重新加载数据，未使用 WebSocket 推送；列表还会随路径、Project、type、标签条件和已提交的搜索词变化加载。列表只应用当前挂载范围、当前查询的最新加载响应；离开范围后旧查询和旧写入回调不更新新范围。详情或标签页的非关键项目/团队目录失败只显示提示，不卸载编辑器和草稿；目录 Retry 不重建这些组件。详情首次加载失败可能仍显示 Loading 与全局错误，当前没有独立重试按钮。
 
 ## 标签操作
 

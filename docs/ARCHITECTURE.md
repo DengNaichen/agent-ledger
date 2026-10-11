@@ -8,7 +8,7 @@ workspace 只做分组：team、Project、标签和 PR 记录各属于一个 wor
 
 `internal/app/service.go` 只持有 `Service` 及其单连接 SQLite 的打开和关闭；模型、输入校验和业务操作按领域放在 `workspace.go`、`issue.go`、`project.go`、`team.go`，导出的错误集中在 `errors.go` 并各带类别（找不到、输入非法、冲突），HTTP 按类别选状态码。建票在同一事务里把 team 的 `next_number` 加一并插入 issue。Service 直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 
-`web/src/App.tsx` 按路径第一段选 workspace（`/` 跳到按 slug 排序的第一个，没有 workspace 时显示创建提示），其中 `WorkspaceView` 持有筛选、视图、批量选择和弹窗状态，管路径切换并组装页面：`useIssues.ts` 按筛选加载 issue、Project 和 team 并写回状态、优先级、新建结果，`Sidebar.tsx` 是侧边栏，`IssueFilters.tsx` 是筛选栏，`IssueViews.tsx` 是看板与列表，`Dialogs.tsx` 是新建 issue 和 team 的弹窗；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper（`apiPath`、`pagePath` 给路径加上当前 workspace）、导航、状态和优先级控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
+`web/src/App.tsx` 按路径第一段选 workspace（`/` 跳到按 slug 排序的第一个，没有 workspace 时显示创建提示），其中 `WorkspaceView` 持有路径与会话视图/排序偏好，每次导航按递增 visit 挂载 `ScopeView`，隔离当前范围的筛选、选择和弹窗。`shared.tsx` 的 `WorkspaceRoute` 区分全部任务/项目、Team 任务/项目、稳定 Project id、详情和标签路径；`ProjectList.tsx` 展示只读项目列表，Team 项目按显式关联筛选。页面组装中：`useIssues.ts` 加载默认未归档项目目录与 Team，项目范围另以 by-id 读取（可含归档），任务按 team/project_id 和临时筛选查询；挂载、查询及读取版本门禁防止旧范围响应或写入回调更新新页面，创建后重读筛选结果，`Sidebar.tsx` 是侧边栏，`IssueFilters.tsx` 是筛选栏，`IssueViews.tsx` 是看板与列表，`Dialogs.tsx` 是新建 issue 和 team 的弹窗；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper（`apiPath`、`pagePath` 给路径加上当前 workspace）、导航、状态和优先级控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
 
 ## 从用户动作到写入
 

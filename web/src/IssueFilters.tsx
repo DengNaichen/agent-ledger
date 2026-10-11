@@ -1,19 +1,17 @@
 import { Columns2, List, Search, Tag, X } from "lucide-react";
-import { EntityEmoji } from "./EmojiPicker";
 import { ViewMode } from "./IssueViews";
 import { Catalog, LabelFilter, LabelFilterValue } from "./Labels";
-import { columns, IssueSort, issueTypes, priorities, Priority, Project, Status, StatusIcon, Team } from "./shared";
+import { columns, IssueSort, issueTypes, priorities, Priority, Status, StatusIcon, Team } from "./shared";
 
 // IssueFilters is the filter bar above the board and list: removable chips for
 // the active filters, the issue count, and the search, type, priority,
 // ordering, label, and view controls.
-export function IssueFilters({ filter, team, activeTeam, project, activeProject, selectFilter, type, setType, search, setSearch, query, submitQuery, priority, setPriority, sort, setSort, labelFilter, setLabelFilter, catalog, clearSelection, view, setView, visibleCount }: {
+export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, setType, search, setSearch, query, submitQuery, priority, setPriority, sort, setSort, labelFilter, setLabelFilter, catalog, clearSelection, view, setView, visibleCount }: {
   filter: Status | "all";
+  setFilter: (status: Status | "all") => void;
   team: string;
-  activeTeam: Team | undefined;
-  project: string;
-  activeProject: Project | undefined;
-  selectFilter: (status: Status | "all", project: string, team?: string) => void;
+  teams: Team[];
+  setTeam: (team: string) => void;
   type: string;
   setType: (type: string) => void;
   search: string;
@@ -40,23 +38,10 @@ export function IssueFilters({ filter, team, activeTeam, project, activeProject,
           <span className="chip">
             <StatusIcon status={statusColumn.status} />
             {statusColumn.label}
-            <button type="button" aria-label={`Clear ${statusColumn.label} filter`} onClick={() => selectFilter("all", project)}><X className="icon" /></button>
+            <button type="button" aria-label={`Clear ${statusColumn.label} filter`} onClick={() => setFilter("all")}><X className="icon" /></button>
           </span>
         )}
-        {team && (
-          <span className="chip">
-            <EntityEmoji emoji={activeTeam?.emoji || ""} teamKey={team} />
-            {team}
-            <button type="button" aria-label={`Clear ${team} filter`} onClick={() => selectFilter(filter, project, "")}><X className="icon" /></button>
-          </span>
-        )}
-        {project && (
-          <span className="chip">
-            <EntityEmoji emoji={activeProject?.emoji || ""} />
-            {project}
-            <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}><X className="icon" /></button>
-          </span>
-        )}
+        {team && <span className="chip">Team: {teams.find((item) => item.key === team)?.name ?? team}<button type="button" aria-label="Clear Team filter" onClick={() => setTeam("")}><X className="icon" /></button></span>}
         {type && (
           <span className="chip">
             <Tag className="icon" />
@@ -77,6 +62,11 @@ export function IssueFilters({ filter, team, activeTeam, project, activeProject,
         <span className="view-count">{visibleCount} issues</span>
       </div>
       <div className="filter-controls">
+        <select className="type-filter" value={filter} aria-label="Filter by status" onChange={(event) => setFilter(event.target.value as Status | "all")}>
+          <option value="all">All statuses</option>
+          {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
+        </select>
+        {teams.length > 0 && <select className="type-filter" value={team} aria-label="Filter by Team" onChange={(event) => setTeam(event.target.value)}><option value="">All project teams</option>{teams.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select>}
         <form className="search-box" role="search" onSubmit={(event) => {
           event.preventDefault();
           submitQuery(search);
