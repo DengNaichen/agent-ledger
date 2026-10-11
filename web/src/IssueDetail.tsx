@@ -1,28 +1,42 @@
 import { X } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, ModalDialog, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect } from "./shared";
+import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, ModalDialog, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect, Project, Team, issueTeamKey } from "./shared";
 
 import { Catalog, LabelPicker } from "./Labels";
+import { IssueProjectSelect } from "./Dialogs";
 import { LabelBadge } from "./shared";
 
 const remarkPlugins = [remarkGfm];
 
 const timestamp = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-export function IssueDetail({ catalog, identifier, setError, editing, closeEditor }: { catalog: Catalog; identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
+export function IssueDetail({ catalog, teams, onSaved, identifier, setError, editing, closeEditor }: { catalog: Catalog; teams: Team[]; onSaved: (issue: Issue) => Promise<void>; identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
   const [issue, setIssue] = useState<IssueDetails | null>(null);
   const [comment, setComment] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
   const [posting, setPosting] = useState(false);
+  const loadVersion = useRef(0);
+  const mounted = useRef(true);
+
+  async function loadIssue() {
+    const version = ++loadVersion.current;
+    try {
+      const loaded = await api<IssueDetails>(apiPath(`/issues/${identifier}`));
+      if (mounted.current && version === loadVersion.current) setIssue(loaded);
+    } catch (cause) {
+      if (mounted.current && version === loadVersion.current) setError((cause as Error).message);
+    }
+  }
 
   useEffect(() => {
-    const load = () => api<IssueDetails>(apiPath(`/issues/${identifier}`)).then(setIssue, (cause: Error) => setError(cause.message));
+    mounted.current = true;
+    const load = () => void loadIssue();
     load();
     window.addEventListener("focus", load);
-    return () => window.removeEventListener("focus", load);
+    return () => { mounted.current = false; ++loadVersion.current; window.removeEventListener("focus", load); };
   }, [identifier]);
 
   async function changeStatus(status: Status) {
@@ -79,7 +93,9 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
       <dt>Type</dt>
       <dd>{issue.type ? <span className="type-label">{issue.type}</span> : <span className="none">None</span>}</dd>
       <dt>Project</dt>
-      <dd>{issue.project ?? <span className="none">None</span>}</dd>
+      <dd>{issue.project_id !== null ? <NavLink to={pagePath(`/project/${issue.project_id}`)}>{issue.project}</NavLink> : <span className="none">None</span>}</dd>
+      <dt>Team</dt>
+      <dd>{teams.find((team) => team.key === issueTeamKey(issue.identifier))?.name ?? issueTeamKey(issue.identifier)} ({issueTeamKey(issue.identifier)})</dd>
       <dt>Parent</dt>
       <dd>{issue.parent ? <NavLink to={pagePath(`/issue/${issue.parent}`)}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd>
       <dt>Created</dt>
@@ -171,10 +187,12 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
         {properties}
       </aside>
 
-      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={async () => { const updated = await api<IssueDetails>(apiPath(`/issues/${identifier}`)); setIssue(updated); }} />}
-      {editing && <IssueEditor issue={issue} onClose={closeEditor} onSave={(updated) => {
-        setIssue({ ...issue, ...updated });
+      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={loadIssue} />}
+      {editing && <IssueEditor issue={issue} teams={teams} onClose={closeEditor} onSave={async (updated) => {
+        ++loadVersion.current;
+        setIssue((current) => ({ ...current!, ...updated }));
         closeEditor();
+        await Promise.all([loadIssue(), onSaved(updated)]);
       }} />}
     </div>
   );
@@ -199,7 +217,33 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
   );
 }
 
-function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => void; onSave: (issue: Issue) => void }) {
+function IssueEditor({ issue, teams, onClose, onSave }: { issue: Issue; teams: Team[]; onClose: () => void; onSave: (issue: Issue) => Promise<void> }) {
+  const team = issueTeamKey(issue.identifier);
+  const [projectID, setProjectID] = useState(issue.project_id ?? 0);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [projectError, setProjectError] = useState("");
+  const mounted = useRef(true);
+  const projectVersion = useRef(0);
+
+  async function loadProjects() {
+    const version = ++projectVersion.current;
+    setLoadingProjects(true);
+    setProjectError("");
+    try {
+      const data = await api<{ projects: Project[] }>(apiPath(`/projects?include_archived=true&team=${encodeURIComponent(team)}`));
+      if (mounted.current && version === projectVersion.current) setProjects(data.projects);
+    } catch (cause) {
+      if (mounted.current && version === projectVersion.current) setProjectError((cause as Error).message);
+    } finally {
+      if (mounted.current && version === projectVersion.current) setLoadingProjects(false);
+    }
+  }
+  useEffect(() => {
+    mounted.current = true;
+    void loadProjects();
+    return () => { mounted.current = false; ++projectVersion.current; };
+  }, []);
   const [title, setTitle] = useState(issue.title);
   const [description, setDescription] = useState(issue.description);
   const [status, setStatus] = useState(issue.status);
@@ -212,31 +256,38 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
     setSaving(true);
     setError("");
     try {
-      onSave(await api<Issue>(apiPath(`/issues/${issue.identifier}`), "PATCH", { title, description, status, priority }));
+      const updated = await api<Issue>(apiPath(`/issues/${issue.identifier}`), "PATCH", { title, description, status, priority, project_id: projectID });
+      if (mounted.current) await onSave(updated);
     } catch (cause) {
-      setError((cause as Error).message);
+      if (mounted.current) setError((cause as Error).message);
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   }
 
   return (
-    <ModalDialog className="issue-dialog" aria-labelledby="issue-dialog-title" onClose={onClose}>
+    <ModalDialog className="issue-dialog" aria-labelledby="issue-dialog-title" restoreFocus onClose={() => { if (!saving) onClose(); }}>
       <form onSubmit={save}>
         <header>
           <h2 id="issue-dialog-title">{issue.identifier}</h2>
-          <button type="button" className="ghost" aria-label="Close issue" onClick={onClose}><X className="icon" /></button>
+          <button type="button" className="ghost" aria-label="Close issue" disabled={saving} onClick={onClose}><X className="icon" /></button>
         </header>
-        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
-        <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-        <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
+        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required disabled={saving} /></label>
+        <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} /></label>
+        <label>Team<input value={`${teams.find((item) => item.key === team)?.name ?? team} (${team})`} readOnly /></label>
+        <p className="dialog-hint">The team and identifier of an existing issue cannot be changed.</p>
+        <IssueProjectSelect projects={projects} team={team} value={projectID} onChange={setProjectID} disabled={saving || loadingProjects || !!projectError} retainedID={issue.project_id ?? 0} fallback={issue.project ?? "Unavailable project"} />
+        {loadingProjects && <p className="dialog-hint">Loading projects…</p>}
+        {projects.find((project) => project.id === projectID)?.archived && <p className="dialog-hint">You can keep this issue in its current archived project or choose an active project.</p>}
+        {projectError && <><RequestError message={projectError} /><button type="button" className="button" disabled={saving} onClick={() => void loadProjects()}>Retry projects</button></>}
+        <label>Status<select disabled={saving} value={status} onChange={(event) => setStatus(event.target.value as Status)}>
           {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
         </select></label>
         <div className="dialog-priority"><span>Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="Edit issue priority" disabled={saving} /></div>
         {error && <RequestError message={error} />}
         <footer>
-          <button type="button" className="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="button primary" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+          <button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button type="submit" className="button primary" disabled={saving || loadingProjects || !!projectError}>{saving ? "Saving…" : "Save changes"}</button>
         </footer>
       </form>
     </ModalDialog>
