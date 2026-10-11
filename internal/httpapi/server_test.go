@@ -3,7 +3,10 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"path/filepath"
+	"reflect"
+	"slices"
 
 	"github.com/DengNaichen/inftask/internal/app"
 	"net/http"
@@ -203,6 +206,72 @@ func TestListIssuesFiltersByQueryAndType(t *testing.T) {
 		if len(listed.Issues) != 1 || listed.Issues[0].Title != tc.want {
 			t.Fatalf("%s: status %d, issues %#v", tc.query, rec.Code, listed.Issues)
 		}
+	}
+}
+
+func TestListIssuesReturnsSummaries(t *testing.T) {
+	service, def := openService(t)
+	ctx := context.Background()
+	if _, err := def.CreateProject(ctx, "Delivery", "Ship the board"); err != nil {
+		t.Fatal(err)
+	}
+	parent, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Board spec", Description: "Long context", Type: "spec"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Build the board", Description: "More context", Project: "Delivery", Parent: parent.Identifier, Priority: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	label, err := def.CreateLabel(ctx, app.CreateLabel{Name: "Risk", Color: "#123456"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := def.ChangeIssueLabels(ctx, app.ChangeIssueLabels{Identifiers: []string{child.Identifier}, Add: []int64{label.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(app.IssueSummary{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatal(err)
+	}
+	want := slices.Sorted(maps.Keys(fields))
+
+	rec := httptest.NewRecorder()
+	New(service, http.NotFoundHandler(), http.NotFoundHandler()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/w/default/issues", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var raw struct {
+		Issues []map[string]json.RawMessage `json:"issues"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw.Issues) != 2 {
+		t.Fatalf("listed %d issues: %s", len(raw.Issues), rec.Body.String())
+	}
+	for _, issue := range raw.Issues {
+		if got := slices.Sorted(maps.Keys(issue)); !slices.Equal(got, want) {
+			t.Fatalf("issue fields %v, want the list_issues summary fields %v", got, want)
+		}
+	}
+	var listed struct {
+		Issues []app.IssueSummary `json:"issues"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	limit := -1
+	issues, err := def.List(ctx, app.ListIssues{Limit: &limit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summaries := app.Summaries(issues); !reflect.DeepEqual(listed.Issues, summaries) {
+		t.Fatalf("listed %#v, want %#v", listed.Issues, summaries)
 	}
 }
 

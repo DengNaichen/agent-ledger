@@ -1,7 +1,7 @@
 import { Box, ChevronDown, Columns2, List, Plus, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
-import { RequestError, api, apiPath, columns, Issue, IssueMeta, navigate, NavLink, pagePath, Project, Status, StatusIcon, StatusSelect, Team, Workspace, workspaceSlug, priorities, Priority, PrioritySelect, IssueSort } from "./shared";
+import { RequestError, api, apiPath, columns, Issue, IssueMeta, IssueSummary, navigate, NavLink, pagePath, Project, Status, StatusIcon, StatusSelect, Team, Workspace, workspaceSlug, priorities, Priority, PrioritySelect, IssueSort } from "./shared";
 
 import { Session } from "./Session";
 
@@ -58,7 +58,7 @@ function WorkspaceView() {
   const [selected, setSelected] = useState<string[]>([]);
   const [batchLabels, setBatchLabels] = useState(false);
   const [path, setPath] = useState(window.location.pathname);
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issues, setIssues] = useState<IssueSummary[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,11 +105,14 @@ function WorkspaceView() {
         if (difference) return difference;
       }
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    })])) as Record<Status, Issue[]>,
+    })])) as Record<Status, IssueSummary[]>,
     [issues, sort],
   );
 
   const visibleColumns = columns.filter((column) => filter === "all" || column.status === filter);
+  // Listing every status without a search starts with Done and Canceled collapsed; a header click overrides the default until filters change.
+  const defaultCollapsed = (status: Status) => filter === "all" && !query && (status === "done" || status === "canceled");
+  const isCollapsed = (status: Status) => collapsed[status] ?? defaultCollapsed(status);
   const heading = managingLabels ? "Labels" : project || (team && teams.find((item) => item.key === team)!.name) || "All issues";
   const selectedVisible = selected.filter((id) => issues.some((issue) => issue.identifier === id && (filter === "all" || issue.status === filter)));
   function toggleIssue(id: string) { setSelected((ids) => ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]); }
@@ -135,7 +138,7 @@ function WorkspaceView() {
     labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
     try {
       const [issueData, projectData, teamData] = await Promise.all([
-        api<{ issues: Issue[] }>(apiPath(`/issues?${params}`)),
+        api<{ issues: IssueSummary[] }>(apiPath(`/issues?${params}`)),
         api<{ projects: Project[] }>(apiPath("/projects")),
         api<{ teams: Team[] }>(apiPath("/teams")),
       ]);
@@ -152,7 +155,7 @@ function WorkspaceView() {
     }
   }
 
-  function addIssue(issue: Issue) {
+  function addIssue(issue: IssueSummary) {
     const inTeam = !team || issue.identifier.startsWith(`${team}-`);
     if (inTeam && (priority === "" || issue.priority === priority) && (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0))) setIssues((current) => [issue, ...current]);
     else void loadIssues();
@@ -306,6 +309,7 @@ function WorkspaceView() {
                   <button type="button" aria-label="Clear search" onClick={() => {
                     setSearch("");
                     setQuery("");
+                    setCollapsed({});
                   }}><X className="icon" /></button>
                 </span>
               )}
@@ -315,6 +319,7 @@ function WorkspaceView() {
               <form className="search-box" role="search" onSubmit={(event) => {
                 event.preventDefault();
                 setQuery(search);
+                setCollapsed({});
               }}>
                 <Search className="icon" />
                 <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search issues" aria-label="Search issues" />
@@ -404,26 +409,29 @@ function WorkspaceView() {
           <section className="list-view" aria-label="Issue list">
             {visibleColumns.map((column) => (
               <section className="list-group" key={column.status}>
-                <button type="button" className="group-header" aria-expanded={!collapsed[column.status]} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !current[column.status] }))}>
+                <button type="button" className="group-header" aria-expanded={!isCollapsed(column.status)} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !(current[column.status] ?? defaultCollapsed(column.status)) }))}>
                   <ChevronDown className="icon chevron" />
                   <StatusIcon status={column.status} />
                   <span>{column.label}</span>
                   <small>{grouped[column.status].length}</small>
                 </button>
-                <div className="list-rows" id={`rows-${column.status}`} hidden={collapsed[column.status]}>
-                  {loading && <p className="list-empty">Loading…</p>}
-                  {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
-                  {grouped[column.status].map((issue) => (
-                    <article className="list-row" key={issue.identifier}>
-                      <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
-                      <PrioritySelect priority={issue.priority} label={`Change priority for ${issue.identifier}`} compact disabled={savingPriorities.includes(issue.identifier)} onChange={(next) => void changePriority(issue.identifier, next)} />
-                      <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
-                      <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="identifier">{issue.identifier}</NavLink>
-                      <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="list-title">{issue.title}</NavLink>
-                      <IssueMeta issue={issue} />
-                      <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
-                    </article>
-                  ))}
+                {/* A collapsed group renders no rows; the empty container keeps the header's aria-controls target. */}
+                <div className="list-rows" id={`rows-${column.status}`} hidden={isCollapsed(column.status)}>
+                  {!isCollapsed(column.status) && <>
+                    {loading && <p className="list-empty">Loading…</p>}
+                    {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
+                    {grouped[column.status].map((issue) => (
+                      <article className="list-row" key={issue.identifier}>
+                        <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
+                        <PrioritySelect priority={issue.priority} label={`Change priority for ${issue.identifier}`} compact disabled={savingPriorities.includes(issue.identifier)} onChange={(next) => void changePriority(issue.identifier, next)} />
+                        <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
+                        <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="identifier">{issue.identifier}</NavLink>
+                        <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="list-title">{issue.title}</NavLink>
+                        <IssueMeta issue={issue} />
+                        <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+                      </article>
+                    ))}
+                  </>}
                 </div>
               </section>
             ))}
