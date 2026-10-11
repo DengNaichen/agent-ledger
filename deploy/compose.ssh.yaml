@@ -1,0 +1,28 @@
+# Run from an isolated directory containing runtime.env, data/, and infone/.
+# runtime.env contains UC credentials only; do not commit that file.
+services:
+  app:
+    image: ${INFTASK_IMAGE:?Set INFTASK_IMAGE to the tested image tag}
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1
+    mem_limit: 512m
+    pids_limit: 128
+    env_file:
+      - path: ./runtime.env
+        format: raw
+    environment:
+      INFTASK_PUBLIC_URL: http://127.0.0.1:18787
+      INFONE_SHARE_DIR: /run/infone
+    command: ["-addr", "0.0.0.0:8787", "-data", "/data/inftask.db"]
+    ports:
+      - "127.0.0.1:18787:8787"
+    volumes:
+      - ./data:/data
+      - ./infone:/run/infone:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777

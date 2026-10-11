@@ -130,3 +130,28 @@ MCP host 配置服务 URL `https://<域名>/mcp`、public client ID `inftask`（
 ### 验证边界
 
 `go test ./internal/ucauth ./internal/httpapi ./internal/app ./cmd/inftask` 覆盖假 UC、签名、回调绑定、PKCE、注销、入口保护和 webhook 验签；不证明真实 UC 公钥/client/回调匹配。上线验收还需真实 UC 浏览器登录与退出、远程 MCP host 的 tool call 和 refresh、GitHub Delivery 成功，以及临时卷上的重启保留与备份恢复。不得以构建成功代替这些检查。
+
+### 不改现有入口的 SSH 隧道试运行
+
+现有 80/443 有生产服务时，不能直接运行上面的 Caddy Compose。IP 证书的 ACME HTTP-01/TLS-ALPN-01 验证仍要求 80/443，换成 8443 不能绕过验证；本地试运行可以使用 SSH 隧道，不开放新的公网入口。
+
+[compose.ssh.yaml](../deploy/compose.ssh.yaml) 只发布 `127.0.0.1:18787`，限制 CPU/内存、移除 Linux capabilities 并使用只读根文件系统。它使用独立空数据库，不自动复制维护者数据，也不启用 GitHub 同步或 webhook。UC callback 是 `http://127.0.0.1:18787/auth/callback`，需要 UC 对复用的 client 放行该回调。
+
+在独立目录（例如 `/opt/inftask-trial`）准备：权限 `0600` 的 `runtime.env`（UC base URL/client ID/client secret/可选 issuer）、`infone/infone.pub` 公钥、归 UID 10001 所有的 `data/`，以及该 Compose 文件。secret 不写进命令行、镜像或日志。镜像可用标准 Dockerfile 构建；也可先构建静态 Linux 二进制，再用 [Dockerfile.binary](../deploy/Dockerfile.binary) 在仅包含二进制和系统可信 CA bundle 的目录构建，避免把 runtime.env 放入构建上下文。
+
+```sh
+# 本地隔离工作树，先构建前端，再编译服务器架构对应的 Linux 二进制。
+npm --prefix web ci
+npm --prefix web run build
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /tmp/inftask-linux ./cmd/inftask
+
+# 服务器独立目录内，镜像标签对应已检查的构建。
+INFTASK_IMAGE=inftask-trial:<commit> docker compose -p inftask-trial -f compose.ssh.yaml up -d
+
+# 客户端保持此连接运行；SSH Host 别名必须指向实际部署机器。
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:18787:127.0.0.1:18787 <ssh-host>
+```
+
+浏览器打开 `http://127.0.0.1:18787`。本机 HTTP 只走 loopback，跨主机通信由 SSH 加密；这不是公网 HTTPS，也不能接收 GitHub 的公网 webhook。其他团队成员需要各自建立 SSH 隧道才能访问。先检查本地和远端 18787 是否空闲，且不要把 Compose 的绑定地址改为 `0.0.0.0`。
+
+健康检查应返回 200，未登录 `/api/issues` 和 `/mcp` 应返回 401。真实登录需要完成 UC 授权，不能把授权页可打开当作登录成功。停止此实例用同一目录、同一 image 变量执行 `docker compose -p inftask-trial -f compose.ssh.yaml stop`，保留 data 以便继续试用；关闭 SSH 连接只停止本机转发。部署前后核对生产入口进程和配置摘要，不重载生产代理。
