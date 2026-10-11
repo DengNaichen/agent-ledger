@@ -6,7 +6,7 @@
 
 左上角 `WorkspaceMenu.tsx` 显示当前 workspace 名称与箭头，菜单按 slug 列出全部 workspace、标记当前项，提供 Create workspace… 与 Rename workspace…。切换及创建成功都进入对应 `/<slug>/`，组件重新挂载并重置原 workspace 的筛选、选择和视图；浏览器前进后退按 URL 恢复 workspace。创建填 slug 和名称，改名只填名称；保存期间禁用输入和关闭，浏览器导航离开不会取消已发送的写入，但旧响应不会再导航或更新弹窗。成功后显示服务端返回的名称，失败保留输入并显示 role=alert。菜单重新打开时重读列表，加载失败可关闭重开；菜单及弹窗支持 Tab/Enter 和 Escape，关闭后焦点回到左上角入口。窄屏保留该入口。
 
-Sidebar 的 Workspace 有 All issues、All projects、Labels 与 Settings；每个 Team 有 Issues、Projects，Team 名称旁的图标只作展示。Settings 直接进入正式页面，不经过浮窗菜单。侧栏不再显示状态或局部结果数；状态筛选收进内容区的 Filter，当前结果数留在任务工具栏。窄屏用 Navigation 按钮展开同一组目的地，选择后收起。Teams 旁的 “+” 沿用 Create team 弹窗，成功后进入新 Team 的 Issues 范围，失败保留输入并显示 role=alert。
+Sidebar 的 Workspace 有 All issues、All projects、Labels 与 Settings；每个 Team 有 Issues、Projects，Team emoji 只作展示。点击 Team 标题行（含右侧箭头）展开/收起自己的子导航，不改变 URL；各 Team 默认展开并独立折叠，状态只保存在当前 Sidebar 挂载期间。标题是带 aria-expanded、aria-controls 的原生按钮，支持 Tab、Enter、Space；收起后的子链接不进入 Tab 顺序。Settings 直接进入正式页面，不经过浮窗菜单。侧栏不再显示状态或局部结果数；状态筛选收进内容区的 Filter，当前结果数留在任务工具栏。窄屏用 Navigation 按钮展开同一组目的地，选择后收起。Teams 旁的 “+” 沿用 Create team 弹窗，成功后进入新 Team 的 Issues 范围，失败保留输入并显示 role=alert。
 
 范围 URL：`/<slug>/` 是全部任务，`/<slug>/projects` 是全部项目，`/<slug>/team/<key>/issues` 与 `/<slug>/team/<key>/projects` 是 Team 范围，`/<slug>/project/<id>` 是项目全部任务；Project 使用稳定 id，Team 使用不可变 key（保留迁移产生的历史 key），已有 issue 详情路径继续可用。直达、刷新、前后退恢复范围。每次进入 sidebar 目的地或项目都清空 status、type、priority、标签、搜索、显式 Team 筛选和批量选择，包括再次点击同一路径；同 workspace 内保留 list/board 和排序。
 
