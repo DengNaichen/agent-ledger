@@ -18,6 +18,8 @@ Teams, Projects, and labels belong to a workspace, and a workspace's slug names 
 curl -X POST http://127.0.0.1:8787/api/workspaces -H 'Content-Type: application/json' -d '{"slug":"default","name":"Default"}'
 ```
 
+Use the current workspace name at the top left to switch workspaces, choose **Create workspace…** (slug and name), or **Rename workspace…** (name only). Creating opens the new workspace; switching opens its issue list and resets the previous workspace’s filters. Failed saves keep the form inputs and show an error so you can retry. The menu remains available on narrow screens.
+
 A slug is 2 to 32 lowercase letters, digits, or hyphens starting with a letter, other than `api`, `assets`, `auth`, `mcp`, `w`, and `webhooks`; it cannot be changed. `GET /api/workspaces` lists workspaces by slug, and `PATCH /api/workspaces/<slug>` with `{"name": ...}` renames one. An unknown slug returns 404. Workspaces only group data: there are no members or roles, and they cannot be deleted.
 
 Every issue belongs to a team, and each team numbers its own issues: team `AL` issues `AL-1`, `AL-2`, and so on, independently of team `TOK`. Team keys, Project names, and labels are unique within a workspace, so two workspaces can each have team `AL` and issue `AL-1`. A new workspace has no teams; create one with + next to Teams in the sidebar, the `create_team` MCP tool, or `POST /api/w/<slug>/teams` before creating issues.

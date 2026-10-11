@@ -177,7 +177,7 @@ export function ModalDialog({ restoreFocus = false, onClose, children, ...attrib
       if (restoreFocus) opener.focus();
     };
   }, []);
-  return <dialog ref={ref} {...attributes} onCancel={onClose}>{children}</dialog>;
+  return <dialog ref={ref} {...attributes} onCancel={(event) => { event.preventDefault(); onClose(); }}>{children}</dialog>;
 }
 
 export function RequestError({ message }: { message: string }) {

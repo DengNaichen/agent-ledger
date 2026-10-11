@@ -4,6 +4,8 @@
 
 `shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 的 `WorkspaceView` 将筛选、视图和折叠状态保存在组件内存中，经属性交给侧边栏、筛选栏和看板/列表，不持久化到 URL 或 localStorage；刷新不能承诺恢复这些选择。
 
+左上角 `WorkspaceMenu.tsx` 显示当前 workspace 名称与箭头，菜单按 slug 列出全部 workspace、标记当前项，提供 Create workspace… 与 Rename workspace…。切换及创建成功都进入对应 `/<slug>/`，组件重新挂载并重置原 workspace 的筛选、选择和视图；浏览器前进后退按 URL 恢复 workspace。创建填 slug 和名称，改名只填名称；保存期间禁用输入和关闭，浏览器导航离开不会取消已发送的写入，但旧响应不会再导航或更新弹窗。成功后显示服务端返回的名称，失败保留输入并显示 role=alert。菜单重新打开时重读列表，加载失败可关闭重开；菜单及弹窗支持 Tab/Enter 和 Escape，关闭后焦点回到左上角入口。窄屏保留该入口。
+
 侧边栏 Teams 分组列出全部 team，点一个 team 只看该 team 的票，筛选栏出现可清除的 team chip，All issues 清除 team、状态和 Project 筛选；team 筛选和 Project 筛选一样只在内存中，窄屏下侧边栏分组隐藏。Teams 旁的 “+” 打开 Create team 弹窗：key、名称和可选的起始编号，成功后切到新 team，失败保留输入并显示 role=alert。
 
 Team、Project、type、priority、标签条件和搜索词参与 API 查询，搜索框按 Enter 才提交搜索词；状态筛选在列表数据中选择可见列。列表视图在查看全部状态且没有搜索词时默认折叠 Done 和 Canceled；选中单个状态或有搜索词时，所有分组默认展开。点击分组头展开或收起，覆盖默认状态；切换状态、team 或 Project 筛选，以及提交或清除搜索词时，折叠回到默认状态。折叠的分组只显示分组头和计数，不渲染行；看板不折叠。在详情页选择筛选会返回列表。创建弹窗沿用当前 Project 和状态；All issues 下使用 triage。弹窗的 team 下拉预选正在查看的 team，没有 team 筛选时预选按 key 排序的第一个；还没有 team 时显示提示并禁用提交。创建成功后展开所在状态组；有具体标签筛选或新票不属于正在查看的 team 时重读列表，由筛选结果决定新 issue 是否显示。
