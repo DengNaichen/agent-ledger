@@ -1,4 +1,4 @@
-import { MouseEvent, ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { MouseEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import * as Select from "@radix-ui/react-select";
 
@@ -23,24 +23,12 @@ export const priorities = [
 export type Priority = (typeof priorities)[number]["value"];
 export type IssueSort = "auto" | "updated" | "priority";
 
+export const issueTypes = ["spec", "feature", "bug", "improvement", "chore"];
+
 export type Status = (typeof columns)[number]["status"];
 
 export type Label = { id: number; name: string; color: string; description: string; group_id: number; archived: boolean };
 export type LabelGroup = { id: number; name: string };
-
-export type Issue = {
-  labels: Label[];
-  identifier: string;
-  title: string;
-  status: Status;
-  priority: Priority;
-  type: string | null;
-  project: string | null;
-  parent: string | null;
-  updated_at: string;
-  description: string;
-  created_at: string;
-};
 
 export type IssueSummary = {
   labels: Label[];
@@ -53,6 +41,8 @@ export type IssueSummary = {
   parent: string | null;
   updated_at: string;
 };
+
+export type Issue = IssueSummary & { description: string; created_at: string };
 
 export type Comment = { body: string; created_at: string; author: string };
 export type Link = { title: string; url: string };
@@ -170,6 +160,24 @@ export function IssueMeta({ issue }: { issue: { type: string | null; project: st
 
 export function LabelBadge({ label }: { label: Label }) {
  return <span className="label-badge" title={`${label.name}${label.archived ? " (archived)" : ""}${label.description ? ` — ${label.description}` : ""}`}><span className="label-dot" style={{ backgroundColor: label.color }} /><span>{label.name}</span>{label.archived && <small>archived</small>}</span>;
+}
+
+// ModalDialog shows a native modal dialog while mounted and focuses its first
+// text field or select. restoreFocus returns focus to the element that had it
+// when the dialog opened.
+export function ModalDialog({ restoreFocus = false, onClose, children, ...attributes }: { className: string; "aria-label"?: string; "aria-labelledby"?: string; restoreFocus?: boolean; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = ref.current!;
+    const opener = document.activeElement as HTMLElement;
+    element.showModal();
+    element.querySelector<HTMLElement>('input:not([type="checkbox"]), select, textarea')!.focus();
+    return () => {
+      element.close();
+      if (restoreFocus) opener.focus();
+    };
+  }, []);
+  return <dialog ref={ref} {...attributes} onCancel={onClose}>{children}</dialog>;
 }
 
 export function RequestError({ message }: { message: string }) {

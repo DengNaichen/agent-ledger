@@ -1,17 +1,13 @@
-import { Box, ChevronDown, Columns2, List, Plus, Search, Tag, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { CreateTeamDialog, NewIssueDialog } from "./Dialogs";
+import { EmojiPicker } from "./EmojiPicker";
 import { IssueDetail } from "./IssueDetail";
-import { RequestError, api, apiPath, columns, Issue, IssueMeta, IssueSummary, navigate, NavLink, pagePath, Project, Status, StatusIcon, StatusSelect, Team, Workspace, workspaceSlug, priorities, Priority, PrioritySelect, IssueSort } from "./shared";
-
-import { EmojiPicker, EntityEmoji } from "./EmojiPicker";
-
-import { Session } from "./Session";
-
-import { emptyLabelFilter, LabelFilter, LabelFilterValue, LabelManager, LabelPicker, useLabels } from "./Labels";
-
-type ViewMode = "board" | "list";
-
-const issueTypes = ["spec", "feature", "bug", "improvement", "chore"];
+import { IssueFilters } from "./IssueFilters";
+import { IssueViews, ViewMode } from "./IssueViews";
+import { emptyLabelFilter, LabelFilterValue, LabelManager, LabelPicker, useLabels } from "./Labels";
+import { RequestError, api, columns, IssueSummary, navigate, NavLink, pagePath, Status, Team, Workspace, workspaceSlug, Priority, IssueSort } from "./shared";
+import { Sidebar } from "./Sidebar";
+import { useIssues } from "./useIssues";
 
 // The first path segment names the workspace; the root opens the first one.
 function App() {
@@ -53,18 +49,14 @@ function FirstWorkspace() {
 }
 
 // WorkspaceView shows the workspace named by the first path segment; the rest
-// of the path selects the list, an issue, or the label manager.
+// of the path selects the list, an issue, or the label manager. It holds the
+// filter, view, selection, and dialog state and passes it to the page parts.
 function WorkspaceView() {
   const catalog = useLabels();
   const [labelFilter, setLabelFilter] = useState<LabelFilterValue>(emptyLabelFilter);
   const [selected, setSelected] = useState<string[]>([]);
   const [batchLabels, setBatchLabels] = useState(false);
   const [path, setPath] = useState(window.location.pathname);
-  const [issues, setIssues] = useState<IssueSummary[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const loadVersion = useRef(0);
   const [error, setError] = useState("");
   const [view, setView] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<Status | "all">("all");
@@ -72,12 +64,10 @@ function WorkspaceView() {
   const [team, setTeam] = useState("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [sort, setSort] = useState<IssueSort>("auto");
-  const [savingPriorities, setSavingPriorities] = useState<string[]>([]);
   const [type, setType] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
-  const [dropTarget, setDropTarget] = useState<Status | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | "team" | null>(null);
   const route = "/" + path.split("/").slice(2).join("/");
   const managingLabels = route === "/labels";
@@ -93,12 +83,7 @@ function WorkspaceView() {
     return () => window.removeEventListener("popstate", sync);
   }, []);
 
-  useEffect(() => {
-    const load = () => void loadIssues();
-    load();
-    window.addEventListener("focus", load);
-    return () => window.removeEventListener("focus", load);
-  }, [path, team, project, type, query, labelFilter, priority]);
+  const { issues, projects, teams, loading, savingPriorities, loadIssues, insertIssue, insertTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority } = useIssues(path, { team, project, type, query, priority, labelFilter }, setError);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status).sort((a, b) => {
@@ -129,147 +114,29 @@ function WorkspaceView() {
     if (route !== "/") navigate(pagePath("/"));
   }
 
-  async function loadIssues() {
-    const version = ++loadVersion.current;
-    const params = new URLSearchParams({ project, query });
-    if (priority !== "") params.set("priority", String(priority));
-    if (team) params.set("team", team);
-    if (type) params.set("type", type);
-    params.set("label_mode", labelFilter.mode);
-    labelFilter.labels.forEach((id) => params.append("label_id", String(id)));
-    labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
-    try {
-      const [issueData, projectData, teamData] = await Promise.all([
-        api<{ issues: IssueSummary[] }>(apiPath(`/issues?${params}`)),
-        api<{ projects: Project[] }>(apiPath("/projects")),
-        api<{ teams: Team[] }>(apiPath("/teams")),
-      ]);
-      if (version === loadVersion.current) {
-        setIssues(issueData.issues);
-        setProjects(projectData.projects);
-        setTeams(teamData.teams);
-        setError("");
-      }
-    } catch (cause) {
-      if (version === loadVersion.current) setError((cause as Error).message);
-    } finally {
-      if (version === loadVersion.current) setLoading(false);
-    }
+  function submitQuery(value: string) {
+    setQuery(value);
+    setCollapsed({});
   }
 
   function addIssue(issue: IssueSummary) {
-    const inTeam = !team || issue.identifier.startsWith(`${team}-`);
-    if (inTeam && (priority === "" || issue.priority === priority) && (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0))) setIssues((current) => [issue, ...current]);
-    else void loadIssues();
+    insertIssue(issue);
     setCollapsed((current) => ({ ...current, [issue.status]: false }));
     setDialog(null);
-  }
-
-  async function changeProjectEmoji(item: Project, emoji: string) {
-    const updated = await api<Project>(apiPath(`/projects/${encodeURIComponent(item.name)}`), "PATCH", { emoji });
-    setProjects((current) => current.map((project) => project.name === item.name ? updated : project));
-  }
-
-  async function changeTeamEmoji(item: Team, emoji: string) {
-    const updated = await api<Team>(apiPath(`/teams/${encodeURIComponent(item.key)}`), "PATCH", { emoji });
-    setTeams((current) => current.map((team) => team.key === item.key ? updated : team));
   }
 
   const activeProject = projects.find((item) => item.name === project);
   const activeTeam = teams.find((item) => item.key === team);
 
   function addTeam(created: Team) {
-    setTeams((current) => [...current, created].sort((a, b) => a.key.localeCompare(b.key)));
+    insertTeam(created);
     selectFilter("all", "", created.key);
     setDialog(null);
   }
 
-  async function moveIssue(identifier: string, status: Status) {
-    const previous = issues;
-    setIssues((current) => current.map((issue) => (issue.identifier === identifier ? { ...issue, status } : issue)));
-    try {
-      const response = await fetch(apiPath(`/issues/${identifier}/status`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
-      if (response.ok) window.dispatchEvent(new Event("session-active"));
-      if (!response.ok) throw new Error(response.status === 401 ? "unauthorized" : "Could not move issue");
-      const updated = (await response.json()) as Issue;
-      setIssues((current) => current.map((issue) => (issue.identifier === identifier ? updated : issue)));
-    } catch (cause) {
-      setIssues(previous);
-      setError(cause instanceof Error ? cause.message : "Could not move issue");
-    }
-  }
-
-  async function changePriority(identifier: string, next: Priority) {
-    setSavingPriorities((current) => [...current, identifier]);
-    setError("");
-    try {
-      const updated = await api<Issue>(apiPath(`/issues/${identifier}`), "PATCH", { priority: next });
-      setIssues((current) => current.map((issue) => issue.identifier === identifier ? updated : issue));
-      if (priority !== "" && updated.priority !== priority) await loadIssues();
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSavingPriorities((current) => current.filter((id) => id !== identifier));
-    }
-  }
-
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">IT</span>
-          <strong>InfTask</strong>
-        </div>
-
-        <Session />
-        <div className="sidebar-label">Workspace</div>
-        <button type="button" className={`nav-item ${filter === "all" && !project && !team && !managingLabels ? "active" : ""}`} aria-pressed={filter === "all" && !project && !team && !managingLabels} onClick={() => selectFilter("all", "", "")}>
-          <List className="icon" />
-          <span className="nav-label">All issues</span>
-          <small>{issues.length}</small>
-        </button>
-
-        <button type="button" className={`nav-item ${managingLabels ? "active" : ""}`} onClick={() => navigate(pagePath("/labels"))}><Tag className="icon" /><span className="nav-label">Labels</span></button>
-
-        <div className="sidebar-group">
-          <div className="sidebar-label sidebar-heading">
-            <span>Teams</span>
-            <button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={() => setDialog("team")}><Plus className="icon" /></button>
-          </div>
-          {teams.map((item) => (
-            <div key={item.key} className={`nav-item entity-nav ${team === item.key && !managingLabels ? "active" : ""}`}>
-              <EmojiPicker value={item.emoji} teamKey={item.key} label={`Change emoji for team ${item.name}`} onChange={(emoji) => changeTeamEmoji(item, emoji)} />
-              <button type="button" className="entity-link" aria-pressed={team === item.key && !managingLabels} onClick={() => selectFilter("all", "", item.key)}>
-                <span className="nav-label">{item.name}</span><small>{item.key}</small>
-              </button>
-            </div>
-          ))}
-
-          <div className="sidebar-label">Statuses</div>
-          {columns.map((column) => (
-            <button type="button" key={column.status} className={`nav-item ${filter === column.status ? "active" : ""}`} aria-pressed={filter === column.status} onClick={() => selectFilter(column.status, project)}>
-              <StatusIcon status={column.status} />
-              <span className="nav-label">{column.label}</span>
-              <small>{grouped[column.status].length}</small>
-            </button>
-          ))}
-
-          {projects.length > 0 && <div className="sidebar-label">Projects</div>}
-          {projects.map((item) => (
-            <div key={item.name} title={item.description} className={`nav-item entity-nav ${project === item.name ? "active" : ""}`}>
-              <EmojiPicker value={item.emoji} label={`Change emoji for project ${item.name}`} onChange={(emoji) => changeProjectEmoji(item, emoji)} />
-              <button type="button" className="entity-link" aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}><span className="nav-label">{item.name}</span></button>
-            </div>
-          ))}
-        </div>
-
-        <div className="sidebar-footer"><span /> Shared workspace</div>
-      </aside>
+      <Sidebar issueCount={issues.length} grouped={grouped} teams={teams} projects={projects} filter={filter} project={project} team={team} managingLabels={managingLabels} selectFilter={selectFilter} onCreateTeam={() => setDialog("team")} changeTeamEmoji={changeTeamEmoji} changeProjectEmoji={changeProjectEmoji} />
 
       <main className="panel">
         <header className="header-row">
@@ -289,78 +156,10 @@ function WorkspaceView() {
         </header>
 
         {!detailIdentifier && !managingLabels && (
-          <div className="header-row filter-row">
-            <div className="chips">
-              {filter !== "all" && (
-                <span className="chip">
-                  <StatusIcon status={filter} />
-                  {visibleColumns[0].label}
-                  <button type="button" aria-label={`Clear ${visibleColumns[0].label} filter`} onClick={() => selectFilter("all", project)}><X className="icon" /></button>
-                </span>
-              )}
-              {team && (
-                <span className="chip">
-                  <EntityEmoji emoji={activeTeam?.emoji || ""} teamKey={team} />
-                  {team}
-                  <button type="button" aria-label={`Clear ${team} filter`} onClick={() => selectFilter(filter, project, "")}><X className="icon" /></button>
-                </span>
-              )}
-              {project && (
-                <span className="chip">
-                  <EntityEmoji emoji={activeProject?.emoji || ""} />
-                  {project}
-                  <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}><X className="icon" /></button>
-                </span>
-              )}
-              {type && (
-                <span className="chip">
-                  <Tag className="icon" />
-                  {type}
-                  <button type="button" aria-label={`Clear ${type} filter`} onClick={() => setType("")}><X className="icon" /></button>
-                </span>
-              )}
-              {query && (
-                <span className="chip">
-                  <Search className="icon" />
-                  “{query}”
-                  <button type="button" aria-label="Clear search" onClick={() => {
-                    setSearch("");
-                    setQuery("");
-                    setCollapsed({});
-                  }}><X className="icon" /></button>
-                </span>
-              )}
-              <span className="view-count">{visibleCount} issues</span>
-            </div>
-            <div className="filter-controls">
-              <form className="search-box" role="search" onSubmit={(event) => {
-                event.preventDefault();
-                setQuery(search);
-                setCollapsed({});
-              }}>
-                <Search className="icon" />
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search issues" aria-label="Search issues" />
-              </form>
-              <select className="type-filter" value={type} aria-label="Filter by type" onChange={(event) => setType(event.target.value)}>
-                <option value="">All types</option>
-                {issueTypes.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-              <select className="type-filter" value={priority} aria-label="Filter by priority" onChange={(event) => { setPriority(event.target.value === "" ? "" : Number(event.target.value) as Priority); setSelected([]); }}>
-                <option value="">All priorities</option>
-                {priorities.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-              <select className="type-filter" value={sort} aria-label="Issue ordering" onChange={(event) => setSort(event.target.value as IssueSort)}>
-                <option value="auto">Default ordering</option>
-                <option value="updated">Last updated</option>
-                <option value="priority">Priority</option>
-              </select>
-              <LabelFilter value={labelFilter} onChange={(value) => { setLabelFilter(value); setSelected([]); }} catalog={catalog} />
-              <nav className="view-switch" aria-label="Issue view">
-                <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}><List className="icon" /> List</button>
-                <button type="button" className={view === "board" ? "active" : ""} aria-pressed={view === "board"} onClick={() => setView("board")}><Columns2 className="icon" /> Board</button>
-              </nav>
-            </div>
-          </div>
+          <IssueFilters filter={filter} team={team} activeTeam={activeTeam} project={project} activeProject={activeProject} selectFilter={selectFilter}
+            type={type} setType={setType} search={search} setSearch={setSearch} query={query} submitQuery={submitQuery}
+            priority={priority} setPriority={setPriority} sort={sort} setSort={setSort} labelFilter={labelFilter} setLabelFilter={setLabelFilter}
+            catalog={catalog} clearSelection={() => setSelected([])} view={view} setView={setView} visibleCount={visibleCount} />
         )}
 
         {error && <RequestError message={error} />}
@@ -368,91 +167,10 @@ function WorkspaceView() {
         {!detailIdentifier && !managingLabels && <div className="label-bulk-bar"><button className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button>{selectedVisible.length > 0 && <><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></>}</div>}
         {managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
           <IssueDetail catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
-        ) : view === "board" ? (
-          <section className="board" aria-label="Delivery board">
-            {visibleColumns.map((column) => (
-              <section
-                className={`column ${dropTarget === column.status ? "drop-target" : ""}`}
-                key={column.status}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  setDropTarget(column.status);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDropTarget(null);
-                  const identifier = event.dataTransfer.getData("application/x-inftask-issue");
-                  if (identifier) void moveIssue(identifier, column.status);
-                }}
-              >
-                <header title={column.hint}>
-                  <StatusIcon status={column.status} />
-                  <h2>{column.label}</h2>
-                  <small>{grouped[column.status].length}</small>
-                </header>
-                <div className="cards">
-                  {loading && <p className="empty">Loading…</p>}
-                  {!loading && grouped[column.status].length === 0 && <p className="empty">No issues</p>}
-                  {grouped[column.status].map((issue) => (
-                    <article
-                      className="card"
-                      draggable
-                      key={issue.identifier}
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData("application/x-inftask-issue", issue.identifier);
-                        event.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => setDropTarget(null)}
-                    >
-                      <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
-                      <span className="drag-handle" draggable title={`Drag ${issue.identifier} to another status`} aria-label={`Drag ${issue.identifier}`}>⠿</span>
-                      <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="card-open">
-                        <span className="identifier">{issue.identifier}</span>
-                        <span className="card-title">{issue.title}</span>
-                      </NavLink>
-                      <div className="card-meta">
-                        <PrioritySelect priority={issue.priority} label={`Change priority for ${issue.identifier}`} compact disabled={savingPriorities.includes(issue.identifier)} onChange={(next) => void changePriority(issue.identifier, next)} />
-                        <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
-                        <IssueMeta issue={issue} />
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </section>
         ) : (
-          <section className="list-view" aria-label="Issue list">
-            {visibleColumns.map((column) => (
-              <section className="list-group" key={column.status}>
-                <button type="button" className="group-header" aria-expanded={!isCollapsed(column.status)} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !(current[column.status] ?? defaultCollapsed(column.status)) }))}>
-                  <ChevronDown className="icon chevron" />
-                  <StatusIcon status={column.status} />
-                  <span>{column.label}</span>
-                  <small>{grouped[column.status].length}</small>
-                </button>
-                {/* A collapsed group renders no rows; the empty container keeps the header's aria-controls target. */}
-                <div className="list-rows" id={`rows-${column.status}`} hidden={isCollapsed(column.status)}>
-                  {!isCollapsed(column.status) && <>
-                    {loading && <p className="list-empty">Loading…</p>}
-                    {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
-                    {grouped[column.status].map((issue) => (
-                      <article className="list-row" key={issue.identifier}>
-                        <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
-                        <PrioritySelect priority={issue.priority} label={`Change priority for ${issue.identifier}`} compact disabled={savingPriorities.includes(issue.identifier)} onChange={(next) => void changePriority(issue.identifier, next)} />
-                        <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
-                        <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="identifier">{issue.identifier}</NavLink>
-                        <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="list-title">{issue.title}</NavLink>
-                        <IssueMeta issue={issue} />
-                        <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
-                      </article>
-                    ))}
-                  </>}
-                </div>
-              </section>
-            ))}
-          </section>
+          <IssueViews view={view} visibleColumns={visibleColumns} grouped={grouped} loading={loading} isCollapsed={isCollapsed}
+            toggleGroup={(status) => setCollapsed((current) => ({ ...current, [status]: !(current[status] ?? defaultCollapsed(status)) }))}
+            actions={{ selected: selectedVisible, toggle: toggleIssue, savingPriorities, changePriority, moveIssue }} />
         )}
       </main>
 
@@ -460,120 +178,6 @@ function WorkspaceView() {
       {dialog === "new" && <NewIssueDialog teams={teams} team={team} status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
       {dialog === "team" && <CreateTeamDialog onClose={() => setDialog(null)} onCreate={addTeam} />}
     </div>
-  );
-}
-
-function NewIssueDialog({ teams, team: selectedTeam, status, project, onClose, onCreate }: { teams: Team[]; team: string; status: Status; project: string; onClose: () => void; onCreate: (issue: Issue) => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const titleInput = useRef<HTMLInputElement>(null);
-  // The server has no default team; the dialog preselects the team being viewed, else the first one, and always sends the choice.
-  const [team, setTeam] = useState(selectedTeam || (teams.length > 0 ? teams[0].key : ""));
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<Priority>(0);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const element = dialog.current!;
-    element.showModal();
-    titleInput.current!.focus();
-    return () => element.close();
-  }, []);
-
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      onCreate(await api<Issue>(apiPath("/issues"), "POST", { team, title, description, status, project, priority }));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <dialog ref={dialog} className="issue-dialog" aria-labelledby="new-issue-title" onCancel={onClose}>
-      <form onSubmit={create}>
-        <header>
-          <h2 id="new-issue-title">New issue</h2>
-          <button type="button" className="ghost" aria-label="Close" onClick={onClose}><X className="icon" /></button>
-        </header>
-        <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required /></label>
-        <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" /></label>
-        {teams.length > 0 ? (
-          <label>Team<select value={team} onChange={(event) => setTeam(event.target.value)}>
-            {teams.map((item) => <option key={item.key} value={item.key}>{item.key} · {item.name}</option>)}
-          </select></label>
-        ) : (
-          <p className="error" role="alert">No teams yet. Create one with + next to Teams in the sidebar, then reopen this dialog.</p>
-        )}
-        <div className="dialog-priority"><span>Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="New issue priority" disabled={saving} /></div>
-        <p className="dialog-meta">
-          <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
-          {project && <span className="chip"><Box className="icon" />{project}</span>}
-        </p>
-        {error && <RequestError message={error} />}
-        <footer>
-          <button type="button" className="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="button primary" disabled={saving || !team}>{saving ? "Creating…" : "Create issue"}</button>
-        </footer>
-      </form>
-    </dialog>
-  );
-}
-
-function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (team: Team) => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const keyInput = useRef<HTMLInputElement>(null);
-  const [key, setKey] = useState("");
-  const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("");
-  const [startNumber, setStartNumber] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const element = dialog.current!;
-    element.showModal();
-    keyInput.current!.focus();
-    return () => element.close();
-  }, []);
-
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      onCreate(await api<Team>(apiPath("/teams"), "POST", { key, name, emoji, start_number: startNumber ? Number(startNumber) : undefined }));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <dialog ref={dialog} className="issue-dialog" aria-labelledby="new-team-title" onCancel={onClose}>
-      <form onSubmit={create}>
-        <header>
-          <h2 id="new-team-title">Create team</h2>
-          <button type="button" className="ghost" aria-label="Close" onClick={onClose}><X className="icon" /></button>
-        </header>
-        <label>Key<input ref={keyInput} value={key} onChange={(event) => setKey(event.target.value.toUpperCase())} placeholder="TOK" pattern="[A-Z][A-Z0-9]{1,5}" maxLength={6} required /></label>
-        <div className="dialog-priority"><span>Emoji</span><EmojiPicker value={emoji} teamKey={key || "TE"} label="New team emoji" onChange={setEmoji} disabled={saving} /></div>
-        <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Team name" required /></label>
-        <label>Start number<input type="number" min={1} step={1} value={startNumber} onChange={(event) => setStartNumber(event.target.value)} placeholder="1" /></label>
-        <p className="dialog-hint">Issues are numbered {key || "KEY"}-{startNumber || "1"}, {key || "KEY"}-{startNumber ? Number(startNumber) + 1 : "2"}, and so on. Set a start number above numbers the team already used elsewhere. The key cannot be changed later.</p>
-        {error && <RequestError message={error} />}
-        <footer>
-          <button type="button" className="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="button primary" disabled={saving}>{saving ? "Creating…" : "Create team"}</button>
-        </footer>
-      </form>
-    </dialog>
   );
 }
 

@@ -1,8 +1,8 @@
 import { X } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect } from "./shared";
+import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, ModalDialog, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect } from "./shared";
 
 import { Catalog, LabelPicker } from "./Labels";
 import { LabelBadge } from "./shared";
@@ -200,8 +200,6 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
 }
 
 function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => void; onSave: (issue: Issue) => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const titleInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(issue.title);
   const [description, setDescription] = useState(issue.description);
   const [status, setStatus] = useState(issue.status);
@@ -209,43 +207,27 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const element = dialog.current!;
-    element.showModal();
-    titleInput.current!.focus();
-    return () => element.close();
-  }, []);
-
   async function save(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(apiPath(`/issues/${issue.identifier}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, status, priority }),
-      });
-      if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
-      if (response.ok) window.dispatchEvent(new Event("session-active"));
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
-      onSave(result as Issue);
+      onSave(await api<Issue>(apiPath(`/issues/${issue.identifier}`), "PATCH", { title, description, status, priority }));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save issue");
+      setError((cause as Error).message);
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <dialog ref={dialog} className="issue-dialog" aria-labelledby="issue-dialog-title" onCancel={onClose}>
+    <ModalDialog className="issue-dialog" aria-labelledby="issue-dialog-title" onClose={onClose}>
       <form onSubmit={save}>
         <header>
           <h2 id="issue-dialog-title">{issue.identifier}</h2>
           <button type="button" className="ghost" aria-label="Close issue" onClick={onClose}><X className="icon" /></button>
         </header>
-        <label>Title<input ref={titleInput} value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
+        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
         <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
         <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
           {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
@@ -257,6 +239,6 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
           <button type="submit" className="button primary" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
         </footer>
       </form>
-    </dialog>
+    </ModalDialog>
   );
 }
