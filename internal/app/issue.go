@@ -43,22 +43,23 @@ func joinOr(items []string) string {
 }
 
 type IssueSummary struct {
-	Priority   int     `json:"priority"`
-	Labels     []Label `json:"labels"`
-	Identifier string  `json:"identifier"`
-	Title      string  `json:"title"`
-	Status     Status  `json:"status"`
-	Type       *string `json:"type"`
-	ProjectID  *int64  `json:"project_id"`
-	Project    *string `json:"project"`
-	Parent     *string `json:"parent"`
-	UpdatedAt  string  `json:"updated_at"`
+	CreatedAt    string  `json:"created_at"`
+	ProjectEmoji string  `json:"project_emoji"`
+	Priority     int     `json:"priority"`
+	Labels       []Label `json:"labels"`
+	Identifier   string  `json:"identifier"`
+	Title        string  `json:"title"`
+	Status       Status  `json:"status"`
+	Type         *string `json:"type"`
+	ProjectID    *int64  `json:"project_id"`
+	Project      *string `json:"project"`
+	Parent       *string `json:"parent"`
+	UpdatedAt    string  `json:"updated_at"`
 }
 
 type Issue struct {
 	IssueSummary
 	Description string `json:"description"`
-	CreatedAt   string `json:"created_at"`
 }
 
 type IssueDetails struct {
@@ -169,14 +170,15 @@ func validatePriority(priority *int) error {
 const issueColumns = `id, identifier, title, status, type,
 	(SELECT name FROM projects WHERE projects.id = issues.project_id),
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
-	updated_at, description, created_at, priority, project_id`
+	updated_at, description, created_at, priority, project_id,
+	COALESCE((SELECT emoji FROM projects WHERE projects.id = issues.project_id), '')`
 
 // scanIssue reads a row of issueColumns into an issue without its labels and
 // returns the issue's id with it.
 func scanIssue(row interface{ Scan(...any) error }) (Issue, int64, error) {
 	var issue Issue
 	var id int64
-	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID)
+	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID, &issue.ProjectEmoji)
 	return issue, id, err
 }
 

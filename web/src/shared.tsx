@@ -40,10 +40,12 @@ export type IssueSummary = {
   project: string | null;
   project_id: number | null;
   parent: string | null;
+  created_at: string;
   updated_at: string;
+  project_emoji: string;
 };
 
-export type Issue = IssueSummary & { description: string; created_at: string };
+export type Issue = IssueSummary & { description: string };
 
 // Historical team keys may contain hyphens; only the final segment is a number.
 export const issueTeamKey = (identifier: string) => identifier.slice(0, identifier.lastIndexOf("-"));
@@ -186,13 +188,13 @@ export function StatusSelect({ issue, onChange }: { issue: { identifier: string;
   </Select.Root>;
 }
 
-export function IssueMeta({ issue }: { issue: { type: string | null; project: string | null; labels: Label[] } }) {
+export function IssueMeta({ issue }: { issue: { type: string | null; project: string | null; project_emoji: string; labels: Label[] } }) {
   return (
     <span className="issue-meta">
       {issue.labels.slice(0, 2).map((label) => <LabelBadge key={label.id} label={label} />)}
       {issue.labels.length > 2 && <span className="label-overflow" title={issue.labels.slice(2).map((l) => l.name).join(", ")}>+{issue.labels.length - 2}</span>}
-      {issue.type && <span className="type-label">{issue.type}</span>}
-      {issue.project && <span className="project-label" title={issue.project}><Box className="icon" /><span>{issue.project}</span></span>}
+      {issue.type && <span className="type-label" data-type={issue.type} title={issue.type}><span className="label-dot" />{issue.type}</span>}
+      {issue.project && <span className="project-label" title={issue.project}>{issue.project_emoji ? <span className="project-emoji" aria-hidden="true">{issue.project_emoji}</span> : <Box className="icon" />}<span>{issue.project}</span></span>}
     </span>
   );
 }

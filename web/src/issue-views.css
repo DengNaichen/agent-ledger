@@ -2,7 +2,7 @@
 .list-view, .board { flex: 1; min-height: 0; }
 .list-view {
   display: grid;
-  grid-template-columns: var(--list-control-size) var(--list-control-size) max-content var(--list-control-size) minmax(0, 1fr) minmax(0, max-content) var(--list-date-width);
+  grid-template-columns: var(--list-control-size) var(--list-control-size) max-content var(--list-control-size) minmax(0, 1fr) var(--list-date-width);
   column-gap: var(--space-8);
   align-content: start;
   overflow: auto;
@@ -36,10 +36,16 @@
 .list-row.is-selected { background: var(--selected); }
 .list-row > .issue-selection { justify-self: center; width: var(--space-14); height: var(--space-14); margin: 0; }
 .list-row > .identifier { font-size: var(--font-size-12); }
-.list-row > .issue-meta { grid-column: 6; max-width: calc(var(--search-width) + var(--label-max-width)); overflow: hidden; }
-.list-row .label-badge { flex-shrink: 1; }
-.list-title { min-width: 0; overflow: hidden; color: var(--text); font-weight: var(--weight-medium); text-overflow: ellipsis; white-space: nowrap; }
-.row-date { grid-column: 7; min-width: var(--list-date-width); color: var(--muted); font-size: var(--font-size-12); text-align: right; white-space: nowrap; }
+.row-content { display: flex; grid-column: 5; align-items: center; gap: var(--space-16); min-width: 0; }
+.list-row .issue-meta { justify-content: flex-end; max-width: calc(var(--search-width) + 2 * var(--label-max-width)); overflow: hidden; }
+.list-row .label-badge { flex-shrink: 1; min-width: var(--space-64); }
+.list-row .type-label, .list-row .project-label, .list-row .label-badge { height: var(--space-24); padding-inline: var(--space-10); border-color: var(--border); color: var(--muted); font-size: var(--font-size-13); }
+.list-row .type-label { text-transform: capitalize; }
+.list-row .project-label { gap: var(--space-8); min-width: calc(var(--space-64) + var(--space-32)); max-width: calc(var(--search-width) + var(--space-64)); }
+.list-row .project-label > .icon { width: var(--icon-size); height: var(--icon-size); }
+.list-row .label-dot { width: var(--space-9); height: var(--space-9); }
+.list-title { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-weight: var(--weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.row-date { grid-column: 6; min-width: var(--list-date-width); color: var(--muted); font-size: var(--font-size-12); text-align: right; white-space: nowrap; }
 .list-empty { grid-column: 3 / -1; padding: var(--space-12) 0; color: var(--muted); font-size: var(--font-size-12); }
 
 /* Columns scroll vertically on their own; the board owns horizontal scroll. */
@@ -76,11 +82,13 @@
 }
 
 @media (max-width: 1024px) {
-  .list-view { grid-template-columns: var(--list-control-size) var(--list-control-size) max-content var(--list-control-size) minmax(0, 1fr); }
+  .list-view { grid-template-columns: var(--list-control-size) var(--list-control-size) max-content var(--list-control-size) minmax(0, 1fr) var(--list-date-width); }
   .list-row { height: auto; min-height: var(--row-height); padding-block: var(--space-8); row-gap: var(--space-6); }
-  .list-row > .issue-meta { grid-column: 3 / -1; max-width: none; flex-wrap: wrap; overflow: visible; }
+  .row-content { display: contents; }
+  .list-row .issue-meta { grid-column: 3 / 6; grid-row: 2; justify-content: flex-start; max-width: none; flex-wrap: wrap; overflow: visible; }
   .list-row .issue-meta:empty { display: none; }
-  .row-date { display: none; }
+  .list-title { grid-column: 5 / -1; }
+  .row-date { grid-column: 6; grid-row: 2; }
 }
 @media (max-width: 760px) {
   .list-view { padding-inline: var(--space-8); column-gap: var(--space-4); }

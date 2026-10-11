@@ -90,7 +90,7 @@ func TestIssueWorkflowOverHTTP(t *testing.T) {
 		Issues []map[string]any `json:"issues"`
 	}
 	call(t, session, "list_issues", map[string]any{"parent": parent}, &listed)
-	if len(listed.Issues) != 1 || listed.Issues[0]["identifier"] != child || listed.Issues[0]["updated_at"] == "" {
+	if len(listed.Issues) != 1 || listed.Issues[0]["identifier"] != child || listed.Issues[0]["updated_at"] == "" || listed.Issues[0]["created_at"] != created.CreatedAt {
 		t.Fatalf("unexpected children: %#v", listed)
 	}
 	if _, exists := listed.Issues[0]["description"]; exists {
