@@ -49,6 +49,10 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 
 双箭头、对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用三列 24px 控件空间，展开箭头与复选框居中于首列，优先级居中于第二列，状态图标居中于第三列。
 
+## Workspace 菜单
+
+左上角 `WorkspaceMenu.tsx` 使用已有 Radix Popover 与原生 ModalDialog：触发器显示名称和 ChevronDown，长名称截断并用 title 提供完整名称；列表显示名称、slug 和当前项 Check。弹层消费已有 sidebar 宽度、主题、边界、圆角及菜单阴影 token，受视口宽高限制，名称可换行且列表内部滚动。新建和改名复用 `.issue-dialog` 表单；窄屏隐藏 sidebar 分组时保留 Workspace 触发器。
+
 ## 项目与团队 emoji
 
 `EmojiPicker.tsx` 使用 `@radix-ui/react-popover`（MIT）。项目/团队的 emoji 入口与导航按钮并列；空值沿用 Project 的 Box 和 team 的缩写。布局参考本地 Linear 应用的 Emoji 页：顶部搜索、Frequently used 和带标题的连续分类网格；只提供 emoji，没有 Icons 页和颜色选择。桌面弹层宽/高约 450px、14 列，窄屏按可用宽度减少列数（390px 视口为 11 列），宽度不超过视口减 16px，高度按可用空间缩短，内容内部滚动。`--emoji-picker-width`、`--emoji-picker-height`、`--emoji-cell-height` 和 `--font-emoji` 控制尺寸与系统 emoji 字体，其余消费现有主题 token。原生 dialog 内的 portal 挂在 dialog 上。

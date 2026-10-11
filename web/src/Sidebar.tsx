@@ -1,6 +1,7 @@
 import { List, Plus, Tag } from "lucide-react";
 import { EmojiPicker } from "./EmojiPicker";
 import { Session } from "./Session";
+import { WorkspaceMenu } from "./WorkspaceMenu";
 import { columns, IssueSummary, navigate, pagePath, Project, Status, StatusIcon, Team } from "./shared";
 
 export function Sidebar({ issueCount, grouped, teams, projects, filter, project, team, managingLabels, selectFilter, onCreateTeam, changeTeamEmoji, changeProjectEmoji }: {
@@ -19,10 +20,7 @@ export function Sidebar({ issueCount, grouped, teams, projects, filter, project,
 }) {
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <span className="brand-mark">IT</span>
-        <strong>InfTask</strong>
-      </div>
+      <WorkspaceMenu />
 
       <Session />
       <div className="sidebar-label">Workspace</div>
