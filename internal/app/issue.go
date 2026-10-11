@@ -49,6 +49,7 @@ type IssueSummary struct {
 	Title      string  `json:"title"`
 	Status     Status  `json:"status"`
 	Type       *string `json:"type"`
+	ProjectID  *int64  `json:"project_id"`
 	Project    *string `json:"project"`
 	Parent     *string `json:"parent"`
 	UpdatedAt  string  `json:"updated_at"`
@@ -80,7 +81,8 @@ type ListIssues struct {
 	Status        *Status `json:"status,omitempty" jsonschema:"filter by status"`
 	Type          *string `json:"type,omitempty" jsonschema:"filter by type; empty string matches untyped issues"`
 	Team          string  `json:"team,omitempty" jsonschema:"filter by exact team key, such as AL"`
-	Project       string  `json:"project,omitempty" jsonschema:"filter by exact Project name"`
+	ProjectID     *int64  `json:"project_id,omitempty" jsonschema:"stable Project id; 0 means no filter; when project is also supplied both must match"`
+	Project       *string `json:"project,omitempty" jsonschema:"filter by exact Project name"`
 	Parent        string  `json:"parent,omitempty" jsonschema:"filter by parent issue identifier, such as AL-1"`
 	Query         string  `json:"query,omitempty" jsonschema:"LIKE match against title or description; percent and underscore are SQL wildcards"`
 	Limit         *int    `json:"limit,omitempty" jsonschema:"maximum results, defaults to 50; zero returns none and negative means unlimited"`
@@ -93,7 +95,8 @@ type CreateIssue struct {
 	Description string  `json:"description,omitempty" jsonschema:"self-contained issue description"`
 	Status      *Status `json:"status,omitempty" jsonschema:"initial status; triage (default)"`
 	Type        string  `json:"type,omitempty" jsonschema:"optional type; empty string means no type"`
-	Project     string  `json:"project,omitempty" jsonschema:"existing Project name; empty string means no Project"`
+	ProjectID   *int64  `json:"project_id,omitempty" jsonschema:"stable Project id; 0 means no Project; when project is also supplied both must match"`
+	Project     *string `json:"project,omitempty" jsonschema:"existing Project name; empty string means no Project"`
 	Parent      string  `json:"parent,omitempty" jsonschema:"existing parent issue identifier; empty string means no parent"`
 }
 
@@ -104,6 +107,7 @@ type UpdateIssue struct {
 	Description *string `json:"description,omitempty" jsonschema:"new description; omitted leaves unchanged"`
 	Status      *Status `json:"status,omitempty" jsonschema:"new status; omitted leaves unchanged"`
 	Type        *string `json:"type,omitempty" jsonschema:"new type; empty string clears; omitted leaves unchanged"`
+	ProjectID   *int64  `json:"project_id,omitempty" jsonschema:"stable Project id; omitted leaves unchanged; 0 clears; when project is also supplied both must match"`
 	Project     *string `json:"project,omitempty" jsonschema:"existing Project name; empty string clears; omitted leaves unchanged"`
 	Parent      *string `json:"parent,omitempty" jsonschema:"existing parent issue identifier; empty string clears; omitted leaves unchanged; cannot be self"`
 }
@@ -165,19 +169,18 @@ func validatePriority(priority *int) error {
 const issueColumns = `id, identifier, title, status, type,
 	(SELECT name FROM projects WHERE projects.id = issues.project_id),
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
-	updated_at, description, created_at, priority`
+	updated_at, description, created_at, priority, project_id`
 
 // scanIssue reads a row of issueColumns into an issue without its labels and
 // returns the issue's id with it.
 func scanIssue(row interface{ Scan(...any) error }) (Issue, int64, error) {
 	var issue Issue
 	var id int64
-	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority)
+	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID)
 	return issue, id, err
 }
 
-// teamID, projectID, and issueID look up the id of a team key, a Project name,
-// and an issue identifier in the workspace; an empty string gives NULL.
+// teamID and issueID resolve references within the workspace; an empty string gives NULL.
 func (s *Service) teamID(ctx context.Context, key string) (sql.NullInt64, error) {
 	var id sql.NullInt64
 	if key == "" {
@@ -186,18 +189,6 @@ func (s *Service) teamID(ctx context.Context, key string) (sql.NullInt64, error)
 	err := s.db.QueryRowContext(ctx, `SELECT id FROM teams WHERE workspace_id = ? AND key = ?`, s.workspace, key).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return id, ErrTeamNotFound
-	}
-	return id, err
-}
-
-func (s *Service) projectID(ctx context.Context, name string) (sql.NullInt64, error) {
-	var id sql.NullInt64
-	if name == "" {
-		return id, nil
-	}
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM projects WHERE workspace_id = ? AND name = ?`, s.workspace, name).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return id, ErrProjectNotFound
 	}
 	return id, err
 }
@@ -262,7 +253,7 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 	if err := validateFields(nil, input.Status, input.Type); err != nil {
 		return nil, err
 	}
-	projectID, err := s.projectID(ctx, input.Project)
+	projectID, err := s.resolveProject(ctx, input.ProjectID, input.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +318,7 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	if err := validateFields(&input.Title, input.Status, &input.Type); err != nil {
 		return Issue{}, err
 	}
-	projectID, err := s.projectID(ctx, input.Project)
+	projectID, err := s.resolveProject(ctx, input.ProjectID, input.Project)
 	if err != nil {
 		return Issue{}, err
 	}
@@ -353,6 +344,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 		return Issue{}, ErrTeamNotFound
 	}
 	if err != nil {
+		return Issue{}, err
+	}
+	if err := s.validateIssueProject(ctx, tx, projectID, teamID, sql.NullInt64{}); err != nil {
 		return Issue{}, err
 	}
 	identifier := fmt.Sprintf("%s-%d", input.Team, number)
@@ -423,7 +417,7 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		value  *string
 		id     func(context.Context, string) (sql.NullInt64, error)
 	}{
-		{"project_id", input.Project, s.projectID}, {"parent_id", input.Parent, s.issueID},
+		{"parent_id", input.Parent, s.issueID},
 	} {
 		if reference.value != nil {
 			id, err := reference.id(ctx, *reference.value)
@@ -433,6 +427,16 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 			sets = append(sets, reference.column+` = ?`)
 			args = append(args, id)
 		}
+	}
+	var projectID sql.NullInt64
+	if input.Project != nil || input.ProjectID != nil {
+		var err error
+		projectID, err = s.resolveProject(ctx, input.ProjectID, input.Project)
+		if err != nil {
+			return Issue{}, err
+		}
+		sets = append(sets, "project_id = ?")
+		args = append(args, projectID)
 	}
 	if input.Priority != nil {
 		sets = append(sets, `priority = ?`)
@@ -445,26 +449,43 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 	sets = append(sets, `updated_at = ?`)
 	args = append(args, now, s.workspace, input.Identifier)
 	query := `UPDATE issues SET ` + strings.Join(sets, ", ") + ` WHERE workspace_id = ? AND identifier = ?`
-	if input.Status == nil {
+	if input.Status == nil && input.Project == nil && input.ProjectID == nil {
 		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 			return Issue{}, err
 		}
-	} else {
-		tx, err := s.db.BeginTx(ctx, nil)
+		return s.Get(ctx, input.Identifier)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Issue{}, err
+	}
+	defer tx.Rollback()
+	if input.Project != nil || input.ProjectID != nil {
+		var team int64
+		var current sql.NullInt64
+		err = tx.QueryRowContext(ctx, `SELECT team_id,project_id FROM issues WHERE workspace_id=? AND identifier=?`, s.workspace, input.Identifier).Scan(&team, &current)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Issue{}, ErrNotFound
+		}
 		if err != nil {
 			return Issue{}, err
 		}
-		defer tx.Rollback()
-		if err := s.changeStatus(ctx, tx, input.Identifier, *input.Status, "", now); err != nil {
-			return Issue{}, err
-		}
-		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-			return Issue{}, err
-		}
-		if err := tx.Commit(); err != nil {
+		if err = s.validateIssueProject(ctx, tx, projectID, team, current); err != nil {
 			return Issue{}, err
 		}
 	}
+	if input.Status != nil {
+		if err = s.changeStatus(ctx, tx, input.Identifier, *input.Status, "", now); err != nil {
+			return Issue{}, err
+		}
+	}
+	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+		return Issue{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return Issue{}, err
+	}
+
 	return s.Get(ctx, input.Identifier)
 }
 

@@ -35,15 +35,16 @@ func TestMigrateRebuildsReferencedTable(t *testing.T) {
 	service = inWorkspace(t, service, "default")
 	alTeam(t, service)
 	ctx := context.Background()
-	if _, err := service.CreateProject(ctx, "Core", ""); err != nil {
+	if _, err := service.CreateProject(ctx, "Core", "", "AL"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Keep me", Project: "Core"}); err != nil {
+	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Keep me", Project: new("Core")}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Changing a CHECK constraint means rebuilding the table; issues references projects.
 	rebuild := `
+ DROP TRIGGER project_teams_workspace;
 		CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
@@ -93,10 +94,10 @@ func TestMigrateRollsBackForeignKeyViolations(t *testing.T) {
 	service = inWorkspace(t, service, "default")
 	alTeam(t, service)
 	ctx := context.Background()
-	if _, err := service.CreateProject(ctx, "Core", ""); err != nil {
+	if _, err := service.CreateProject(ctx, "Core", "", "AL"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Keep me", Project: "Core"}); err != nil {
+	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Keep me", Project: new("Core")}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -254,8 +255,8 @@ func TestMigrateIssueReferencesToIDs(t *testing.T) {
 	// What every issue looked like before migration 2.
 	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
 	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2"}
-	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
-	nine := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-9", Title: "Nine", Status: StatusInProgress, Type: new("feature"), Project: new("Core"), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
+	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), ProjectID: new(int64(1)), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
+	nine := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-9", Title: "Nine", Status: StatusInProgress, Type: new("feature"), Project: new("Core"), ProjectID: new(int64(1)), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
 	ten := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Ten", Status: StatusTriage, Parent: new("AL-1"), UpdatedAt: "u2"}, Description: "Ten body", CreatedAt: "c3"}
 	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{risk}, Identifier: "TOK-1", Title: "Other team", Status: StatusDone, Type: new("chore"), UpdatedAt: "u4"}, CreatedAt: "c4"}
 	details := func(issue Issue) IssueDetails {
@@ -348,8 +349,8 @@ func TestMigrateWorkspaces(t *testing.T) {
 	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
 	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2", Description: "Watch it"}
 	retired := Label{ID: 3, Name: "Old", Color: "#000000", Archived: true}
-	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
-	child := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
+	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), ProjectID: new(int64(1)), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
+	child := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), ProjectID: new(int64(2)), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
 	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2"}, Description: "Other body", CreatedAt: "c3"}
 	details := func(issue Issue) IssueDetails {
 		return IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
@@ -387,7 +388,7 @@ func TestMigrateWorkspaces(t *testing.T) {
 		t.Fatalf("teams = %#v, err = %v", teams, err)
 	}
 	projects, err := def.ListProjects(ctx, true)
-	if wantProjects := []Project{{Name: "Core", Description: "Core work"}, {Name: "Legacy", Archived: true}}; err != nil || !slices.Equal(projects, wantProjects) {
+	if wantProjects := []Project{{ID: 1, Teams: []string{"AL"}, Name: "Core", Description: "Core work"}, {ID: 2, Teams: []string{"AL"}, Name: "Legacy", Archived: true}}; err != nil || !reflect.DeepEqual(projects, wantProjects) {
 		t.Fatalf("projects = %#v, err = %v", projects, err)
 	}
 	labels, err := def.ListLabels(ctx, true)

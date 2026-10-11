@@ -103,7 +103,7 @@ func TestIssueLifecycleNumbersPerTeam(t *testing.T) {
 		{CreateIssue{Team: "NOPE", Title: "Unknown team"}, ErrTeamNotFound},
 		{CreateIssue{Team: "al", Title: "Keys match exactly"}, ErrTeamNotFound},
 		{CreateIssue{Team: "AL", Title: " "}, ErrInvalidTitle},
-		{CreateIssue{Team: "AL", Title: "Missing Project", Project: "Missing"}, ErrProjectNotFound},
+		{CreateIssue{Team: "AL", Title: "Missing Project", Project: new("Missing")}, ErrProjectNotFound},
 	} {
 		if _, err := service.Create(ctx, tc.input); !errors.Is(err, tc.want) {
 			t.Fatalf("create %#v: err = %v, want %v", tc.input, err, tc.want)

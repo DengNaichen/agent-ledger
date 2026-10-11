@@ -111,14 +111,14 @@ func TestEditIssue(t *testing.T) {
 func TestReadIssueDetails(t *testing.T) {
 	service, def := openService(t)
 	ctx := context.Background()
-	if _, err := def.CreateProject(ctx, "Delivery", "Ship the board"); err != nil {
+	if _, err := def.CreateProject(ctx, "Delivery", "Ship the board", "AL"); err != nil {
 		t.Fatal(err)
 	}
 	parent, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Board spec", Type: "spec"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Build the board", Project: "Delivery", Parent: parent.Identifier})
+	child, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Build the board", Project: new("Delivery"), Parent: parent.Identifier})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,14 +214,14 @@ func TestListIssuesFiltersByQueryAndType(t *testing.T) {
 func TestListIssuesReturnsSummaries(t *testing.T) {
 	service, def := openService(t)
 	ctx := context.Background()
-	if _, err := def.CreateProject(ctx, "Delivery", "Ship the board"); err != nil {
+	if _, err := def.CreateProject(ctx, "Delivery", "Ship the board", "AL"); err != nil {
 		t.Fatal(err)
 	}
 	parent, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Board spec", Description: "Long context", Type: "spec"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Build the board", Description: "More context", Project: "Delivery", Parent: parent.Identifier, Priority: 2})
+	child, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Build the board", Description: "More context", Project: new("Delivery"), Parent: parent.Identifier, Priority: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

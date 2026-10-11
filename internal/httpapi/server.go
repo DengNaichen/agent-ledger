@@ -35,6 +35,10 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/w/{workspace}/issues/{identifier}", s.in((*server).getIssue))
 	mux.HandleFunc("POST /api/w/{workspace}/issues/{identifier}/comments", s.in((*server).addComment))
 	mux.HandleFunc("GET /api/w/{workspace}/projects", s.in((*server).listProjects))
+	mux.HandleFunc("POST /api/w/{workspace}/projects", s.in((*server).createProject))
+	mux.HandleFunc("GET /api/w/{workspace}/projects/{name}", s.in((*server).getProject))
+	mux.HandleFunc("GET /api/w/{workspace}/projects/by-id/{id}", s.in((*server).getProject))
+	mux.HandleFunc("PATCH /api/w/{workspace}/projects/by-id/{id}", s.in((*server).updateProject))
 	mux.HandleFunc("PATCH /api/w/{workspace}/projects/{name}", s.in((*server).updateProject))
 	mux.HandleFunc("PATCH /api/w/{workspace}/teams/{key}", s.in((*server).updateTeam))
 	mux.HandleFunc("GET /api/w/{workspace}/teams", s.in((*server).listTeams))
@@ -103,7 +107,18 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	status := app.Status(r.URL.Query().Get("status"))
 	issueType := r.URL.Query().Get("type")
 	limit := -1
-	input := app.ListIssues{Sort: r.URL.Query().Get("sort"), Team: r.URL.Query().Get("team"), Project: r.URL.Query().Get("project"), Query: r.URL.Query().Get("query"), Limit: &limit}
+	input := app.ListIssues{Sort: r.URL.Query().Get("sort"), Team: r.URL.Query().Get("team"), Query: r.URL.Query().Get("query"), Limit: &limit}
+	if r.URL.Query().Has("project") {
+		input.Project = new(r.URL.Query().Get("project"))
+	}
+	if r.URL.Query().Has("project_id") {
+		id, err := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)
+		if err != nil {
+			writeError(w, app.ErrProjectReference)
+			return
+		}
+		input.ProjectID = &id
+	}
 	if r.URL.Query().Has("priority") {
 		priority, err := strconv.Atoi(r.URL.Query().Get("priority"))
 		if err != nil {
@@ -201,7 +216,7 @@ func (s *server) addComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) listProjects(w http.ResponseWriter, r *http.Request) {
-	projects, err := s.service.ListProjects(r.Context(), false)
+	projects, err := s.service.ListProjects(r.Context(), r.URL.Query().Get("include_archived") == "true", r.URL.Query().Get("team"))
 	if err != nil {
 		writeError(w, err)
 		return

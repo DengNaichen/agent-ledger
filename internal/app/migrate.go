@@ -311,6 +311,17 @@ var migrations = []string{
 	// Entity emoji icons. Empty values keep the existing default icons.
 	`ALTER TABLE projects ADD COLUMN emoji TEXT NOT NULL DEFAULT '';
 	ALTER TABLE teams ADD COLUMN emoji TEXT NOT NULL DEFAULT '';`,
+	// Explicit Project ownership, inferred only from existing issue facts.
+	`CREATE TABLE IF NOT EXISTS project_teams (
+    project_id INTEGER NOT NULL REFERENCES projects(id),
+    team_id INTEGER NOT NULL REFERENCES teams(id),
+    PRIMARY KEY (project_id, team_id)
+);
+CREATE INDEX IF NOT EXISTS project_teams_team_idx ON project_teams(team_id, project_id);
+CREATE TRIGGER IF NOT EXISTS project_teams_workspace BEFORE INSERT ON project_teams
+WHEN (SELECT workspace_id FROM projects WHERE id=NEW.project_id) <> (SELECT workspace_id FROM teams WHERE id=NEW.team_id)
+BEGIN SELECT RAISE(ABORT, 'project and team must belong to the same workspace'); END;
+INSERT INTO project_teams(project_id,team_id) SELECT DISTINCT project_id,team_id FROM issues WHERE project_id IS NOT NULL;`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

@@ -9,7 +9,7 @@ import (
 func TestEntityEmojiMCP(t *testing.T) {
 	session := connect(t)
 	var result map[string]any
-	call(t, session, "create_project", map[string]any{"name": "Core"}, &result)
+	call(t, session, "create_project", map[string]any{"teams": []string{"AL"}, "name": "Core"}, &result)
 	for _, tc := range []struct{ tool, key, value string }{{"update_project", "name", "Core"}, {"update_team", "key", "AL"}} {
 		for _, emoji := range []string{"🇨🇳", "👩🏽‍💻", ""} {
 			call(t, session, tc.tool, map[string]any{tc.key: tc.value, "emoji": emoji}, &result)
