@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "inftask",
+  "displayName": "InfTask",
+  "version": "0.1.0",
+  "description": "Connects Claude Code to an InfTask board over MCP and adds a skill for finding, creating, and updating tickets.",
+  "author": {
+    "name": "DengNaichen",
+    "url": "https://github.com/DengNaichen"
+  },
+  "homepage": "https://github.com/DengNaichen/inftask",
+  "repository": "https://github.com/DengNaichen/inftask",
+  "license": "Apache-2.0",
+  "keywords": ["tickets", "issue-tracker", "mcp", "coding-agent"]
+}

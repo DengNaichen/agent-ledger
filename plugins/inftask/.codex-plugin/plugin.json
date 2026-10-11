@@ -1,0 +1,24 @@
+{
+  "name": "inftask",
+  "version": "0.1.0",
+  "description": "Connects Codex to an InfTask board over MCP and adds a skill for finding, creating, and updating tickets.",
+  "author": {
+    "name": "DengNaichen",
+    "url": "https://github.com/DengNaichen"
+  },
+  "homepage": "https://github.com/DengNaichen/inftask",
+  "repository": "https://github.com/DengNaichen/inftask",
+  "license": "Apache-2.0",
+  "keywords": ["tickets", "issue-tracker", "mcp", "coding-agent"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "InfTask",
+    "shortDescription": "Find, create, and update InfTask tickets.",
+    "longDescription": "Connects to an InfTask board over MCP with OAuth, and adds a skill that keeps tickets self-contained and lets GitHub sync move them to review and done.",
+    "developerName": "DengNaichen",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/DengNaichen/inftask"
+  }
+}

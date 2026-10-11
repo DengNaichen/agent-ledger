@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "inftask",
+  "description": "InfTask plugins for Claude Code.",
+  "owner": {
+    "name": "DengNaichen",
+    "url": "https://github.com/DengNaichen"
+  },
+  "plugins": [
+    {
+      "name": "inftask",
+      "description": "Connects to an InfTask board over MCP and adds a skill for finding, creating, and updating tickets.",
+      "source": "./plugins/inftask",
+      "category": "productivity"
+    }
+  ]
+}
