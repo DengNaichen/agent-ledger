@@ -24,11 +24,8 @@ import (
 func main() {
 	data := flag.String("data", "inftask.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
-	var repos []string
-	flag.Func("github-repo", "Sync pull requests from this GitHub repository, as owner/name (repeatable; needs GITHUB_TOKEN)", func(repo string) error {
-		repos = append(repos, repo)
-		return nil
-	})
+	var repos []app.GitHubRepo
+	flag.Func("github-repo", "Sync pull requests from a GitHub repository into a workspace, as <slug>=<owner>/<name> (repeatable; needs GITHUB_TOKEN)", gitHubRepoFlag(&repos))
 	linkback := flag.Bool("github-linkback", false, "Comment the issue title and description on open pull requests when they are first linked")
 	flag.Parse()
 	token := os.Getenv("GITHUB_TOKEN")
@@ -72,6 +69,19 @@ func main() {
 	serve(ctx, *addr, handler)
 }
 
+// gitHubRepoFlag parses a -github-repo value, which binds a repository to the
+// workspace whose issues its pull requests link to.
+func gitHubRepoFlag(repos *[]app.GitHubRepo) func(string) error {
+	return func(value string) error {
+		workspace, repo, found := strings.Cut(value, "=")
+		if !found || workspace == "" {
+			return errors.New("use <slug>=<owner>/<name>, such as default=DengNaichen/inftask")
+		}
+		*repos = append(*repos, app.GitHubRepo{Workspace: workspace, Repo: repo})
+		return nil
+	}
+}
+
 func backupDaily(ctx context.Context, service *app.Service) {
 	for {
 		path, err := service.Backup(ctx)
@@ -102,7 +112,7 @@ func serve(ctx context.Context, addr string, handler http.Handler) {
 		_ = server.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("InfTask listening on http://%s (MCP at /mcp)", addr)
+	log.Printf("InfTask listening on http://%s (MCP at /w/<slug>/mcp)", addr)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

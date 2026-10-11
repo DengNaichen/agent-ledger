@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/DengNaichen/inftask/internal/app"
@@ -50,12 +51,25 @@ type createProjectInput struct {
 	Description string `json:"description,omitempty" jsonschema:"the outcome this Project should deliver"`
 }
 
-// Handler serves the tools over streamable HTTP. Each request is
-// self-contained, so clients survive server restarts without re-initializing.
+// Handler serves the tools over streamable HTTP at /w/{workspace}/mcp. Each
+// request reads and writes the workspace in its path, and is self-contained,
+// so clients survive server restarts without re-initializing. An unknown
+// workspace is not found.
 func Handler(service *app.Service) http.Handler {
-	server := New(service)
-	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server },
-		&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+	options := &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		workspace, err := service.InWorkspace(r.Context(), r.PathValue("workspace"))
+		if errors.Is(err, app.ErrWorkspaceNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		server := New(workspace)
+		mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, options).ServeHTTP(w, r)
+	})
 }
 
 func New(service *app.Service) *mcp.Server {

@@ -231,6 +231,9 @@ a:focus-visible, button:focus-visible { outline: var(--focus-width) solid var(--
 .sidebar-footer > span { width: var(--space-6); height: var(--space-6); background: var(--success); border-radius: var(--radius-circle); }
 
 .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: var(--space-8) var(--space-8) var(--space-8) 0; overflow: hidden; background: var(--panel); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); }
+/* The root page without a workspace has no sidebar. */
+.first-workspace { margin: var(--space-8); padding: var(--space-16); }
+.first-workspace code { color: var(--text); font-family: var(--mono); font-size: var(--font-code-relative); }
 .header-row { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-12); height: var(--space-40); padding: 0 var(--space-24); border-bottom: var(--border-width) solid var(--border); }
 .breadcrumb { display: flex; align-items: center; gap: var(--space-8); min-width: 0; color: var(--text); font-weight: var(--weight-medium); white-space: nowrap; }
 .breadcrumb a { color: var(--muted); }

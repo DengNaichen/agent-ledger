@@ -1,7 +1,7 @@
 import { Box, ChevronDown, Columns2, List, Plus, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
-import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect, Team } from "./shared";
+import { RequestError, api, apiPath, columns, Issue, IssueMeta, navigate, NavLink, pagePath, Project, Status, StatusIcon, StatusSelect, Team, Workspace, workspaceSlug } from "./shared";
 
 import { Session } from "./Session";
 
@@ -11,7 +11,48 @@ type ViewMode = "board" | "list";
 
 const issueTypes = ["spec", "feature", "bug", "improvement", "chore"];
 
+// The first path segment names the workspace; the root opens the first one.
 function App() {
+  const [slug, setSlug] = useState(workspaceSlug());
+
+  useEffect(() => {
+    const sync = () => setSlug(workspaceSlug());
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+
+  return slug ? <WorkspaceView key={slug} /> : <FirstWorkspace />;
+}
+
+// The root names no workspace: it replaces itself with the first workspace by
+// slug, or explains how to create one when there is none.
+function FirstWorkspace() {
+  const [empty, setEmpty] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api<{ workspaces: Workspace[] }>("/api/workspaces").then(({ workspaces }) => {
+      if (workspaces.length === 0) {
+        setEmpty(true);
+        return;
+      }
+      window.history.replaceState(null, "", `/${workspaces[0].slug}/`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }, (cause: Error) => setError(cause.message));
+  }, []);
+
+  return (
+    <main className="panel first-workspace">
+      {error ? <RequestError message={error} /> : empty ? (
+        <p>No workspace yet. Create one with <code>POST /api/workspaces</code> and a body such as <code>{'{"slug":"default","name":"Default"}'}</code>, then reload this page.</p>
+      ) : <p className="empty">Loading…</p>}
+    </main>
+  );
+}
+
+// WorkspaceView shows the workspace named by the first path segment; the rest
+// of the path selects the list, an issue, or the label manager.
+function WorkspaceView() {
   const catalog = useLabels();
   const [labelFilter, setLabelFilter] = useState<LabelFilterValue>(emptyLabelFilter);
   const [selected, setSelected] = useState<string[]>([]);
@@ -33,8 +74,9 @@ function App() {
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | "team" | null>(null);
-  const managingLabels = path === "/labels";
-  const detailIdentifier = path.startsWith("/issue/") ? path.slice("/issue/".length) : "";
+  const route = "/" + path.split("/").slice(2).join("/");
+  const managingLabels = route === "/labels";
+  const detailIdentifier = route.startsWith("/issue/") ? route.slice("/issue/".length) : "";
 
   useEffect(() => {
     const sync = () => {
@@ -70,7 +112,7 @@ function App() {
     setTeam(nextTeam);
     setCollapsed({});
     setSelected([]);
-    if (path !== "/") navigate("/");
+    if (route !== "/") navigate(pagePath("/"));
   }
 
   async function loadIssues() {
@@ -83,9 +125,9 @@ function App() {
     labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
     try {
       const [issueData, projectData, teamData] = await Promise.all([
-        api<{ issues: Issue[] }>(`/api/issues?${params}`),
-        api<{ projects: Project[] }>("/api/projects"),
-        api<{ teams: Team[] }>("/api/teams"),
+        api<{ issues: Issue[] }>(apiPath(`/issues?${params}`)),
+        api<{ projects: Project[] }>(apiPath("/projects")),
+        api<{ teams: Team[] }>(apiPath("/teams")),
       ]);
       if (version === loadVersion.current) {
         setIssues(issueData.issues);
@@ -118,7 +160,7 @@ function App() {
     const previous = issues;
     setIssues((current) => current.map((issue) => (issue.identifier === identifier ? { ...issue, status } : issue)));
     try {
-      const response = await fetch(`/api/issues/${identifier}/status`, {
+      const response = await fetch(apiPath(`/issues/${identifier}/status`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -150,7 +192,7 @@ function App() {
           <small>{issues.length}</small>
         </button>
 
-        <button type="button" className={`nav-item ${managingLabels ? "active" : ""}`} onClick={() => navigate("/labels")}><Tag className="icon" /><span className="nav-label">Labels</span></button>
+        <button type="button" className={`nav-item ${managingLabels ? "active" : ""}`} onClick={() => navigate(pagePath("/labels"))}><Tag className="icon" /><span className="nav-label">Labels</span></button>
 
         <div className="sidebar-group">
           <div className="sidebar-label sidebar-heading">
@@ -190,12 +232,12 @@ function App() {
         <header className="header-row">
           <nav className="breadcrumb" aria-label="Breadcrumb">
             {detailIdentifier ? (
-              <><NavLink to="/">{heading}</NavLink><span className="separator">/</span><span>{detailIdentifier}</span></>
+              <><NavLink to={pagePath("/")}>{heading}</NavLink><span className="separator">/</span><span>{detailIdentifier}</span></>
             ) : (
               <span>{heading}</span>
             )}
           </nav>
-          {managingLabels ? <NavLink to="/">Back to issues</NavLink> : detailIdentifier ? (
+          {managingLabels ? <NavLink to={pagePath("/")}>Back to issues</NavLink> : detailIdentifier ? (
             <button type="button" className="button" onClick={() => setDialog("edit")}>Edit</button>
           ) : (
             <button type="button" className="button" onClick={() => setDialog("new")}>New issue</button>
@@ -310,7 +352,7 @@ function App() {
                     >
                       <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
                       <span className="drag-handle" draggable title={`Drag ${issue.identifier} to another status`} aria-label={`Drag ${issue.identifier}`}>⠿</span>
-                      <NavLink to={`/issue/${issue.identifier}`} className="card-open">
+                      <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="card-open">
                         <span className="identifier">{issue.identifier}</span>
                         <span className="card-title">{issue.title}</span>
                       </NavLink>
@@ -341,8 +383,8 @@ function App() {
                     <article className="list-row" key={issue.identifier}>
                       <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
                       <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
-                      <NavLink to={`/issue/${issue.identifier}`} className="identifier">{issue.identifier}</NavLink>
-                      <NavLink to={`/issue/${issue.identifier}`} className="list-title">{issue.title}</NavLink>
+                      <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="identifier">{issue.identifier}</NavLink>
+                      <NavLink to={pagePath(`/issue/${issue.identifier}`)} className="list-title">{issue.title}</NavLink>
                       <IssueMeta issue={issue} />
                       <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
                     </article>
@@ -383,7 +425,7 @@ function NewIssueDialog({ teams, team: selectedTeam, status, project, onClose, o
     setSaving(true);
     setError("");
     try {
-      onCreate(await api<Issue>("/api/issues", "POST", { team, title, description, status, project }));
+      onCreate(await api<Issue>(apiPath("/issues"), "POST", { team, title, description, status, project }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -442,7 +484,7 @@ function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate
     setSaving(true);
     setError("");
     try {
-      onCreate(await api<Team>("/api/teams", "POST", { key, name, start_number: startNumber ? Number(startNumber) : undefined }));
+      onCreate(await api<Team>(apiPath("/teams"), "POST", { key, name, start_number: startNumber ? Number(startNumber) : undefined }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {

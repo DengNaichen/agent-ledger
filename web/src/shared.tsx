@@ -57,6 +57,18 @@ export type Project = { name: string; description: string; archived: boolean };
 
 export type Team = { key: string; name: string; next_number: number };
 
+export type Workspace = { slug: string; name: string };
+
+// Pages live under /<workspace slug>/ and the workspace's API under
+// /api/w/<workspace slug>/; the slug is the first segment of the page path.
+export function workspaceSlug() {
+  return window.location.pathname.split("/")[1];
+}
+
+export const pagePath = (path: string) => `/${workspaceSlug()}${path}`;
+
+export const apiPath = (path: string) => `/api/w/${workspaceSlug()}${path}`;
+
 export async function api<T>(path: string, method = "GET", body?: object): Promise<T> {
   const response = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (response.status === 401) window.dispatchEvent(new Event("session-expired"));

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,9 +38,20 @@ var (
 	ErrTeamNotFound    = errors.New("team not found")
 	ErrInvalidTeam     = errors.New("invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, name is required, and start_number must be at least 1")
 	ErrTeamExists      = errors.New("a team with this key already exists")
+
+	ErrWorkspaceNotFound = errors.New("workspace not found")
+	ErrInvalidWorkspace  = errors.New("invalid workspace: slug must be 2 to 32 lowercase letters, digits, or hyphens starting with a letter and cannot be api, assets, auth, mcp, w, or webhooks; name is required")
+	ErrWorkspaceExists   = errors.New("a workspace with this slug already exists")
 )
 
 var teamKey = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,5}$`)
+
+// workspaceSlug matches a workspace slug. Pages live under /<slug>/, so the
+// reserved slugs are the server's own top-level paths.
+var (
+	workspaceSlug = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
+	reservedSlugs = []string{"api", "assets", "auth", "mcp", "w", "webhooks"}
+)
 
 var Statuses = []Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProgress, StatusInReview, StatusDone, StatusCanceled}
 
@@ -138,6 +150,13 @@ type CreateTeam struct {
 	StartNumber *int   `json:"start_number,omitempty" jsonschema:"number the team's first issue gets, at least 1; omitted starts at 1"`
 }
 
+// Workspace groups teams, Projects, and labels. Its slug names it in page,
+// REST, and MCP paths and cannot change.
+type Workspace struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
 type Comment struct {
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
@@ -157,10 +176,14 @@ type PullRequest struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// Service reads and writes the database. A Service returned by InWorkspace
+// reads and writes one workspace; Open returns one that manages workspaces,
+// backups, and GitHub sync.
 type Service struct {
 	db        *sql.DB
 	backupDir string
 	now       func() time.Time
+	workspace int64
 }
 
 func Open(path string) (*Service, error) {
@@ -195,6 +218,69 @@ func Open(path string) (*Service, error) {
 
 func (s *Service) Close() error { return s.db.Close() }
 
+// InWorkspace returns a Service that reads and writes only the workspace with
+// this slug; other workspaces' records are not found through it.
+func (s *Service) InWorkspace(ctx context.Context, slug string) (*Service, error) {
+	scoped := *s
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM workspaces WHERE slug = ?`, slug).Scan(&scoped.workspace)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrWorkspaceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &scoped, nil
+}
+
+func (s *Service) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT slug, name FROM workspaces ORDER BY slug`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	workspaces := []Workspace{}
+	for rows.Next() {
+		var workspace Workspace
+		if err := rows.Scan(&workspace.Slug, &workspace.Name); err != nil {
+			return nil, err
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	return workspaces, rows.Err()
+}
+
+// CreateWorkspace adds an empty workspace. Its slug cannot be changed later.
+func (s *Service) CreateWorkspace(ctx context.Context, input Workspace) (Workspace, error) {
+	workspace := Workspace{Slug: input.Slug, Name: strings.TrimSpace(input.Name)}
+	if !workspaceSlug.MatchString(workspace.Slug) || slices.Contains(reservedSlugs, workspace.Slug) || workspace.Name == "" {
+		return Workspace{}, ErrInvalidWorkspace
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO workspaces(slug, name) VALUES (?, ?) ON CONFLICT(slug) DO NOTHING`, workspace.Slug, workspace.Name)
+	if err != nil {
+		return Workspace{}, err
+	}
+	if inserted, _ := result.RowsAffected(); inserted == 0 {
+		return Workspace{}, ErrWorkspaceExists
+	}
+	return workspace, nil
+}
+
+// RenameWorkspace changes the name of the workspace with this slug.
+func (s *Service) RenameWorkspace(ctx context.Context, slug, name string) (Workspace, error) {
+	workspace := Workspace{Slug: slug, Name: strings.TrimSpace(name)}
+	if workspace.Name == "" {
+		return Workspace{}, ErrInvalidWorkspace
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE workspaces SET name = ? WHERE slug = ?`, workspace.Name, slug)
+	if err != nil {
+		return Workspace{}, err
+	}
+	if updated, _ := result.RowsAffected(); updated == 0 {
+		return Workspace{}, ErrWorkspaceNotFound
+	}
+	return workspace, nil
+}
+
 func ValidStatus(status Status) bool {
 	for _, candidate := range Statuses {
 		if candidate == status {
@@ -227,12 +313,43 @@ const issueColumns = `id, identifier, title, status, type,
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
 	updated_at, description, created_at`
 
-// projectID and parentID look up the ids an issue stores for a Project name
-// and a parent identifier; an empty string gives NULL.
-const (
-	projectID = `(SELECT id FROM projects WHERE name = NULLIF(?, ''))`
-	parentID  = `(SELECT id FROM issues WHERE identifier = NULLIF(?, ''))`
-)
+// teamID, projectID, and issueID look up the id of a team key, a Project name,
+// and an issue identifier in the workspace; an empty string gives NULL.
+func (s *Service) teamID(ctx context.Context, key string) (sql.NullInt64, error) {
+	var id sql.NullInt64
+	if key == "" {
+		return id, nil
+	}
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM teams WHERE workspace_id = ? AND key = ?`, s.workspace, key).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return id, ErrTeamNotFound
+	}
+	return id, err
+}
+
+func (s *Service) projectID(ctx context.Context, name string) (sql.NullInt64, error) {
+	var id sql.NullInt64
+	if name == "" {
+		return id, nil
+	}
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM projects WHERE workspace_id = ? AND name = ?`, s.workspace, name).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return id, ErrProjectNotFound
+	}
+	return id, err
+}
+
+func (s *Service) issueID(ctx context.Context, identifier string) (sql.NullInt64, error) {
+	var id sql.NullInt64
+	if identifier == "" {
+		return id, nil
+	}
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return id, ErrNotFound
+	}
+	return id, err
+}
 
 func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE `+where, args...)
@@ -280,15 +397,19 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 	if err := validateFields(nil, input.Status, input.Type); err != nil {
 		return nil, err
 	}
-	if err := s.checkReferences(ctx, &input.Project, &input.Parent); err != nil {
+	projectID, err := s.projectID(ctx, input.Project)
+	if err != nil {
 		return nil, err
 	}
-	if input.Team != "" {
-		if err := s.checkTeam(ctx, input.Team); err != nil {
-			return nil, err
-		}
+	parentID, err := s.issueID(ctx, input.Parent)
+	if err != nil {
+		return nil, err
 	}
-	where, args := `1 = 1`, []any{}
+	teamID, err := s.teamID(ctx, input.Team)
+	if err != nil {
+		return nil, err
+	}
+	where, args := `workspace_id = ?`, []any{s.workspace}
 	if input.Status != nil {
 		where += ` AND status = ?`
 		args = append(args, *input.Status)
@@ -297,14 +418,13 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		where += ` AND type IS NULLIF(?, '')`
 		args = append(args, *input.Type)
 	}
-	for _, filter := range []struct{ condition, value string }{
-		{`team_id = (SELECT id FROM teams WHERE key = ?)`, input.Team},
-		{`project_id = ` + projectID, input.Project},
-		{`parent_id = ` + parentID, input.Parent},
-	} {
-		if filter.value != "" {
-			where += ` AND ` + filter.condition
-			args = append(args, filter.value)
+	for _, filter := range []struct {
+		column string
+		id     sql.NullInt64
+	}{{"team_id", teamID}, {"project_id", projectID}, {"parent_id", parentID}} {
+		if filter.id.Valid {
+			where += ` AND ` + filter.column + ` = ?`
+			args = append(args, filter.id)
 		}
 	}
 	if input.Query != "" {
@@ -331,7 +451,12 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	if err := validateFields(&input.Title, input.Status, &input.Type); err != nil {
 		return Issue{}, err
 	}
-	if err := s.checkReferences(ctx, &input.Project, &input.Parent); err != nil {
+	projectID, err := s.projectID(ctx, input.Project)
+	if err != nil {
+		return Issue{}, err
+	}
+	parentID, err := s.issueID(ctx, input.Parent)
+	if err != nil {
 		return Issue{}, err
 	}
 	status := StatusTriage
@@ -347,7 +472,7 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	// insert gives the number back.
 	var teamID int64
 	var number int
-	err = tx.QueryRowContext(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE key = ? RETURNING id, next_number - 1`, input.Team).Scan(&teamID, &number)
+	err = tx.QueryRowContext(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE workspace_id = ? AND key = ? RETURNING id, next_number - 1`, s.workspace, input.Team).Scan(&teamID, &number)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, ErrTeamNotFound
 	}
@@ -357,9 +482,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	identifier := fmt.Sprintf("%s-%d", input.Team, number)
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO issues(identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), `+projectID+`, `+parentID+`, ?, ?)`,
-		identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, input.Project, input.Parent, now, now)
+		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?)`,
+		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now)
 	if err != nil {
 		return Issue{}, err
 	}
@@ -385,7 +510,7 @@ func (s *Service) Get(ctx context.Context, identifier string) (Issue, error) {
 func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, error) {
 	var issue Issue
 	var id int64
-	err := s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE identifier = ?`, identifier).Scan(
+	err := s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(
 		&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, 0, ErrNotFound
@@ -401,28 +526,36 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 	if err := validateFields(input.Title, input.Status, input.Type); err != nil {
 		return Issue{}, err
 	}
-	if err := s.checkReferences(ctx, input.Project, input.Parent); err != nil {
-		return Issue{}, err
-	}
 	sets, args := []string{}, []any{}
 	for _, field := range []struct {
 		column string
 		value  *string
 	}{
-		{"title", input.Title}, {"description", input.Description}, {"type", input.Type}, {"project_id", input.Project}, {"parent_id", input.Parent},
+		{"title", input.Title}, {"description", input.Description}, {"type", input.Type},
 	} {
 		if field.value != nil {
 			expression := `?`
-			switch field.column {
-			case "type":
+			if field.column == "type" {
 				expression = `NULLIF(?, '')`
-			case "project_id":
-				expression = projectID
-			case "parent_id":
-				expression = parentID
 			}
 			sets = append(sets, field.column+` = `+expression)
 			args = append(args, *field.value)
+		}
+	}
+	for _, reference := range []struct {
+		column string
+		value  *string
+		id     func(context.Context, string) (sql.NullInt64, error)
+	}{
+		{"project_id", input.Project, s.projectID}, {"parent_id", input.Parent, s.issueID},
+	} {
+		if reference.value != nil {
+			id, err := reference.id(ctx, *reference.value)
+			if err != nil {
+				return Issue{}, err
+			}
+			sets = append(sets, reference.column+` = ?`)
+			args = append(args, id)
 		}
 	}
 	if input.Status != nil {
@@ -434,8 +567,8 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 	}
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	sets = append(sets, `updated_at = ?`)
-	args = append(args, now, input.Identifier)
-	query := `UPDATE issues SET ` + strings.Join(sets, ", ") + ` WHERE identifier = ?`
+	args = append(args, now, s.workspace, input.Identifier)
+	query := `UPDATE issues SET ` + strings.Join(sets, ", ") + ` WHERE workspace_id = ? AND identifier = ?`
 	if input.Status == nil {
 		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 			return Issue{}, err
@@ -447,8 +580,8 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		}
 		defer tx.Rollback()
 		if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at)
-			SELECT id, 'status_changed', status || ' -> ' || ?, ? FROM issues WHERE identifier = ? AND status <> ?`,
-			*input.Status, now, input.Identifier, *input.Status); err != nil {
+			SELECT id, 'status_changed', status || ' -> ' || ?, ? FROM issues WHERE workspace_id = ? AND identifier = ? AND status <> ?`,
+			*input.Status, now, s.workspace, input.Identifier, *input.Status); err != nil {
 			return Issue{}, err
 		}
 		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
@@ -513,7 +646,7 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 		return IssueDetails{}, err
 	}
 	rows, err = s.db.QueryContext(ctx, `SELECT repo, number, title, url, state, updated_at FROM pull_requests
-		WHERE issue_identifier = ? ORDER BY updated_at DESC`, identifier)
+		WHERE workspace_id = ? AND issue_identifier = ? ORDER BY updated_at DESC`, s.workspace, identifier)
 	if err != nil {
 		return IssueDetails{}, err
 	}
@@ -577,7 +710,7 @@ func (s *Service) Relation(ctx context.Context, identifier, kind, other string, 
 }
 
 func (s *Service) ListProjects(ctx context.Context, includeArchived bool) ([]Project, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT name, description, archived FROM projects WHERE ? OR NOT archived ORDER BY name`, includeArchived)
+	rows, err := s.db.QueryContext(ctx, `SELECT name, description, archived FROM projects WHERE workspace_id = ? AND (? OR NOT archived) ORDER BY name`, s.workspace, includeArchived)
 	if err != nil {
 		return nil, err
 	}
@@ -594,14 +727,14 @@ func (s *Service) ListProjects(ctx context.Context, includeArchived bool) ([]Pro
 }
 
 func (s *Service) CreateProject(ctx context.Context, name, description string) (Project, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO projects(name, description) VALUES (?, ?)`, name, description)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO projects(workspace_id, name, description) VALUES (?, ?, ?)`, s.workspace, name, description)
 	return Project{Name: name, Description: description}, err
 }
 
 func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Project, error) {
 	var project Project
 	err := s.db.QueryRowContext(ctx, `UPDATE projects SET description = COALESCE(?, description), archived = COALESCE(?, archived)
-		WHERE name = ? RETURNING name, description, archived`, input.Description, input.Archived, input.Name).Scan(&project.Name, &project.Description, &project.Archived)
+		WHERE workspace_id = ? AND name = ? RETURNING name, description, archived`, input.Description, input.Archived, s.workspace, input.Name).Scan(&project.Name, &project.Description, &project.Archived)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, ErrProjectNotFound
 	}
@@ -609,7 +742,7 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 }
 
 func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, name, next_number FROM teams ORDER BY key`)
+	rows, err := s.db.QueryContext(ctx, `SELECT key, name, next_number FROM teams WHERE workspace_id = ? ORDER BY key`, s.workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +768,8 @@ func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error
 	if !teamKey.MatchString(team.Key) || team.Name == "" || team.NextNumber < 1 {
 		return Team{}, ErrInvalidTeam
 	}
-	result, err := s.db.ExecContext(ctx, `INSERT INTO teams(key, name, next_number) VALUES (?, ?, ?) ON CONFLICT(key) DO NOTHING`, team.Key, team.Name, team.NextNumber)
+	result, err := s.db.ExecContext(ctx, `INSERT INTO teams(workspace_id, key, name, next_number) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO NOTHING`,
+		s.workspace, team.Key, team.Name, team.NextNumber)
 	if err != nil {
 		return Team{}, err
 	}
@@ -643,31 +777,4 @@ func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error
 		return Team{}, ErrTeamExists
 	}
 	return team, nil
-}
-
-func (s *Service) checkTeam(ctx context.Context, key string) error {
-	var found string
-	err := s.db.QueryRowContext(ctx, `SELECT key FROM teams WHERE key = ?`, key).Scan(&found)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrTeamNotFound
-	}
-	return err
-}
-
-func (s *Service) checkReferences(ctx context.Context, project, parent *string) error {
-	if project != nil && *project != "" {
-		var name string
-		err := s.db.QueryRowContext(ctx, `SELECT name FROM projects WHERE name = ?`, *project).Scan(&name)
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrProjectNotFound
-		}
-		if err != nil {
-			return err
-		}
-	}
-	if parent != nil && *parent != "" {
-		_, err := s.Get(ctx, *parent)
-		return err
-	}
-	return nil
 }

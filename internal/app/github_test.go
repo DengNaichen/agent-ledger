@@ -21,13 +21,16 @@ type fakeGitHub struct {
 	comments []string
 }
 
+// newTestSync binds each repository to workspace default, which has team AL,
+// and returns the service limited to default.
 func newTestSync(t *testing.T, fake *fakeGitHub, repos ...string) (*Service, *GitHubSync) {
 	t.Helper()
-	service, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	root, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { service.Close() })
+	t.Cleanup(func() { root.Close() })
+	service := inWorkspace(t, root, "default")
 	alTeam(t, service)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{name}/pulls", func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +61,11 @@ func newTestSync(t *testing.T, fake *fakeGitHub, repos ...string) (*Service, *Gi
 		mux.ServeHTTP(w, r)
 	}))
 	t.Cleanup(server.Close)
-	sync := NewGitHubSync(service, repos, "test-token", true)
+	bindings := []GitHubRepo{}
+	for _, repo := range repos {
+		bindings = append(bindings, GitHubRepo{Workspace: "default", Repo: repo})
+	}
+	sync := NewGitHubSync(service, bindings, "test-token", true)
 	sync.baseURL = server.URL
 	return service, sync
 }
@@ -194,7 +201,7 @@ func TestGitHubSyncContinuesPastFailingRepository(t *testing.T) {
 }
 
 func TestGitHubNotificationsCoalesce(t *testing.T) {
-	g := NewGitHubSync(&Service{}, []string{"team/repo"}, "", false)
+	g := NewGitHubSync(&Service{}, []GitHubRepo{{Workspace: "default", Repo: "team/repo"}}, "", false)
 	if g.Notify("other/repo") || len(g.wake) != 0 {
 		t.Fatal("unconfigured repository scheduled")
 	}
@@ -299,4 +306,76 @@ func TestGitHubSyncNotifyReadsCurrentTeams(t *testing.T) {
 		issue, err := service.Get(context.Background(), "TOK-1")
 		return err == nil && issue.Status == StatusInReview
 	})
+}
+
+// A repository is bound to one workspace and matches only that workspace's
+// team keys, even a key another workspace also uses.
+func TestGitHubSyncMatchesWithinWorkspace(t *testing.T) {
+	const updated = "2026-10-01T12:00:00Z"
+	fake := &fakeGitHub{pulls: map[string][]map[string]any{"owner/app": {
+		pull(41, "al-1-build", "Build", "open", updated),
+		pull(42, "ops-1-deploy", "Deploy", "merged", updated),
+	}}}
+	def, sync := newTestSync(t, fake, "owner/app")
+	ctx := context.Background()
+	acme := inWorkspace(t, def, "acme")
+	if _, err := acme.CreateTeam(ctx, CreateTeam{Key: "OPS", Name: "Ops"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []struct {
+		service *Service
+		input   CreateIssue
+	}{
+		{def, CreateIssue{Team: "AL", Title: "Build", Status: new(StatusInProgress)}},
+		{acme, CreateIssue{Team: "OPS", Title: "Deploy", Status: new(StatusInProgress)}},
+	} {
+		if _, err := step.service.Create(ctx, step.input); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(service *Service, identifier string, status Status, pulls ...int) {
+		t.Helper()
+		detail, err := service.Details(ctx, identifier)
+		if err != nil {
+			t.Fatal(err)
+		}
+		numbers := []int{}
+		for _, pull := range detail.PullRequests {
+			numbers = append(numbers, pull.Number)
+		}
+		if detail.Status != status || !slices.Equal(numbers, append([]int{}, pulls...)) {
+			t.Fatalf("%s: status %q, pull requests %v; want %q, %v", identifier, detail.Status, numbers, status, pulls)
+		}
+	}
+	stored := func(want string) {
+		t.Helper()
+		var got string
+		if err := def.db.QueryRowContext(ctx, `SELECT COALESCE(group_concat(number || ' ' || issue_identifier || ' ' || slug, ', '), '')
+			FROM (SELECT number, issue_identifier, slug FROM pull_requests JOIN workspaces ON workspaces.id = workspace_id ORDER BY number)`).Scan(&got); err != nil || got != want {
+			t.Fatalf("pull requests = %q, err = %v; want %q", got, err, want)
+		}
+	}
+
+	// OPS is a team only in acme, so the default repository ignores ops-1.
+	sync.syncAll(ctx)
+	check(def, "AL-1", StatusInReview, 41)
+	check(acme, "OPS-1", StatusInProgress)
+	stored("41 AL-1 default")
+
+	// acme's AL-1 is not default's AL-1.
+	if _, err := acme.CreateTeam(ctx, CreateTeam{Key: "AL", Name: "Acme"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := acme.Create(ctx, CreateIssue{Team: "AL", Title: "Acme build", Status: new(StatusInProgress)}); err != nil {
+		t.Fatal(err)
+	}
+	sync.syncAll(ctx)
+	check(def, "AL-1", StatusInReview, 41)
+	check(acme, "AL-1", StatusInProgress)
+	check(acme, "OPS-1", StatusInProgress)
+	stored("41 AL-1 default")
+	var cursors string
+	if err := def.db.QueryRowContext(ctx, `SELECT group_concat(slug || ' ' || repo || ' ' || last_updated_at, ', ') FROM github_sync JOIN workspaces ON workspaces.id = workspace_id`).Scan(&cursors); err != nil || cursors != "default owner/app "+updated {
+		t.Fatalf("cursors = %q, err = %v", cursors, err)
+	}
 }

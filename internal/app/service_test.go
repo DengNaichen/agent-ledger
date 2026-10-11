@@ -22,6 +22,7 @@ func TestIssueLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	service = inWorkspace(t, service, "default")
 	alTeam(t, service)
 
 	ctx := context.Background()
@@ -73,6 +74,7 @@ func TestIssueLifecycleNumbersPerTeam(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	service = inWorkspace(t, service, "default")
 	ctx := context.Background()
 	for _, input := range []CreateTeam{{Key: "AL", Name: "InfTask"}, {Key: "TOK", Name: " HarnessKit "}} {
 		if team, err := service.CreateTeam(ctx, input); err != nil || team.NextNumber != 1 {
@@ -149,6 +151,7 @@ func TestCreateTeamStartNumber(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	service = inWorkspace(t, service, "default")
 	ctx := context.Background()
 	start := 1227
 	if team, err := service.CreateTeam(ctx, CreateTeam{Key: "TOK", Name: "TokfinityFde", StartNumber: &start}); err != nil || team.NextNumber != 1227 {
@@ -169,4 +172,18 @@ func TestCreateTeamStartNumber(t *testing.T) {
 	if want := []Team{{Key: "TOK", Name: "TokfinityFde", NextNumber: 1228}}; err != nil || !slices.Equal(teams, want) {
 		t.Fatalf("teams = %#v, err = %v; want %#v", teams, err, want)
 	}
+}
+
+// inWorkspace creates a workspace and returns the service limited to it.
+func inWorkspace(t *testing.T, s *Service, slug string) *Service {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := s.CreateWorkspace(ctx, Workspace{Slug: slug, Name: slug}); err != nil {
+		t.Fatal(err)
+	}
+	scoped, err := s.InWorkspace(ctx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scoped
 }

@@ -20,6 +20,7 @@ func labelService(t *testing.T) *Service {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
+	s = inWorkspace(t, s, "default")
 	alTeam(t, s)
 	return s
 }
@@ -280,7 +281,7 @@ func TestLabelUpgrade(t *testing.T) {
 	if _, err = db.Exec(old + fmt.Sprintf(`PRAGMA user_version = %d;`, len(migrations))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(`INSERT INTO teams(id,key,name,next_number) VALUES (1,'AL','InfTask',2); INSERT INTO issues(id,identifier,team_id,number,title,description,status,created_at,updated_at) VALUES (1,'AL-1',1,1,'Keep me','Existing body','todo','before','before'); INSERT INTO comments(issue_id,body,created_at) VALUES (1,'Keep comment','before')`); err != nil {
+	if _, err = db.Exec(`INSERT INTO workspaces(id,slug,name) VALUES (1,'default','Default'); INSERT INTO teams(id,workspace_id,key,name,next_number) VALUES (1,1,'AL','InfTask',2); INSERT INTO issues(id,workspace_id,identifier,team_id,number,title,description,status,created_at,updated_at) VALUES (1,1,'AL-1',1,1,'Keep me','Existing body','todo','before','before'); INSERT INTO comments(issue_id,body,created_at) VALUES (1,'Keep comment','before')`); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -288,8 +289,13 @@ func TestLabelUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := mustLabel(t, s, "New label", 0)
-	if err := s.ChangeIssueLabels(context.Background(), ChangeIssueLabels{Identifiers: []string{"AL-1"}, Add: []int64{l.ID}}); err != nil {
+	ctx := context.Background()
+	def, err := s.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := mustLabel(t, def, "New label", 0)
+	if err := def.ChangeIssueLabels(ctx, ChangeIssueLabels{Identifiers: []string{"AL-1"}, Add: []int64{l.ID}}); err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
@@ -298,7 +304,10 @@ func TestLabelUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	detail, err := s.Details(context.Background(), "AL-1")
+	if def, err = s.InWorkspace(ctx, "default"); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := def.Details(ctx, "AL-1")
 	if err != nil || detail.Title != "Keep me" || detail.Description != "Existing body" || len(detail.Comments) != 1 || len(detail.Labels) != 1 {
 		t.Fatalf("lost existing data: %#v %v", detail, err)
 	}

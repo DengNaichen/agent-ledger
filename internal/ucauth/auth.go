@@ -49,6 +49,7 @@ type flow struct {
 	Redirect    string
 	ClientState string
 	Challenge   string
+	Resource    string
 	Expires     time.Time
 }
 type session struct {
@@ -96,8 +97,7 @@ func (a *Auth) Handler(next http.Handler) http.Handler {
 	routes.HandleFunc("POST /auth/logout", a.logout)
 	routes.HandleFunc("GET /auth/session", a.session)
 	routes.HandleFunc("GET /.well-known/oauth-authorization-server", a.metadata)
-	routes.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", a.resourceMetadata)
-	routes.HandleFunc("GET /.well-known/oauth-protected-resource", a.resourceMetadata)
+	routes.HandleFunc("GET /.well-known/oauth-protected-resource/w/{workspace}/mcp", a.resourceMetadata)
 	routes.HandleFunc("GET /mcp/oauth/authorize", a.authorizeMCP)
 	routes.HandleFunc("POST /mcp/oauth/token", a.tokenMCP)
 	routes.Handle("/", a.protect(next))
@@ -123,7 +123,7 @@ func (a *Auth) protect(next http.Handler) http.Handler {
 					return
 				}
 			}
-		} else if r.URL.Path != "/mcp" {
+		} else if !mcpPath.MatchString(r.URL.Path) {
 			if _, ok := a.current(r); ok {
 				if unsafe(r.Method) && r.Header.Get("Origin") != a.cfg.PublicURL {
 					fail(w, 403, "origin_forbidden")
@@ -133,9 +133,9 @@ func (a *Auth) protect(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp" {
-			if r.URL.Path == "/mcp" {
-				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+a.cfg.PublicURL+`/.well-known/oauth-protected-resource/mcp"`)
+		if strings.HasPrefix(r.URL.Path, "/api/") || mcpPath.MatchString(r.URL.Path) {
+			if mcpPath.MatchString(r.URL.Path) {
+				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+a.cfg.PublicURL+`/.well-known/oauth-protected-resource`+r.URL.Path+`"`)
 			}
 			fail(w, 401, "unauthorized")
 			return

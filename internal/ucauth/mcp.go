@@ -7,12 +7,23 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const mcpClientID = "inftask"
+
+// mcpPath matches the MCP endpoint of a workspace, /w/<slug>/mcp. Each one is
+// a separate protected resource.
+var mcpPath = regexp.MustCompile(`^/w/[a-z0-9-]+/mcp$`)
+
+// mcpResource reports whether resource is one of this server's MCP endpoints.
+func (a *Auth) mcpResource(resource string) bool {
+	path, found := strings.CutPrefix(resource, a.cfg.PublicURL)
+	return found && mcpPath.MatchString(path)
+}
 
 type grant struct {
 	Flow    flow
@@ -26,8 +37,16 @@ func (a *Auth) metadata(w http.ResponseWriter, _ *http.Request) {
 		"response_types_supported": []string{"code"}, "grant_types_supported": []string{"authorization_code", "refresh_token"}, "code_challenge_methods_supported": []string{"S256"}, "token_endpoint_auth_methods_supported": []string{"none"},
 	})
 }
-func (a *Auth) resourceMetadata(w http.ResponseWriter, _ *http.Request) {
-	jsonResponse(w, 200, map[string]any{"resource": a.cfg.PublicURL + "/mcp", "authorization_servers": []string{a.cfg.PublicURL}, "bearer_methods_supported": []string{"header"}})
+
+// resourceMetadata describes the MCP endpoint whose path follows
+// /.well-known/oauth-protected-resource.
+func (a *Auth) resourceMetadata(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/.well-known/oauth-protected-resource")
+	if !mcpPath.MatchString(path) {
+		fail(w, 404, "not_found")
+		return
+	}
+	jsonResponse(w, 200, map[string]any{"resource": a.cfg.PublicURL + path, "authorization_servers": []string{a.cfg.PublicURL}, "bearer_methods_supported": []string{"header"}})
 }
 func loopbackRedirect(raw string) bool {
 	u, err := url.Parse(raw)
@@ -75,11 +94,11 @@ func (a *Auth) authorizeMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q.Del("scope")
-	if !exact(q, "response_type", "client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "resource") || q.Get("response_type") != "code" || q.Get("client_id") != mcpClientID || q.Get("resource") != a.cfg.PublicURL+"/mcp" || q.Get("code_challenge_method") != "S256" || !validChallenge(q.Get("code_challenge")) || !loopbackRedirect(q.Get("redirect_uri")) || len(q.Get("state")) > 1024 {
+	if !exact(q, "response_type", "client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "resource") || q.Get("response_type") != "code" || q.Get("client_id") != mcpClientID || !a.mcpResource(q.Get("resource")) || q.Get("code_challenge_method") != "S256" || !validChallenge(q.Get("code_challenge")) || !loopbackRedirect(q.Get("redirect_uri")) || len(q.Get("state")) > 1024 {
 		fail(w, 400, "invalid_request")
 		return
 	}
-	a.begin(w, r, flow{Redirect: q.Get("redirect_uri"), ClientState: q.Get("state"), Challenge: q.Get("code_challenge")})
+	a.begin(w, r, flow{Redirect: q.Get("redirect_uri"), ClientState: q.Get("state"), Challenge: q.Get("code_challenge"), Resource: q.Get("resource")})
 }
 func (a *Auth) completeMCP(w http.ResponseWriter, r *http.Request, f flow, token tokenResponse) {
 	code := randomValue()
@@ -111,7 +130,7 @@ func (a *Auth) tokenMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := r.PostForm
-	if f.Get("client_id") != mcpClientID || f.Get("resource") != a.cfg.PublicURL+"/mcp" {
+	if f.Get("client_id") != mcpClientID || !a.mcpResource(f.Get("resource")) {
 		fail(w, 400, "invalid_request")
 		return
 	}
@@ -127,7 +146,7 @@ func (a *Auth) tokenMCP(w http.ResponseWriter, r *http.Request) {
 		delete(a.grants, f.Get("code"))
 		a.mu.Unlock()
 		sum := sha256.Sum256([]byte(f.Get("code_verifier")))
-		if !ok || !a.now().Before(g.Expires) || g.Flow.Redirect != f.Get("redirect_uri") || g.Flow.Challenge != base64.RawURLEncoding.EncodeToString(sum[:]) {
+		if !ok || !a.now().Before(g.Expires) || g.Flow.Redirect != f.Get("redirect_uri") || g.Flow.Resource != f.Get("resource") || g.Flow.Challenge != base64.RawURLEncoding.EncodeToString(sum[:]) {
 			fail(w, 400, "invalid_grant")
 			return
 		}

@@ -11,7 +11,8 @@ import (
 )
 
 func TestGitHubWebhook(t *testing.T) {
-	sync := app.NewGitHubSync(openService(t), []string{"team/repo"}, "", false)
+	service, _ := openService(t)
+	sync := app.NewGitHubSync(service, []app.GitHubRepo{{Workspace: "default", Repo: "team/repo"}}, "", false)
 	handler := GitHubWebhook(sync, "webhook-secret")
 	for _, tc := range []struct {
 		name, body, event, secret string
