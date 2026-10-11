@@ -14,6 +14,7 @@ func TestBackupKeepsOneCopyPerDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	service = inWorkspace(t, service, "default")
 	alTeam(t, service)
 	day := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return day }
@@ -52,7 +53,11 @@ func TestBackupKeepsOneCopyPerDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restored.Close()
-	if issues, err := restored.List(ctx, ListIssues{}); err != nil || len(issues) != 1 {
+	inDefault, err := restored.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issues, err := inDefault.List(ctx, ListIssues{}); err != nil || len(issues) != 1 {
 		t.Fatalf("issues in backup = %#v, err = %v", issues, err)
 	}
 }

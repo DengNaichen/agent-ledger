@@ -79,14 +79,14 @@ func (s *Service) SaveLabelGroup(ctx context.Context, input SaveLabelGroup) (Lab
 	}
 	var group LabelGroup
 	if input.ID == 0 {
-		err = s.db.QueryRowContext(ctx, `INSERT INTO label_groups(name, name_key) VALUES (?, ?) RETURNING id, name`, name, key).Scan(&group.ID, &group.Name)
+		err = s.db.QueryRowContext(ctx, `INSERT INTO label_groups(workspace_id, name, name_key) VALUES (?, ?, ?) RETURNING id, name`, s.workspace, name, key).Scan(&group.ID, &group.Name)
 	} else {
-		err = s.db.QueryRowContext(ctx, `UPDATE label_groups SET name = ?, name_key = ? WHERE id = ? RETURNING id, name`, name, key, input.ID).Scan(&group.ID, &group.Name)
+		err = s.db.QueryRowContext(ctx, `UPDATE label_groups SET name = ?, name_key = ? WHERE id = ? AND workspace_id = ? RETURNING id, name`, name, key, input.ID, s.workspace).Scan(&group.ID, &group.Name)
 	}
 	return group, labelError(err)
 }
 func (s *Service) ListLabelGroups(ctx context.Context) ([]LabelGroup, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM label_groups ORDER BY name_key, id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM label_groups WHERE workspace_id = ? ORDER BY name_key, id`, s.workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,8 @@ func (s *Service) CreateLabel(ctx context.Context, input CreateLabel) (Label, er
 	if !labelColor.MatchString(input.Color) {
 		return Label{}, fmt.Errorf("%w: color must be #RRGGBB", ErrInvalidLabel)
 	}
-	return scanLabel(s.db.QueryRowContext(ctx, `INSERT INTO labels(name, name_key, color, description, group_id) VALUES (?, ?, ?, ?, NULLIF(?, 0)) RETURNING `+labelColumns, name, key, input.Color, input.Description, input.GroupID))
+	return scanLabel(s.db.QueryRowContext(ctx, `INSERT INTO labels(workspace_id, name, name_key, color, description, group_id) VALUES (?, ?, ?, ?, ?, NULLIF(?, 0)) RETURNING `+labelColumns,
+		s.workspace, name, key, input.Color, input.Description, input.GroupID))
 }
 func (s *Service) UpdateLabel(ctx context.Context, input UpdateLabel) (Label, error) {
 	var key *string
@@ -132,10 +133,10 @@ func (s *Service) UpdateLabel(ctx context.Context, input UpdateLabel) (Label, er
 	if input.Color != nil && !labelColor.MatchString(*input.Color) {
 		return Label{}, fmt.Errorf("%w: color must be #RRGGBB", ErrInvalidLabel)
 	}
-	return scanLabel(s.db.QueryRowContext(ctx, `UPDATE labels SET name = COALESCE(?, name), name_key = COALESCE(?, name_key), color = COALESCE(?, color), description = COALESCE(?, description), archived = COALESCE(?, archived) WHERE id = ? RETURNING `+labelColumns, input.Name, key, input.Color, input.Description, input.Archived, input.ID))
+	return scanLabel(s.db.QueryRowContext(ctx, `UPDATE labels SET name = COALESCE(?, name), name_key = COALESCE(?, name_key), color = COALESCE(?, color), description = COALESCE(?, description), archived = COALESCE(?, archived) WHERE id = ? AND workspace_id = ? RETURNING `+labelColumns, input.Name, key, input.Color, input.Description, input.Archived, input.ID, s.workspace))
 }
 func (s *Service) labels(ctx context.Context, where string, args ...any) ([]Label, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE `+where+` ORDER BY name_key, id`, args...)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE workspace_id = ? AND `+where+` ORDER BY name_key, id`, append([]any{s.workspace}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +152,7 @@ func (s *Service) labels(ctx context.Context, where string, args ...any) ([]Labe
 	return labels, rows.Err()
 }
 func (s *Service) ListLabels(ctx context.Context, includeArchived bool) ([]Label, error) {
-	return s.labels(ctx, `? OR NOT archived`, includeArchived)
+	return s.labels(ctx, `(? OR NOT archived)`, includeArchived)
 }
 func (s *Service) issueLabels(ctx context.Context, issueID int64) ([]Label, error) {
 	return s.labels(ctx, `id IN (SELECT label_id FROM issue_labels WHERE issue_id = ?)`, issueID)
@@ -173,7 +174,7 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 			continue
 		}
 		ids[id] = true
-		l, err := scanLabel(tx.QueryRowContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE id = ?`, id))
+		l, err := scanLabel(tx.QueryRowContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE id = ? AND workspace_id = ?`, id, s.workspace))
 		if err != nil {
 			return err
 		}
@@ -190,13 +191,13 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 			return fmt.Errorf("%w: cannot add and remove the same label", ErrInvalidLabel)
 		}
 		var found int64
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM labels WHERE id = ?`, id).Scan(&found); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM labels WHERE id = ? AND workspace_id = ?`, id, s.workspace).Scan(&found); err != nil {
 			return labelError(err)
 		}
 	}
 	for _, identifier := range input.Identifiers {
 		var issueID int64
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM issues WHERE identifier = ?`, identifier).Scan(&issueID); errors.Is(err, sql.ErrNoRows) {
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(&issueID); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
@@ -248,11 +249,11 @@ func (s *Service) MergeLabels(ctx context.Context, input MergeLabels) error {
 		return err
 	}
 	defer tx.Rollback()
-	source, err := scanLabel(tx.QueryRowContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE id = ?`, input.SourceID))
+	source, err := scanLabel(tx.QueryRowContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE id = ? AND workspace_id = ?`, input.SourceID, s.workspace))
 	if err != nil {
 		return err
 	}
-	target, err := scanLabel(tx.QueryRowContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE id = ?`, input.TargetID))
+	target, err := scanLabel(tx.QueryRowContext(ctx, `SELECT `+labelColumns+` FROM labels WHERE id = ? AND workspace_id = ?`, input.TargetID, s.workspace))
 	if err != nil {
 		return err
 	}
@@ -319,7 +320,7 @@ func (s *Service) labelFilter(ctx context.Context, input ListIssues) (string, []
 	}{{input.LabelIDs, "labels", "il.label_id = ?"}, {input.LabelGroupIDs, "label_groups", "l.group_id = ?"}} {
 		for _, id := range selection.ids {
 			var found int
-			if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM `+selection.table+` WHERE id = ?`, id).Scan(&found); err != nil {
+			if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM `+selection.table+` WHERE id = ? AND workspace_id = ?`, id, s.workspace).Scan(&found); err != nil {
 				return "", nil, labelError(err)
 			}
 			predicates = append(predicates, `EXISTS (SELECT 1 FROM issue_labels il JOIN labels l ON l.id = il.label_id WHERE il.issue_id = issues.id AND `+selection.condition+`)`)

@@ -17,7 +17,13 @@ make build
 go run ./cmd/inftask -data "$(mktemp -d)/dev.db"
 ```
 
-默认地址 `127.0.0.1:8787`；打开该地址查看页面，`GET /api/health` 返回 `{"status":"ok"}`。新库没有 team，建票前先建一个：页面侧边栏 Teams 旁的 “+”，或 MCP 的 `create_team`，比如 `{"key":"AL","name":"InfTask"}`；[造数脚本](VALIDATION.md#ui-检查)会自己建 `AL`。服务日志会打印监听地址。数据库及 backups 均在这次临时目录内，Ctrl-C 停止开发服务；仅在确认不再需要时清理自己创建的临时目录。不要用维护者的 8700 实例验证开发写入。
+默认地址 `127.0.0.1:8787`；打开该地址查看页面，`GET /api/health` 返回 `{"status":"ok"}`。新库没有 workspace，页面会提示先建一个；workspace 的页面在 `/<slug>/`，REST 在 `/api/w/<slug>/`，MCP 在 `/w/<slug>/mcp`：
+
+```sh
+curl -X POST http://127.0.0.1:8787/api/workspaces -H 'Content-Type: application/json' -d '{"slug":"default","name":"Default"}'
+```
+
+新 workspace 没有 team，建票前先建一个：页面侧边栏 Teams 旁的 “+”，或 `/w/<slug>/mcp` 的 `create_team`，比如 `{"key":"AL","name":"InfTask"}`；[造数脚本](VALIDATION.md#ui-检查)会自己建 workspace `default` 和 team `AL`。服务日志会打印监听地址。数据库及 backups 均在这次临时目录内，Ctrl-C 停止开发服务；仅在确认不再需要时清理自己创建的临时目录。不要用维护者的 8700 实例验证开发写入。
 
 多个 agent 并行开发时 8787 可能已被占用。启动前先检查端口，有输出就表示被占用：
 
@@ -33,16 +39,16 @@ go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 永远不用 8700，也不要为了开发终止别人或维护者实例的进程。
 
-前端热更新另开终端运行 `npm --prefix web run dev`，访问 Vite 打印的地址。只有 `/api` 和 `/auth` 代理（写在 `web/vite.config.ts`），目标默认是 `http://127.0.0.1:8787`；开发服务换了端口时用环境变量 `INFTASK_API_URL` 指向它，例如 `INFTASK_API_URL=http://127.0.0.1:8791 npm --prefix web run dev`；不要假设 Vite 提供 `/mcp`。默认开发无需 GitHub token；仅测试 GitHub 集成时才配置对应参数，行为边界见 [安全](rules/SECURITY.md)。
+前端热更新另开终端运行 `npm --prefix web run dev`，访问 Vite 打印的地址。只有 `/api` 和 `/auth` 代理（写在 `web/vite.config.ts`），目标默认是 `http://127.0.0.1:8787`；开发服务换了端口时用环境变量 `INFTASK_API_URL` 指向它，例如 `INFTASK_API_URL=http://127.0.0.1:8791 npm --prefix web run dev`；不要假设 Vite 提供 `/w/<slug>/mcp`。默认开发无需 GitHub token；仅测试 GitHub 集成时才配置对应参数，行为边界见 [安全](rules/SECURITY.md)。
 
 页面看起来仍是旧版时，区分 Vite 与 Go 嵌入页面：后者需重新构建并重启自己启动的开发进程。数据库升级/恢复失败的处理见 [可靠性](rules/RELIABILITY.md)。
 
 ## MCP 工具没加载时
 
-Agent 会话没加载 `inftask` MCP 工具时，直接向实例的 `/mcp` 发 HTTP JSON-RPC `tools/call` 请求。服务端无状态，不需要先 `initialize`；请求要带下面两个头：
+Agent 会话没加载 `inftask` MCP 工具时，直接向实例上该仓库 workspace 的 `/w/<slug>/mcp`（本仓库是 `/w/default/mcp`）发 HTTP JSON-RPC `tools/call` 请求。服务端无状态，不需要先 `initialize`；请求要带下面两个头：
 
 ```sh
-curl -sS http://127.0.0.1:8700/mcp \
+curl -sS http://127.0.0.1:8700/w/default/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_issue","arguments":{"identifier":"AL-1"}}}'
@@ -59,7 +65,7 @@ req=$(mktemp)
 cat > "$req" <<'EOF'
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_comment","arguments":{"identifier":"AL-<编号>","body":"进展：`go vet ./...` 和 `make test` 通过。\n\n- 未运行：浏览器检查\n- 风险：无"}}}
 EOF
-curl -sS http://127.0.0.1:8700/mcp \
+curl -sS http://127.0.0.1:8700/w/default/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   --data-binary @"$req"
@@ -79,12 +85,14 @@ install -m 755 inftask ~/.local/bin/inftask
 launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.inftask
 ```
 
+`-github-repo` 的值是 `<slug>=<owner>/<name>`；plist 里还是不带 `<slug>=` 的旧格式时，服务启动即退出，日志写出期望的格式。改 plist 后用 `bootout` 再 `bootstrap` 重新加载，`kickstart` 不会重读 plist。
+
 分支与工作树的清理顺序见 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。上述安装和重启不是本地验证的前置条件。
 
 
 ## 云端团队部署
 
-第一版是一个进程、一份 SQLite、一个共享看板。所有通过配置的 InfOne UC 登录的用户都有现有全部操作权限；不复用 HarnessKit workspace membership。网页登录与远程 MCP 参考 `go-backend/backend/internal/transport/httpapi/web_auth.go`、`mcp_oauth.go`，但使用 InfTask 独立的 cookie 和进程内状态。部署平台与域名由运维提供。
+第一版是一个进程、一份 SQLite、一个共享看板。所有通过配置的 InfOne UC 登录的用户都能看到全部 workspace，并有现有全部操作权限；不复用 HarnessKit workspace membership。网页登录与远程 MCP 参考 `go-backend/backend/internal/transport/httpapi/web_auth.go`、`mcp_oauth.go`，但使用 InfTask 独立的 cookie 和进程内状态。部署平台与域名由运维提供。
 
 ### 服务端配置
 
@@ -105,7 +113,7 @@ UC 地址与外部地址只允许 HTTPS；本地假 UC 验证允许 loopback HTT
 
 ### 容器与 HTTPS
 
-前提：Docker Engine、Compose 插件、解析到部署主机的域名、开放 80/443、UC 配置和可读的验证公钥。不要在维护者实例上试部署。将变量放入仓库外受保护的环境文件（权限 `0600`），Compose 另需 `INFTASK_DOMAIN` 和 `GITHUB_REPO=owner/name`；`INFONE_SHARE_DIR` 是宿主的公钥目录。环境文件不要提交。
+前提：Docker Engine、Compose 插件、解析到部署主机的域名、开放 80/443、UC 配置和可读的验证公钥。不要在维护者实例上试部署。将变量放入仓库外受保护的环境文件（权限 `0600`），Compose 另需 `INFTASK_DOMAIN` 和 `GITHUB_REPO=<slug>=<owner>/<name>`（例如 `GITHUB_REPO=default=owner/name`，仓库的 PR 只关联该 workspace 的票）；`INFONE_SHARE_DIR` 是宿主的公钥目录。环境文件不要提交。
 
 ```sh
 docker compose --env-file /secure/inftask.env -f deploy/compose.yaml config --quiet
@@ -121,9 +129,9 @@ Caddy 自动申请证书并反向代理到容器内部 8787；app 不向宿主�
 
 ### 远程 MCP
 
-云端 `/mcp` 不接受网页 cookie，只接受有效 UC access token。未认证响应带 `WWW-Authenticate` 指向 `/.well-known/oauth-protected-resource/mcp`；对应授权服务器 metadata 是 `/.well-known/oauth-authorization-server`。
+每个 workspace 的 MCP 是 `/w/<slug>/mcp`，不接受网页 cookie，只接受有效 UC access token。未认证响应带 `WWW-Authenticate` 指向 `/.well-known/oauth-protected-resource/w/<slug>/mcp`；对应授权服务器 metadata 是 `/.well-known/oauth-authorization-server`，授权和换 token 的 `/mcp/oauth/authorize`、`/mcp/oauth/token` 所有 workspace 共用。
 
-MCP host 配置服务 URL `https://<域名>/mcp`、public client ID `inftask`（与后端使用的 UC client ID 不同），使用 Authorization Code + S256 PKCE；本版不提供动态 client 注册。授权请求必须带精确 `resource=https://<域名>/mcp`，callback 只接受带端口的 `http://127.0.0.1`、`http://[::1]` 或 `http://localhost` URL，不接受 query 或 fragment。后端将其转到 UC 的固定网页回调。公网托管 MCP host 的 HTTPS callback 不在本版范围。
+MCP host 配置服务 URL `https://<域名>/w/<slug>/mcp`、public client ID `inftask`（与后端使用的 UC client ID 不同），使用 Authorization Code + S256 PKCE；本版不提供动态 client 注册。授权请求必须带 `resource=https://<域名>/w/<slug>/mcp`，换 token 时的 `resource` 必须与授权时相同，callback 只接受带端口的 `http://127.0.0.1`、`http://[::1]` 或 `http://localhost` URL，不接受 query 或 fragment。后端将其转到 UC 的固定网页回调。公网托管 MCP host 的 HTTPS callback 不在本版范围。
 
 后端的 `/mcp/oauth/token` 接受 form-urlencoded：code grant 必须有 `grant_type`、`client_id`、`resource`、`code`、`redirect_uri`、`code_verifier`；refresh grant 必须有 `grant_type`、`client_id`、`resource`、`refresh_token`。重复、额外或空字段被拒绝。后端只在短期内存 grant 中保存 UC token，完成 PKCE 校验后将 access/refresh token 交给 host；secret 不交给 host。直接持有合法 access token 的客户端也可用 `Authorization: Bearer ...` 访问 REST/MCP。
 
@@ -154,4 +162,4 @@ ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:18787:127.0.0.1:18787 <ssh-host>
 
 浏览器打开 `http://127.0.0.1:18787`。本机 HTTP 只走 loopback，跨主机通信由 SSH 加密；这不是公网 HTTPS，也不能接收 GitHub 的公网 webhook。其他团队成员需要各自建立 SSH 隧道才能访问。先检查本地和远端 18787 是否空闲，且不要把 Compose 的绑定地址改为 `0.0.0.0`。
 
-健康检查应返回 200，未登录 `/api/issues` 和 `/mcp` 应返回 401。真实登录需要完成 UC 授权，不能把授权页可打开当作登录成功。停止此实例用同一目录、同一 image 变量执行 `docker compose -p inftask-trial -f compose.ssh.yaml stop`，保留 data 以便继续试用；关闭 SSH 连接只停止本机转发。部署前后核对生产入口进程和配置摘要，不重载生产代理。
+健康检查应返回 200，未登录 `/api/workspaces` 和 `/w/default/mcp` 应返回 401。真实登录需要完成 UC 授权，不能把授权页可打开当作登录成功。停止此实例用同一目录、同一 image 变量执行 `docker compose -p inftask-trial -f compose.ssh.yaml stop`，保留 data 以便继续试用；关闭 SSH 连接只停止本机转发。部署前后核对生产入口进程和配置摘要，不重载生产代理。

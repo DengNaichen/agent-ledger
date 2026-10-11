@@ -13,7 +13,7 @@ services:
       INFONE_SHARE_DIR: /run/infone
       GITHUB_TOKEN: ${GITHUB_TOKEN:?Set GITHUB_TOKEN}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?Set GITHUB_WEBHOOK_SECRET}
-    command: ["-addr", "0.0.0.0:8787", "-data", "/data/inftask.db", "-github-repo", "${GITHUB_REPO:?Set GITHUB_REPO}"]
+    command: ["-addr", "0.0.0.0:8787", "-data", "/data/inftask.db", "-github-repo", "${GITHUB_REPO:?Set GITHUB_REPO to <slug>=<owner>/<name>}"]
     volumes:
       - data:/data
       - ${INFONE_SHARE_DIR:?Set INFONE_SHARE_DIR}:/run/infone:ro
