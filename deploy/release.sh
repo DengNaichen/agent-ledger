@@ -216,7 +216,8 @@ Manual rollback (deploy/README.md):
      $backup_dir/before-update.db and $DATA_DIR/inftask.db
      with python3 (the host has no sqlite3 CLI). Equal: no migration ran, keep
      the current database. Different: only if docs/rules/RELIABILITY.md says
-     $previous cannot read the upgraded database, restore before-update.db
+     $previous cannot safely read and write the upgraded database (including
+     maintaining its data constraints), restore before-update.db
      as the Restore section of $RUNBOOK describes; writes made after
      the backup are lost. Never restore or delete inftask.db.sessions.
   2. Put the previous compose.yaml back and start the previous image:
