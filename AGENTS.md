@@ -12,13 +12,14 @@
 
 领取 ticket 时先用 `get_issue` 阅读描述；scope、non-goals 和 acceptance 是合同，超出范围先询问。开始时设为 `in_progress`，长期有效的决定和证据用 `add_comment` 记录。
 
-- 创建、更新 ticket 或进入 agent 队列：先读 [ticket skill](.agents/skills/ticket/SKILL.md)。
+- 产品或共享 agent 行为、验证、安全、权限、外部写入、自动化副作用的变更先有 InfTask ticket。同一 outcome 沿用当前票；新任务无票时按 [ticket skill](.agents/skills/ticket/SKILL.md) 自动创建，不猜票号。只读分析与不改变这些边界的措辞、拼写、链接、示例和格式维护可无票处理。
+- 创建、更新 ticket 或进入 agent 队列：先读 [ticket skill](.agents/skills/ticket/SKILL.md)。用户已要求立即执行的工作，建票后直接设为 `in_progress`。
 - 修改文件前检查分支、工作树和未提交或未推送改动；分支、提交、PR、合并和清理遵循 [git-workflow skill](.agents/skills/git-workflow/SKILL.md)。在独立工作树工作，主检出留在 main；合并需要用户授权。
 - 不确定模块归属或跨层数据流：读 [架构](docs/ARCHITECTURE.md)。
 - 遇到项目专有术语或同名概念：先读 [术语表](docs/GLOSSARY.md)。
 - 安装、运行、排障或合并后更新实例：读 [开发](docs/DEVELOPMENT.md)。
 - 修改代码：读 [编码规则](docs/rules/CODING.md)；禁止超出 ticket 的重构。
-- 修改 schema、事务、备份或同步：先读 [可靠性](docs/rules/RELIABILITY.md)。真实数据库不得靠删除重建升级，已交付迁移不得改写。
+- 修改 schema、事务、备份或同步：先读 [可靠性](docs/rules/RELIABILITY.md)。Schema 票的排队、迁移编号和合并前 rebase 遵循其中的 [Schema 票的排队与合并](docs/rules/RELIABILITY.md#schema-票的排队与合并)。真实数据库不得靠删除重建升级，已交付迁移不得改写。
 - 修改 HTTP/MCP 入口、Markdown 或 GitHub 数据外发：读 [安全边界](docs/rules/SECURITY.md)。
 - 修改共享外观：读 [设计系统](docs/DESIGN_SYSTEM.md)；修改导航、保存或错误恢复：读 [交互](docs/INTERACTION_DESIGN.md)。
 

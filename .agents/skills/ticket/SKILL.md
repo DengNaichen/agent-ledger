@@ -5,7 +5,15 @@ description: "Create and update InfTask tickets: choose the Project by outcome, 
 
 # Ticket
 
-Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
+Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `get_issue`, `list_issues`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
+
+## New work without an existing ticket
+
+- Follow the ticket requirement and no-ticket exceptions in the repository's [AGENTS.md](../../../AGENTS.md#工作策略). Reuse the current ticket for the same outcome. A documentation or skill change that alters shared agent behavior requires a ticket.
+- When the user requests a new repository change that requires a ticket and none is established in the session, check `list_issues` for an existing ticket with the same outcome, then read any match with `get_issue`. If none matches, select the Project below and automatically create a self-contained one-PR ticket with `create_issue`; do not ask the user to supply or guess a new identifier.
+- For work the user asked to execute now, create the ticket as `in_progress`, read it back with `get_issue`, and use the returned identifier for the branch, commits, and pull request under [git-workflow](../git-workflow/SKILL.md). Direct execution does not need to pass through `agent_ready`.
+- Ask for an existing identifier only when the user says the work belongs to a particular existing ticket and the session and branch do not identify it. Project ambiguity still follows the Project rules below.
+- If ticket creation is unavailable or fails, report the actual failure and pause the repository changes that require that ticket. Do not invent a number or continue through the no-ticket exception.
 
 ## Project
 
@@ -30,6 +38,7 @@ Check every item before setting `agent_ready`:
 - It belongs to an unarchived Project and has no children.
 - It can be delivered and reviewed in one pull request.
 - Scope names file or directory paths, and a non-goals section blocks scope creep.
+- For tickets changing `internal/app/schema.sql` or `internal/app/migrate.go`, query `list_issues` separately for `agent_ready`, `in_progress`, and `in_review`, with `limit: -1` to avoid truncation, then read candidate scopes with `get_issue`. If another ticket changes either file, order them with `blocks` before setting `agent_ready`; only one schema ticket may execute at a time, and the predecessor must merge before the successor starts. See [schema queue and merge rules](../../../docs/rules/RELIABILITY.md#schema-票的排队与合并).
 - Every scope item points to a file, function, or behavior that exists. Check it on `main` before writing.
 - `Red`: the smallest rerunnable check that fails on the current `main` and passes after the change. When you cannot write one, narrow the ticket first.
 - When `Red` is a new test, it cannot fail on `main`, where it does not exist yet: `go test -run <name>` exits 0 with `[no tests to run]`. Say so in the ticket, and have the executor add the test first and run it against the unchanged code, checking the output for `--- FAIL`, before making the change.
@@ -44,6 +53,7 @@ Check every item before setting `agent_ready`:
 - Ticket titles, bodies, and comments are in Chinese. Paths, commands, code identifiers, and `status` and `type` values stay as written. See the Language section of [git-workflow](../git-workflow/SKILL.md#language).
 - Title: an imperative phrase naming the deliverable. Records start with `记录：`.
 - The body must be self-contained: the executor cannot see this conversation. Write the background, scope, non-goals, and acceptance; link documents instead of copying them.
+- For schema work, write “追加一个迁移” in the ticket and plan, without reserving a migration number. Its number comes from its position in `internal/app/migrate.go`'s `migrations` at merge time.
 - Decisions the user has not made stay open in the body; do not write a recommendation as if it were agreed.
 - When product details are still open, list them under `待定项和默认做法`, each with the default the executor follows. Leave nothing for the executor to guess.
 - Progress, evidence, and decisions go in comments with `add_comment`. Other references go in with `add_link`; GitHub sync records pull requests.
