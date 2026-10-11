@@ -1,7 +1,7 @@
 import { Box, ChevronDown, Columns2, List, Plus, Search, Tag, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
-import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect, Team } from "./shared";
+import { RequestError, api, columns, Issue, IssueMeta, navigate, NavLink, Project, Status, StatusIcon, StatusSelect, Team, priorities, Priority, PrioritySelect, IssueSort } from "./shared";
 
 import { Session } from "./Session";
 
@@ -27,6 +27,9 @@ function App() {
   const [filter, setFilter] = useState<Status | "all">("all");
   const [project, setProject] = useState("");
   const [team, setTeam] = useState("");
+  const [priority, setPriority] = useState<Priority | "">("");
+  const [sort, setSort] = useState<IssueSort>("auto");
+  const [savingPriorities, setSavingPriorities] = useState<string[]>([]);
   const [type, setType] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -51,11 +54,17 @@ function App() {
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
-  }, [path, team, project, type, query, labelFilter]);
+  }, [path, team, project, type, query, labelFilter, priority]);
 
   const grouped = useMemo(
-    () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status)])) as Record<Status, Issue[]>,
-    [issues],
+    () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status).sort((a, b) => {
+      if (sort === "priority" || (sort === "auto" && status === "agent_ready")) {
+        const difference = (a.priority === 0 ? 5 : a.priority) - (b.priority === 0 ? 5 : b.priority);
+        if (difference) return difference;
+      }
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    })])) as Record<Status, Issue[]>,
+    [issues, sort],
   );
 
   const visibleColumns = columns.filter((column) => filter === "all" || column.status === filter);
@@ -76,6 +85,7 @@ function App() {
   async function loadIssues() {
     const version = ++loadVersion.current;
     const params = new URLSearchParams({ project, query });
+    if (priority !== "") params.set("priority", String(priority));
     if (team) params.set("team", team);
     if (type) params.set("type", type);
     params.set("label_mode", labelFilter.mode);
@@ -102,7 +112,7 @@ function App() {
 
   function addIssue(issue: Issue) {
     const inTeam = !team || issue.identifier.startsWith(`${team}-`);
-    if (inTeam && (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0))) setIssues((current) => [issue, ...current]);
+    if (inTeam && (priority === "" || issue.priority === priority) && (labelFilter.mode === "unlabeled" || (labelFilter.labels.length === 0 && labelFilter.groups.length === 0))) setIssues((current) => [issue, ...current]);
     else void loadIssues();
     setCollapsed((current) => ({ ...current, [issue.status]: false }));
     setDialog(null);
@@ -131,6 +141,20 @@ function App() {
     } catch (cause) {
       setIssues(previous);
       setError(cause instanceof Error ? cause.message : "Could not move issue");
+    }
+  }
+
+  async function changePriority(identifier: string, next: Priority) {
+    setSavingPriorities((current) => [...current, identifier]);
+    setError("");
+    try {
+      const updated = await api<Issue>(`/api/issues/${identifier}`, "PATCH", { priority: next });
+      setIssues((current) => current.map((issue) => issue.identifier === identifier ? updated : issue));
+      if (priority !== "" && updated.priority !== priority) await loadIssues();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSavingPriorities((current) => current.filter((id) => id !== identifier));
     }
   }
 
@@ -257,6 +281,15 @@ function App() {
                 <option value="">All types</option>
                 {issueTypes.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
+              <select className="type-filter" value={priority} aria-label="Filter by priority" onChange={(event) => { setPriority(event.target.value === "" ? "" : Number(event.target.value) as Priority); setSelected([]); }}>
+                <option value="">All priorities</option>
+                {priorities.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <select className="type-filter" value={sort} aria-label="Issue ordering" onChange={(event) => setSort(event.target.value as IssueSort)}>
+                <option value="auto">Default ordering</option>
+                <option value="updated">Last updated</option>
+                <option value="priority">Priority</option>
+              </select>
               <LabelFilter value={labelFilter} onChange={(value) => { setLabelFilter(value); setSelected([]); }} catalog={catalog} />
               <nav className="view-switch" aria-label="Issue view">
                 <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}><List className="icon" /> List</button>
@@ -315,6 +348,7 @@ function App() {
                         <span className="card-title">{issue.title}</span>
                       </NavLink>
                       <div className="card-meta">
+                        <PrioritySelect priority={issue.priority} label={`Change priority for ${issue.identifier}`} compact disabled={savingPriorities.includes(issue.identifier)} onChange={(next) => void changePriority(issue.identifier, next)} />
                         <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
                         <IssueMeta issue={issue} />
                       </div>
@@ -340,6 +374,7 @@ function App() {
                   {grouped[column.status].map((issue) => (
                     <article className="list-row" key={issue.identifier}>
                       <input className="issue-selection" type="checkbox" aria-label={`Select ${issue.identifier}`} checked={selectedVisible.includes(issue.identifier)} onChange={() => toggleIssue(issue.identifier)} />
+                      <PrioritySelect priority={issue.priority} label={`Change priority for ${issue.identifier}`} compact disabled={savingPriorities.includes(issue.identifier)} onChange={(next) => void changePriority(issue.identifier, next)} />
                       <StatusSelect issue={issue} onChange={(status) => void moveIssue(issue.identifier, status)} />
                       <NavLink to={`/issue/${issue.identifier}`} className="identifier">{issue.identifier}</NavLink>
                       <NavLink to={`/issue/${issue.identifier}`} className="list-title">{issue.title}</NavLink>
@@ -368,6 +403,7 @@ function NewIssueDialog({ teams, team: selectedTeam, status, project, onClose, o
   const [team, setTeam] = useState(selectedTeam || (teams.length > 0 ? teams[0].key : ""));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<Priority>(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -383,7 +419,7 @@ function NewIssueDialog({ teams, team: selectedTeam, status, project, onClose, o
     setSaving(true);
     setError("");
     try {
-      onCreate(await api<Issue>("/api/issues", "POST", { team, title, description, status, project }));
+      onCreate(await api<Issue>("/api/issues", "POST", { team, title, description, status, project, priority }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -407,6 +443,7 @@ function NewIssueDialog({ teams, team: selectedTeam, status, project, onClose, o
         ) : (
           <p className="error" role="alert">No teams yet. Create one with + next to Teams in the sidebar, then reopen this dialog.</p>
         )}
+        <div className="dialog-priority"><span>Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="New issue priority" disabled={saving} /></div>
         <p className="dialog-meta">
           <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
           {project && <span className="chip"><Box className="icon" />{project}</span>}

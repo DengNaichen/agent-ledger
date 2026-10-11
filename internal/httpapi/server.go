@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/DengNaichen/inftask/internal/app"
 )
@@ -43,7 +44,15 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	status := app.Status(r.URL.Query().Get("status"))
 	issueType := r.URL.Query().Get("type")
 	limit := -1
-	input := app.ListIssues{Team: r.URL.Query().Get("team"), Project: r.URL.Query().Get("project"), Query: r.URL.Query().Get("query"), Limit: &limit}
+	input := app.ListIssues{Sort: r.URL.Query().Get("sort"), Team: r.URL.Query().Get("team"), Project: r.URL.Query().Get("project"), Query: r.URL.Query().Get("query"), Limit: &limit}
+	if r.URL.Query().Has("priority") {
+		priority, err := strconv.Atoi(r.URL.Query().Get("priority"))
+		if err != nil {
+			writeError(w, app.ErrInvalidPriority)
+			return
+		}
+		input.Priority = &priority
+	}
 	if r.URL.Query().Has("status") {
 		input.Status = &status
 	}
@@ -182,7 +191,7 @@ func writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam):
+	case errors.Is(err, app.ErrInvalidPriority), errors.Is(err, app.ErrInvalidSort), errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam):
 		status = http.StatusBadRequest
 	case errors.Is(err, app.ErrTeamExists):
 		status = http.StatusConflict

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS issues (
     title TEXT NOT NULL CHECK (length(trim(title)) > 0),
     description TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL CHECK (status IN ('triage', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+    priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4)),
     type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
     project_id INTEGER REFERENCES projects(id),
     parent_id INTEGER REFERENCES issues(id) CHECK (parent_id <> id),

@@ -6,7 +6,13 @@
 
 侧边栏 Teams 分组列出全部 team，点一个 team 只看该 team 的票，筛选栏出现可清除的 team chip，All issues 清除 team、状态和 Project 筛选；team 筛选和 Project 筛选一样只在内存中，窄屏下侧边栏分组隐藏。Teams 旁的 “+” 打开 Create team 弹窗：key、名称和可选的起始编号，成功后切到新 team，失败保留输入并显示 role=alert。
 
-Team、Project、type、标签条件和搜索词参与 API 查询，搜索框按 Enter 才提交搜索词；状态筛选在列表数据中选择可见列。切换状态或 Project 筛选重置折叠，在详情页选择筛选会返回列表。创建弹窗沿用当前 Project 和状态；All issues 下使用 triage。弹窗的 team 下拉预选正在查看的 team，没有 team 筛选时预选按 key 排序的第一个；还没有 team 时显示提示并禁用提交。创建成功后展开所在状态组；有具体标签筛选或新票不属于正在查看的 team 时重读列表，由筛选结果决定新 issue 是否显示。
+Team、Project、type、priority、标签条件和搜索词参与 API 查询，搜索框按 Enter 才提交搜索词；状态筛选在列表数据中选择可见列。切换状态或 Project 筛选重置折叠，在详情页选择筛选会返回列表。创建弹窗沿用当前 Project 和状态；All issues 下使用 triage。弹窗的 team 下拉预选正在查看的 team，没有 team 筛选时预选按 key 排序的第一个；还没有 team 时显示提示并禁用提交。创建成功后展开所在状态组；有具体标签筛选或新票不属于正在查看的 team 时重读列表，由筛选结果决定新 issue 是否显示。
+
+## 优先级和排序
+
+priority 独立于 status/type/标签。列表、看板及详情的选择器逐次保存；写入期间禁用该票的优先级控件，服务端成功后才更新显示，失败保留此前值并显示错误。创建与编辑弹窗的优先级属于草稿，提交成功后持久化，失败保留草稿。原生 dialog 内也使用同一 Radix 选择器，支持 Tab、Enter/Space、方向键和 Escape，用 Escape 关闭菜单后焦点回到触发器。
+
+优先级筛选参与 API 查询，包含显式 No priority。切换筛选清除批量选择；修改后的票不再匹配当前优先级筛选时重读列表。默认排序仅在 Agent ready 分组按 Urgent→High→Medium→Low→No priority，其他状态按最近更新；可全局切换 Last updated 或 Priority，同级按最近更新。筛选和排序只保存在组件内存中，刷新后重置。MCP/REST 的 `status=agent_ready` 默认优先级排序，显式 `sort=updated` 覆盖；其他查询默认更新时间倒序。服务端在 limit 之前排序，同时间按内部 id 倒序。未实现 Linear 的同档手动顺序、全局 P 快捷键和 Urgent 通知。
 
 ## 写入完成点
 

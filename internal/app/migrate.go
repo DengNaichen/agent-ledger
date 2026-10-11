@@ -147,6 +147,10 @@ var migrations = []string{
 		WHERE il.issue_id = NEW.issue_id AND old.group_id = incoming.group_id AND old.id <> incoming.id
 	)
 	BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;`,
+
+	// 3: Linear-compatible priority. Existing issues retain their data and
+	// receive no priority; adding a column does not rebuild references.
+	`ALTER TABLE issues ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4));`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

@@ -24,6 +24,12 @@
 
 对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用两列 24px 控件空间，展开箭头与复选框居中于首列，状态图标居中于第二列。
 
+## 优先级
+
+Priority 的档位与 [Linear](https://linear.app/docs/issue-property#priority) 对齐：No priority、Urgent、High、Medium、Low，对应 0–4。`shared.tsx` 的 `PriorityIcon` 自绘 16px 图形，参照官方菜单截图：未设置为三段横线，紧急为圆角方块加感叹号，其他档位为三根递增的实心柱、以亮柱数量表示级别。紧急使用 `#f2994a`（项目自定强调色），其余消费现有文字 token；不声称所有像素或取色与 Linear 完全一致。
+
+`PrioritySelect` 使用开源 `@radix-ui/react-select` 基础控件（MIT），项目 CSS 控制深色菜单、悬停、当前项勾选和焦点；没有引入 shadcn/Tailwind。列表和看板为 24px 图标触发器，详情及创建/编辑弹窗展示图标加名称。列表共享列依次为选择、优先级、状态、编号、标题、元信息及日期，分组标题保留优先级列空位。原生 dialog 内的菜单 portal 挂到 dialog 本身，保持在 modal 的 top layer 中，否则会被遮挡或无法操作。
+
 ## 状态与可访问外观
 
 状态图标供侧栏、列表、看板和详情复用。列表/卡片中的原生 select 透明覆盖图标；不要把透明误认为无需保留，键盘操作与 accessible name 来自这个 select。`.status-control:focus-within` 显示焦点，链接和按钮有 `:focus-visible` 描边。禁用按钮降低不透明度并改变 cursor；保存流程见 [交互](INTERACTION_DESIGN.md)。
