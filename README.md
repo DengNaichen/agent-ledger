@@ -130,6 +130,38 @@ claude mcp add --transport http inftask http://127.0.0.1:8787/w/default/mcp
 
 The server binds to loopback by default and wraps requests in Go cross-origin protection. Local mode has no separate `Host` allowlist or user authentication. Non-loopback listeners require UC authentication; see [security boundaries](docs/rules/SECURITY.md).
 
+## Agent plugin
+
+This repository is also a plugin marketplace for Claude Code and Codex. Its `inftask` plugin adds:
+
+- the MCP server `inftask` at the maintainer's cloud instance, `https://harnessagent.tokensinfinity.com/w/default/mcp`, which signs in with the public OAuth client `inftask`;
+- a `ticket` skill for finding, creating, and updating tickets from any repository. It takes the team key and workspace from the repository's `AGENTS.md` and asks when they are missing.
+
+The plugin has no hooks. The marketplaces are [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) for Claude Code and [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json) for Codex; the plugin is in [plugins/inftask/](plugins/inftask/). This repository's own [.agents/skills/](.agents/skills/) are its contribution workflow, not part of the plugin.
+
+Claude Code:
+
+```sh
+claude plugin marketplace add DengNaichen/inftask
+claude plugin install inftask@inftask
+```
+
+Codex:
+
+```sh
+codex plugin marketplace add DengNaichen/inftask
+codex plugin add inftask@inftask
+```
+
+A path to a local checkout works in place of `DengNaichen/inftask`. Start a new session after installing.
+
+The cloud MCP accepts only UC access tokens, so each client signs in once in the browser before its first tool call. In Claude Code, run `/mcp`, select `plugin:inftask:inftask`, and authenticate. In Codex, run `codex mcp login inftask`; `--no-browser` prints the authorization URL instead of opening a browser.
+
+To use another instance or workspace, override the server in your client's own configuration; the plugin's address is fixed. Every InfTask server uses the public client ID `inftask`, so only the URL changes. A local instance without sign-in needs no client ID.
+
+- Codex: a server named `inftask` in your Codex configuration replaces the plugin's. Run `codex mcp add inftask --url https://<host>/w/<slug>/mcp --oauth-client-id inftask`, then `codex mcp login inftask`. `codex mcp remove inftask` goes back to the plugin's server.
+- Claude Code: a server with a different URL does not replace the plugin's. Add your own with `claude mcp add --transport http --scope user --client-id inftask inftask https://<host>/w/<slug>/mcp`, authenticate it in `/mcp`, and turn off `plugin:inftask:inftask` there. Claude Code records that choice per project.
+
 ## Run as a macOS LaunchAgent
 
 launchd can keep a long-lived instance running: it starts the server at login and restarts it when it exits. Give that instance a non-default port, such as 8700, and keep the default 8787 for development builds, so a development server never opens the instance's database. Register MCP clients with the instance's port and the repository's workspace, such as `http://127.0.0.1:8700/w/default/mcp`.

@@ -1,0 +1,20 @@
+{
+  "name": "inftask",
+  "interface": {
+    "displayName": "InfTask"
+  },
+  "plugins": [
+    {
+      "name": "inftask",
+      "source": {
+        "source": "local",
+        "path": "./plugins/inftask"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

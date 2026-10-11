@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "inftask": {
+      "type": "http",
+      "url": "https://harnessagent.tokensinfinity.com/w/default/mcp",
+      "oauth": {
+        "clientId": "inftask"
+      }
+    }
+  }
+}
