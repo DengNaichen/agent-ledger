@@ -50,11 +50,12 @@ func TestMigrateRebuildsReferencedTable(t *testing.T) {
 			workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
 			name TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
+			emoji TEXT NOT NULL DEFAULT '',
 			archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
 			color TEXT NOT NULL DEFAULT 'gray' CHECK (color IN ('gray', 'blue')),
 			UNIQUE (workspace_id, name)
 		);
-		INSERT INTO projects_new(id, workspace_id, name, description, archived) SELECT id, workspace_id, name, description, archived FROM projects;
+		INSERT INTO projects_new(id, workspace_id, name, description, emoji, archived) SELECT id, workspace_id, name, description, emoji, archived FROM projects;
 		DROP TABLE projects;
 		ALTER TABLE projects_new RENAME TO projects;`
 	backups := filepath.Join(dir, "backups")
@@ -255,10 +256,10 @@ func TestMigrateIssueReferencesToIDs(t *testing.T) {
 	// What every issue looked like before migration 2.
 	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
 	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2"}
-	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), ProjectID: new(int64(1)), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
-	nine := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-9", Title: "Nine", Status: StatusInProgress, Type: new("feature"), Project: new("Core"), ProjectID: new(int64(1)), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
-	ten := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Ten", Status: StatusTriage, Parent: new("AL-1"), UpdatedAt: "u2"}, Description: "Ten body", CreatedAt: "c3"}
-	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{risk}, Identifier: "TOK-1", Title: "Other team", Status: StatusDone, Type: new("chore"), UpdatedAt: "u4"}, CreatedAt: "c4"}
+	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), ProjectID: new(int64(1)), UpdatedAt: "u1", CreatedAt: "c1"}, Description: "Spec body"}
+	nine := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-9", Title: "Nine", Status: StatusInProgress, Type: new("feature"), Project: new("Core"), ProjectID: new(int64(1)), Parent: new("AL-1"), UpdatedAt: "u3", CreatedAt: "c2"}}
+	ten := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Ten", Status: StatusTriage, Parent: new("AL-1"), UpdatedAt: "u2", CreatedAt: "c3"}, Description: "Ten body"}
+	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{risk}, Identifier: "TOK-1", Title: "Other team", Status: StatusDone, Type: new("chore"), UpdatedAt: "u4", CreatedAt: "c4"}}
 	details := func(issue Issue) IssueDetails {
 		return IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
 			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}
@@ -349,9 +350,9 @@ func TestMigrateWorkspaces(t *testing.T) {
 	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
 	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2", Description: "Watch it"}
 	retired := Label{ID: 3, Name: "Old", Color: "#000000", Archived: true}
-	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), ProjectID: new(int64(1)), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
-	child := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), ProjectID: new(int64(2)), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
-	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2"}, Description: "Other body", CreatedAt: "c3"}
+	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), ProjectID: new(int64(1)), UpdatedAt: "u1", CreatedAt: "c1"}, Description: "Spec body"}
+	child := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), ProjectID: new(int64(2)), Parent: new("AL-1"), UpdatedAt: "u3", CreatedAt: "c2"}}
+	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2", CreatedAt: "c3"}, Description: "Other body"}
 	details := func(issue Issue) IssueDetails {
 		return IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
 			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}

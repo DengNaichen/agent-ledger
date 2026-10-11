@@ -217,6 +217,9 @@ func TestListIssuesReturnsSummaries(t *testing.T) {
 	if _, err := def.CreateProject(ctx, "Delivery", "Ship the board", "AL"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := def.UpdateProject(ctx, app.UpdateProject{Name: "Delivery", Emoji: new("☁️")}); err != nil {
+		t.Fatal(err)
+	}
 	parent, err := def.Create(ctx, app.CreateIssue{Team: "AL", Title: "Board spec", Description: "Long context", Type: "spec"})
 	if err != nil {
 		t.Fatal(err)
@@ -257,6 +260,23 @@ func TestListIssuesReturnsSummaries(t *testing.T) {
 		t.Fatalf("listed %d issues: %s", len(raw.Issues), rec.Body.String())
 	}
 	for _, issue := range raw.Issues {
+		var createdAt string
+		if err := json.Unmarshal(issue["created_at"], &createdAt); err != nil || createdAt == "" {
+			t.Fatalf("summary has no creation date: %s", issue["created_at"])
+		}
+		var identifier, emoji string
+		if err := json.Unmarshal(issue["identifier"], &identifier); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(issue["project_emoji"], &emoji); err != nil {
+			t.Fatal(err)
+		}
+		if identifier == child.Identifier && (createdAt != child.CreatedAt || emoji != "☁️") {
+			t.Fatalf("child metadata: created %q, emoji %q", createdAt, emoji)
+		}
+		if identifier == parent.Identifier && (createdAt != parent.CreatedAt || emoji != "") {
+			t.Fatalf("parent metadata: created %q, emoji %q", createdAt, emoji)
+		}
 		if got := slices.Sorted(maps.Keys(issue)); !slices.Equal(got, want) {
 			t.Fatalf("issue fields %v, want the list_issues summary fields %v", got, want)
 		}

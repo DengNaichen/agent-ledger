@@ -124,8 +124,10 @@ function IssueControls({ issue, view, actions }: { issue: IssueSummary; view: Vi
     {priority}
     <NavLink to={href} className="identifier">{issue.identifier}</NavLink>
     {status}
-    <NavLink to={href} className="list-title">{issue.title}</NavLink>
-    <IssueMeta issue={issue} />
-    <time className="row-date" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+    <div className="row-content">
+      <NavLink to={href} className="list-title">{issue.title}</NavLink>
+      <IssueMeta issue={issue} />
+    </div>
+    <time className="row-date" dateTime={issue.created_at} title={`Created ${new Date(issue.created_at).toLocaleString()}`} aria-label={`Created ${new Date(issue.created_at).toLocaleDateString()}`}>{new Date(issue.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
   </>;
 }
