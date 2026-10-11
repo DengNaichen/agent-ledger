@@ -63,11 +63,14 @@ CREATE TABLE IF NOT EXISTS links (
     url TEXT NOT NULL
 );
 
+-- author is who wrote a comment imported from another tracker; comments
+-- added here have none.
 CREATE TABLE IF NOT EXISTS comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     issue_id INTEGER NOT NULL REFERENCES issues(id),
     body TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    author TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS events (

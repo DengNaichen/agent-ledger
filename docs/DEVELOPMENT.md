@@ -74,6 +74,27 @@ rm "$req"
 
 heredoc 定界符带引号（`<<'EOF'`），shell 不展开其中的 `$`、反引号和 `\`。正文换行在 JSON 字符串里写成 `\n`。`--data-binary` 原样发送文件内容；`-d @<文件>` 会删掉文件里的换行和回车。
 
+## 从 Linear 快照导入
+
+导出脚本 `scripts/linear/export.py` 和 `inftask import-linear` 的用法、输出文件、key 位置、映射和写入前检查见 [README](../README.md#import-from-linear)。快照含团队内部数据，放在仓库外（维护者的快照在 `~/Library/Application Support/inftask/linear-export/<日期>/`，目录权限 700），不进提交、fixture、ticket 或 PR；评论和 PR 里只写数量和结论。导出脚本调用 Linear API，只在需要新快照时运行。
+
+导入前先在副本上试：`sqlite3 <数据库> ".backup '<临时目录>/copy.db'"`，对副本运行导入并核对数量，用完删除副本。
+
+导入维护者实例时，在已合并 `import-linear` 的主检出执行。目标 team 要先存在，且 `next_number` 大于快照里的最大编号。
+
+```sh
+git switch main && git pull
+make build
+launchctl bootout gui/$(id -u)/io.github.dengnaichen.inftask
+db="$HOME/Library/Application Support/inftask/inftask.db"
+sqlite3 "$db" ".backup '$HOME/Library/Application Support/inftask/backups/before-linear-import.db'"
+./inftask import-linear -data "$db" -workspace default -team <team key> -from <快照目录>
+install -m 755 inftask ~/.local/bin/inftask
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.inftask.plist
+```
+
+依次是停实例、备份、导入、装新二进制并启动。导入像服务启动一样先执行未完成的迁移（迁移前副本照常写在 `backups/`），然后在一个事务里写入；非 0 退出时什么都没写，按报错处理后重跑，已占用的编号会列在报错里。`bootstrap` 紧跟 `bootout` 时可能报 `Bootstrap failed: 5: Input/output error`，等几秒重试。导入成功后要撤销：停实例，删除数据库的 `-wal`、`-shm`，用 `before-linear-import.db` 覆盖数据库，再启动；此后的写入会丢失。
+
 ## 合并后更新维护者实例
 
 仅在服务端改动已获准合并之后，沿用原贡献指南的步骤，在主检出执行：

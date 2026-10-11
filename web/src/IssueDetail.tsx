@@ -151,7 +151,10 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
             <h2>Comments</h2>
             {issue.comments.map((item, index) => (
               <article className="comment" key={index}>
-                <time dateTime={item.created_at}>{timestamp(item.created_at)}</time>
+                <header className="comment-meta">
+                  {item.author && <span className="comment-author">{item.author}</span>}
+                  <time dateTime={item.created_at}>{timestamp(item.created_at)}</time>
+                </header>
                 <MarkdownText text={item.body} />
               </article>
             ))}

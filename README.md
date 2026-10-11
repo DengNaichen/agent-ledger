@@ -42,6 +42,25 @@ The server keeps one copy of the database per day in a `backups` directory next 
 
 To restore, stop the server, delete the database's `-wal` and `-shm` files, copy a backup over the database file, and start the server again. Do not copy the live database file with `cp` while the server runs; most recent writes may still be in the `-wal` file.
 
+## Import from Linear
+
+`scripts/linear/export.py` takes a read-only snapshot of one Linear team through the Linear GraphQL API, using only the Python standard library. It reads a Linear personal API key from `~/.config/linear/api-key` (the key alone on one line; keep the file outside any repository and readable only by you) and writes JSON files into the output directory, which it creates:
+
+```sh
+python3 -I scripts/linear/export.py <output directory> <team key>
+```
+
+The output is `issues.json` (every issue of the team, including archived and trashed ones, with labels, relations, attachments, and comments), `projects.json`, `labels.json`, `states.json`, `users.json`, `documents.json`, and `team.json`; the script then prints counts. The snapshot holds the team's data: keep it out of the repository.
+
+`inftask import-linear` copies a snapshot's issues into an existing team of a workspace, keeping their identifiers and numbers. Create the team first, with `start_number` above the highest number in the snapshot so local numbering continues after it. The command opens the database as the server does, applying any pending migrations, so stop the server that uses the database before running it:
+
+1. Stop the server, such as with `launchctl bootout` for a LaunchAgent.
+2. Back up the database: `sqlite3 <database> ".backup '<backup file>'"`.
+3. Import: `inftask import-linear -data <database> -workspace <slug> -team <key> -from <snapshot directory>`. It prints what it wrote.
+4. Start the server again.
+
+The import reads `issues.json` and `projects.json` and writes in one transaction: everything, or nothing when any check fails. Before writing, it checks that the team exists, that every identifier is `<team key>-<number>`, and that every number is free in the team and below its `next_number`; the team's `next_number` does not change. Issues in the trash are skipped. Title, description, priority, and `createdAt`/`updatedAt` are kept. Statuses Triage, Backlog, Todo, Agent Ready, In Progress, In Review, Done, and Canceled map to the status of the same name; any other status stops the import. The Spec label gives type `spec`; otherwise one of Feature, Bug, Improvement, or Chore gives that type, no label gives no type, and any other label or two of those four stops the import. Every Project in `projects.json` is created unless the workspace has one with that name, which is used as it is; a new Project's description is Linear's description and then, after a blank line, its content, and it is archived when its Linear state is completed or canceled. Parents and `blocks` and `related` relations link issues by identifier; other relation types stop the import. Comments, replies included, are added in time order with their author: the user's name, or the bot's name for a bot. Attachments other than GitHub ones become links; GitHub sync records pull requests again. Each issue gets one `created` event at its `createdAt`. Estimates, cycles, milestones, assignees, creators, documents, and uploaded files are not imported.
+
 ## GitHub pull requests
 
 The server can link GitHub pull requests to issues. It polls each repository once a minute; cloud deployments can also trigger immediate refreshes through a signed webhook:
@@ -71,7 +90,7 @@ See [cloud deployment and recovery](docs/DEVELOPMENT.md#云端团队部署) for 
 The running server exposes these tools over streamable HTTP at `/w/<slug>/mcp`. Each request reads and writes the workspace in its path, and no tool takes a workspace argument; there are no tools to manage workspaces. A slug that does not exist returns 404.
 
 - `list_issues`: filter by status, priority, type, team key, Project name, parent identifier, title/description query, and labels (AND). `label_ids` and `label_group_ids` select predicates combined using `label_mode`: `any` (default), `all`, or `none`; `unlabeled` requires empty selections. Returns summaries including labels and priority, with a default limit of 50. Accepts `sort=priority|updated`; defaults to priority for `status=agent_ready`, otherwise `updated_at` descending.
-- `get_issue`: retrieve the full issue, comments, links, linked GitHub pull requests, parent identifier, children summaries, and `blocks`, `blocked_by`, and `related` summaries.
+- `get_issue`: retrieve the full issue, comments (each with an `author`, empty for comments added here), links, linked GitHub pull requests, parent identifier, children summaries, and `blocks`, `blocked_by`, and `related` summaries.
 - `create_issue`: create an issue with a required team key and title; optionally set description, status, type, Project, and parent. There is no default team. The issue gets the team's next number in one transaction with the insert.
 - `list_teams`: list teams with their key, name, and `next_number`.
 - `create_team`: create a team with a key of 2 to 6 uppercase letters or digits starting with a letter, and a required name. Numbering starts at 1, or at the optional `start_number`, so a team imported from another tracker does not reuse its old numbers. A key cannot be changed, and teams cannot be renamed or deleted.

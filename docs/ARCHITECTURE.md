@@ -2,7 +2,7 @@
 
 ## 运行与依赖方向
 
-`cmd/inftask/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务。配置 UC 时由 `internal/ucauth` 包裹页面、REST 和 MCP，承接网页会话与 MCP OAuth；单独挂载验签的 webhook 入口。`internal/httpapi` 挂载 `/api`、每个 workspace 的 `/w/<slug>/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
+`cmd/inftask/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务；第一个参数是 `import-linear` 时改为运行 `cmd/inftask/import.go` 的一次性导入，它调用 `internal/app/linear.go` 的 `ImportLinear`，不启动服务。配置 UC 时由 `internal/ucauth` 包裹页面、REST 和 MCP，承接网页会话与 MCP OAuth；单独挂载验签的 webhook 入口。`internal/httpapi` 挂载 `/api`、每个 workspace 的 `/w/<slug>/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
 
 workspace 只做分组：team、Project、标签和 PR 记录各属于一个 workspace，没有成员和权限。`/api/workspaces` 列出、新建和改名 workspace；其余 REST 路由在 `/api/w/<slug>/` 下，`httpapi` 先用 `Service.InWorkspace` 按路径里的 slug 取得只读写该 workspace 的 Service，slug 不存在时返回 404。MCP 每个请求同样按路径绑定 workspace，工具参数不含 workspace。`Service` 的查询都带 `workspace_id`，parent、关系、Project 和标签只能指向同一 workspace 的记录，别的 workspace 的记录按不存在处理；标签与所属组的 workspace 一致由复合外键保证。
 

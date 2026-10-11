@@ -303,6 +303,10 @@ var migrations = []string{
 	// 5: Linear-compatible priority. Existing issues retain their data and
 	// receive no priority; adding a column does not rebuild references.
 	`ALTER TABLE issues ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4));`,
+
+	// 6: comment authors. Comments imported from Linear keep who wrote them;
+	// existing comments, like those added later, have no author.
+	`ALTER TABLE comments ADD COLUMN author TEXT NOT NULL DEFAULT '';`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

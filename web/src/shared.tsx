@@ -54,7 +54,7 @@ export type IssueSummary = {
   updated_at: string;
 };
 
-export type Comment = { body: string; created_at: string };
+export type Comment = { body: string; created_at: string; author: string };
 export type Link = { title: string; url: string };
 export type PullRequest = { repo: string; number: number; title: string; url: string; state: "open" | "draft" | "merged" | "closed"; updated_at: string };
 

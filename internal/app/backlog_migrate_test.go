@@ -87,13 +87,16 @@ func TestMigrateBacklog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
-	// Migration 5 then appends priority, 0 for every existing issue.
+	// Migration 5 then appends priority, 0 for every existing issue, and
+	// migration 6 appends author, empty for every existing comment.
 	after := snapshot(service.db)
-	for i, row := range after["issues"] {
-		if row[len(row)-1] != int64(0) {
-			t.Fatalf("migrated priority = %#v", row)
+	for table, added := range map[string]any{"issues": int64(0), "comments": ""} {
+		for i, row := range after[table] {
+			if row[len(row)-1] != added {
+				t.Fatalf("migrated %s = %#v", table, row)
+			}
+			after[table][i] = row[:len(row)-1]
 		}
-		after["issues"][i] = row[:len(row)-1]
 	}
 	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("migration changed stored rows:\nbefore = %#v\nafter = %#v", before, after)
