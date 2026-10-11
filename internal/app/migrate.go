@@ -271,6 +271,34 @@ var migrations = []string{
 		WHERE il.issue_id = NEW.issue_id AND old.group_id = incoming.group_id AND old.id <> incoming.id
 	)
 	BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;`,
+
+	// 4: backlog. Rebuild only issues to extend its status CHECK; every id,
+	// workspace, field, reference, and the autoincrement high-water mark stays.
+	`CREATE TABLE issues_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		identifier TEXT NOT NULL,
+		team_id INTEGER NOT NULL REFERENCES teams(id),
+		number INTEGER NOT NULL,
+		title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+		description TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL CHECK (status IN ('triage', 'backlog', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+		type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
+		project_id INTEGER REFERENCES projects(id),
+		parent_id INTEGER REFERENCES issues(id) CHECK (parent_id <> id),
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		UNIQUE (workspace_id, identifier)
+	);
+	INSERT INTO issues_new(id, workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
+	SELECT id, workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at FROM issues;
+	DELETE FROM sqlite_sequence WHERE name = 'issues_new';
+	INSERT INTO sqlite_sequence(name, seq) SELECT 'issues_new', seq FROM sqlite_sequence WHERE name = 'issues';
+	DROP TABLE issues;
+	ALTER TABLE issues_new RENAME TO issues;
+	CREATE UNIQUE INDEX issues_team_number_idx ON issues(team_id, number);
+	CREATE INDEX issues_status_updated_idx ON issues(status, updated_at DESC);
+	CREATE INDEX issues_parent_idx ON issues(parent_id);`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

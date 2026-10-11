@@ -187,7 +187,7 @@
     --link-underline: rgba(143, 154, 240, .4);
     --code-bg: rgba(255, 255, 255, .06);
     --status-triage: #fc7840;
-  --status-backlog: #bec2c8;
+    --status-backlog: #bec2c8;
     --status-todo: #e2e2e2;
     --status-agent-ready: #b49bdd;
     --status-in-progress: #f2c94c;
