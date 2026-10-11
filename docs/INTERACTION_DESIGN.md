@@ -6,7 +6,7 @@
 
 左上角 `WorkspaceMenu.tsx` 显示当前 workspace 名称与箭头，菜单按 slug 列出全部 workspace、标记当前项，提供 Create workspace… 与 Rename workspace…。切换及创建成功都进入对应 `/<slug>/`，组件重新挂载并重置原 workspace 的筛选、选择和视图；浏览器前进后退按 URL 恢复 workspace。创建填 slug 和名称，改名只填名称；保存期间禁用输入和关闭，浏览器导航离开不会取消已发送的写入，但旧响应不会再导航或更新弹窗。成功后显示服务端返回的名称，失败保留输入并显示 role=alert。菜单重新打开时重读列表，加载失败可关闭重开；菜单及弹窗支持 Tab/Enter 和 Escape，关闭后焦点回到左上角入口。窄屏保留该入口。
 
-Sidebar 的 Workspace 有 All issues、All projects 与 Labels；每个 Team 有 Issues、Projects，Team 名称旁保留 emoji 与改名入口。改名入口在 hover、键盘焦点或触屏条件下显示。侧栏不再显示状态或局部结果数；状态筛选收进内容区的 Filter，当前结果数留在任务工具栏。窄屏用 Navigation 按钮展开同一组目的地，选择后收起。Teams 旁的 “+” 沿用 Create team 弹窗，成功后进入新 Team 的 Issues 范围，失败保留输入并显示 role=alert。
+Sidebar 的 Workspace 有 All issues、All projects、Labels 与 Settings；每个 Team 有 Issues、Projects，Team 名称旁的图标只作展示。Settings 直接进入正式页面，不经过浮窗菜单。侧栏不再显示状态或局部结果数；状态筛选收进内容区的 Filter，当前结果数留在任务工具栏。窄屏用 Navigation 按钮展开同一组目的地，选择后收起。Teams 旁的 “+” 沿用 Create team 弹窗，成功后进入新 Team 的 Issues 范围，失败保留输入并显示 role=alert。
 
 范围 URL：`/<slug>/` 是全部任务，`/<slug>/projects` 是全部项目，`/<slug>/team/<key>/issues` 与 `/<slug>/team/<key>/projects` 是 Team 范围，`/<slug>/project/<id>` 是项目全部任务；Project 使用稳定 id，Team 使用不可变 key（保留迁移产生的历史 key），已有 issue 详情路径继续可用。直达、刷新、前后退恢复范围。每次进入 sidebar 目的地或项目都清空 status、type、priority、标签、搜索、显式 Team 筛选和批量选择，包括再次点击同一路径；同 workspace 内保留 list/board 和排序。
 
@@ -32,15 +32,15 @@ New issue 明确展示 Team 和 Project。Team 任务页预选当前 Team；项�
 
 保存期间禁止关闭与修改，失败保留输入可重试，取消不写入；目录读取失败不会卸载已打开的表单，范围导航卸载后旧保存回调不影响新页面。成功后重读当前范围，不由客户端猜测归属。名称空白与重名分别由Service返回必填与冲突错误。
 
-## Team 显示名称
+## Team 设置
 
-侧栏每个 Team 的铅笔按钮和当前 Team 范围标题旁按钮打开 Rename team 对话框；窄屏可展开 Navigation 或从当前标题进入。名称去首尾空白后必填，提示 key 与已有票号保持不变。保存成功后替换 Team 缓存，侧栏、标题和新建任务的 Team 下拉立即使用服务端名称；失败保留输入并显示 role=alert。保存中禁用输入、提交和关闭，浏览器切换 workspace 导致卸载后旧响应不更新界面。取消不发送写入；Escape 关闭，焦点回到原入口。Project 改名由项目编辑表单及 REST/MCP 提供。
+`/<slug>/settings` 是正式的团队设置页，侧栏 Settings 直接进入；直达、刷新和浏览器前后退均按 URL 恢复。`SettingsPage.tsx` 展示各团队名称、emoji 与只读编号。名称和 emoji 先进入本地草稿，Save changes 一次 PATCH 保存；Reset 丢弃草稿，不发送写入。保存期间禁用该团队编辑，成功使用服务端返回值更新侧栏，失败保留草稿并显示 role=alert。重读目录不覆盖正在编辑的草稿；离开页面丢弃未保存修改，卸载后的写入回调不再影响新页面。团队页头也只展示图标和名称。Project 改名继续由项目编辑表单及 REST/MCP 提供。
 
 ## 项目与团队 emoji
 
-Team 的侧栏图标与当前 Team 标题、当前 Project 页标题提供共用 emoji 弹层入口。项目列表名称进入稳定项目页，侧栏 Issues/Projects 进入对应范围；不再用名称叠加隐藏筛选。窄屏可展开 Navigation 或使用当前标题入口。输入立即按英文名称、常用别名或 emoji 过滤；无结果时显示空态，清除搜索回到常用及分类列表。搜索框 ArrowDown 进入网格，Enter 选择首个结果；网格支持方向键、Home/End 和 Enter/Space。Escape 或点击外部关闭，Escape 后焦点回到图标按钮；在 Create team 内只关闭 emoji 弹层，保留团队草稿。
+Team 的 Settings 表单与当前 Project 页标题提供共用 emoji 选择器。项目列表名称进入稳定项目页，侧栏 Issues/Projects 进入对应范围；不再用名称叠加隐藏筛选。窄屏可展开 Navigation 进入 Settings；Project 使用当前标题入口。输入立即按英文名称、常用别名或 emoji 过滤；无结果时显示空态，清除搜索回到常用及分类列表。搜索框 ArrowDown 进入网格，Enter 选择首个结果；网格支持方向键、Home/End 和 Enter/Space。Escape 或点击外部关闭，Escape 后焦点回到图标按钮；在 Create team 内只关闭 emoji 弹层，保留团队草稿。
 
-已有项目/团队等待 PATCH 成功才更新图标和关闭；写入期间禁用选择及关闭，失败保持弹层、搜索词和原图标，显示错误，可以再次选择。Restore default 写入空值，刷新后仍保留服务端值。Create team 的 emoji 属于草稿，只随创建请求保存，失败保留草稿，取消不会新建团队。最近成功选择保存在浏览器 localStorage；存储不可用时仍能选择和保存图标。
+已有项目等待 PATCH 成功才更新图标和关闭；写入期间禁用选择及关闭，失败保持弹层、搜索词和原图标，显示错误，可以再次选择。Restore default 写入空值，刷新后仍保留服务端值。Settings 与 Create team 的 emoji 属于草稿，分别随 Save changes 与创建请求保存；失败保留草稿。最近成功选择保存在浏览器 localStorage；存储不可用时仍能选择和保存图标。
 
 ## 优先级和排序
 
