@@ -40,6 +40,10 @@
     {
       "path": "docs/rules/SECURITY.md",
       "owner": "security"
+    },
+    {
+      "path": "macos/README.md",
+      "owner": "macos-preview"
     }
   ]
 }
