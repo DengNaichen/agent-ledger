@@ -45,34 +45,11 @@ go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 ## MCP 工具没加载时
 
-Agent 会话没加载 `inftask` MCP 工具时，直接向实例上该仓库 workspace 的 `/w/<slug>/mcp`（本仓库是 `/w/default/mcp`）发 HTTP JSON-RPC `tools/call` 请求。服务端无状态，不需要先 `initialize`；请求要带下面两个头：
+正式实例使用 `https://harnessagent.tokensinfinity.com/w/default/mcp` 和 UC OAuth。Claude Code、Codex 均通过用户级 `inftask-cloud` 接入；仓库不再重复注册旧的本地 `inftask` 服务。工具未加载时先检查用户级配置与登录状态，再重新打开会话。不要把请求退回已停用的 8700 或直接修改保留的本机数据库。
 
-```sh
-curl -sS http://127.0.0.1:8700/w/default/mcp \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_issue","arguments":{"identifier":"AL-1"}}}'
-```
+只有持有有效 UC access token 的客户端才能经 HTTPS 发 HTTP JSON-RPC `tools/call`。请求需要 `Authorization: Bearer <token>`、`Content-Type: application/json` 和 `Accept: application/json, text/event-stream`；凭据由已认证客户端管理，不从聊天、日志或仓库文件获取。具体接入契约见下方 [远程 MCP](#远程-mcp)。
 
-`params.name` 是工具名，`params.arguments` 是工具参数；把 `method` 换成 `tools/list` 并去掉 `params`，可列出全部工具和参数 schema。成功时结果在 `result.structuredContent`；工具出错时 `result.isError` 为 `true`，原因在 `result.content[0].text`。写操作同样走 `tools/call`。
-
-`structuredContent` 的形状：单对象工具直接返回对象，`get_issue`、`create_issue`、`update_issue` 返回 issue，`add_comment` 返回评论，`add_link` 返回链接，`create_project`、`update_project` 返回 Project。列表工具包一层：`list_issues` 在 `issues` 下，`list_projects` 在 `projects` 下。`add_relation`、`remove_relation` 返回 `{}`。
-
-正文含中文、换行、引号或反引号时，不要内联进 `-d '...'`。先把 JSON 写进临时文件，再用 `--data-binary @<文件>` 发送：
-
-```sh
-req=$(mktemp)
-cat > "$req" <<'EOF'
-{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_comment","arguments":{"identifier":"AL-<编号>","body":"进展：`go vet ./...` 和 `make test` 通过。\n\n- 未运行：浏览器检查\n- 风险：无"}}}
-EOF
-curl -sS http://127.0.0.1:8700/w/default/mcp \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  --data-binary @"$req"
-rm "$req"
-```
-
-heredoc 定界符带引号（`<<'EOF'`），shell 不展开其中的 `$`、反引号和 `\`。正文换行在 JSON 字符串里写成 `\n`。`--data-binary` 原样发送文件内容；`-d @<文件>` 会删掉文件里的换行和回车。
+本地开发的 MCP 在自己的临时服务 `/w/<slug>/mcp` 上；`params.name` 是工具名，`params.arguments` 是参数，`tools/list` 可列出工具。成功时结果在 `result.structuredContent`，工具失败时 `result.isError` 为 `true`。开发环境不得使用正式数据或凭据。
 
 ## 从 Linear 快照导入
 
@@ -95,21 +72,11 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.in
 
 依次是停实例、备份、导入、装新二进制并启动。导入像服务启动一样先执行未完成的迁移（迁移前副本照常写在 `backups/`），然后在一个事务里写入；非 0 退出时什么都没写，按报错处理后重跑，已占用的编号会列在报错里。`bootstrap` 紧跟 `bootout` 时可能报 `Bootstrap failed: 5: Input/output error`，等几秒重试。导入成功后要撤销：停实例，删除数据库的 `-wal`、`-shm`，用 `before-linear-import.db` 覆盖数据库，再启动；此后的写入会丢失。
 
-## 合并后更新维护者实例
+## 合并后更新正式实例
 
-仅在服务端改动已获准合并之后，沿用原贡献指南的步骤，在主检出执行：
+正式实例在云端，合并后按下方云端部署流程以及服务器 `/opt/inftask/RUNBOOK.txt` 更新，保留现有 Compose project、数据和 Caddy 卷。本机 launchd 已停用，不能再用 `launchctl kickstart` 更新正式实例。本机库和 plist 仅供有明确授权的回滚使用。
 
-```sh
-git switch main && git pull
-make build
-install -m 755 inftask ~/.local/bin/inftask
-launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.inftask
-```
-
-`-github-repo` 的值是 `<slug>=<owner>/<name>`，支持逗号分隔多个绑定，也可重复传入该 flag；plist 里还是不带 `<slug>=` 的旧格式时，服务启动即退出，日志写出期望的格式。改 plist 后用 `bootout` 再 `bootstrap` 重新加载，`kickstart` 不会重读 plist。
-
-分支与工作树的清理顺序见 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。上述安装和重启不是本地验证的前置条件。
-
+分支与工作树清理遵循 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。本地开发仍使用隔离临时库。
 
 ## 云端团队部署
 
@@ -162,7 +129,7 @@ MCP host 配置服务 URL `https://<域名>/w/<slug>/mcp`、public client ID `in
 
 ### 本机数据迁入公网实例（AL-34）
 
-当前阶段只准备多仓库配置与手册，远程 MCP 和 agent 配置切换暂缓。以下是后续正式切换的操作顺序，不代表已执行。正式迁移前逐步取得维护者同意；远程 MCP 未验收时，不停用 agent 依赖的本机实例、不把公网副本作为独立可写正式库，以免两边数据分叉。
+正式迁移以维护者指定的数据源为准，以下步骤用于切换与恢复。迁移前获得操作授权；先验证两端远程 MCP，再冻结两边写入。云端成为唯一正式写入入口后，本机库仅作回滚保留，不允许两边继续独立写入。
 
 1. **准备与演练。** 核实本机 TOK 导入已经实际完成，不能用 AL-29 的副本验收代替。记录当前版本、数据库路径、launchd plist、服务器 Compose project/文件/卷名，以及各表计数和逐票状态。对运行中的库用 SQLite `.backup` 创建隔离副本，在空闲 loopback 端口用副本运行新版本，绑定两个仓库并注入真实 `GITHUB_TOKEN`，不启用 linkback。首次同步会读取历史 PR；等待两个仓库的 `github_sync` 游标建立且无同步失败，再比较同步前后 TOK 状态，列出 identifier、原状态、新状态供维护者确认。演练不用 8700、不访问正式库写入。检查 `PRAGMA integrity_check` 为 `ok`、`PRAGMA foreign_key_check` 无输出。
 2. **准备凭据。** Fine-grained PAT 限定两个仓库的 Pull requests 读取权限和 Metadata 读取权限。另生成随机 webhook secret；两者只保存在仓库外 `0600` 环境文件。部署变量改为 `GITHUB_REPOS`，旧 `GITHUB_REPO` 不再被 Compose 读取：
@@ -176,7 +143,7 @@ MCP host 配置服务 URL `https://<域名>/w/<slug>/mcp`、public client ID `in
 4. **安装数据与版本。** 将本机一致性备份传至服务器受保护的暂存路径，核对传输前后校验和。在 app 停止时把备份安装为已确认数据卷内的 `/data/inftask.db`，移走该路径原有的 `inftask.db-wal` 和 `inftask.db-shm`（旧文件已保留），设置数据库及数据目录归 UID 10001 可读写。使用支持本机 schema 的新镜像和准备好的环境，先运行现有部署的 Compose `config --quiet`，再启动 app。不要输出带真实凭据的完整 Compose config。
 5. **验证数据与同步。** 冻结期间的本机快照是比较基线：公网 AL/TOK 票数、评论、关系、链接计数必须一致，抽查正文和评论作者；状态变化必须与演练确认结果一致。检查健康、真实 UC 网页登录、数据库完整性、两个仓库的同步游标和错误日志。若失败，停止公网 app，按下面的回滚步骤处理，不切 agent 配置。
 6. **创建 webhook。** 两个 GitHub 仓库分别进入 Settings → Webhooks → Add webhook。Payload URL 为 `https://harnessagent.tokensinfinity.com/webhooks/github`，Content type 为 `application/json`，Secret 与服务端 `GITHUB_WEBHOOK_SECRET` 完全一致，启用 SSL verification，选择 Let me select individual events 后只勾 Pull requests。启用后初始 `ping` 返回 204；实际已配置仓库的 `pull_request` delivery 才应返回 202。在 Recent Deliveries 检查该事件和签名验证结果，并核对随后发生同步。轮询每分钟补漏，webhook 不代替读取凭据。
-7. **远程 MCP 与最终切换（暂缓）。** 恢复这阶段后，先在 Claude Code 和 Codex 各完成真实 UC OAuth 登录、tool call 与 refresh。任一失败就停止切换。全部验收通过后才将 `.mcp.json`、`.codex/config.toml`、`AGENTS.md` 的实例入口改为 `https://harnessagent.tokensinfinity.com/w/default/mcp`（文档按页面/REST/MCP 各自路径修改），再切 go-backend 的配置与开票流程（在其仓库另行处理）。确认所有写入者都指向公网后，本机 launchd 保持卸载，保留 plist、原库及备份。
+7. **远程 MCP 与最终切换。** 先在 Claude Code 和 Codex 各完成真实 UC OAuth 登录、tool call 与 refresh。任一失败就停止切换。全部验收通过后统一使用用户级 `inftask-cloud` 的 `https://harnessagent.tokensinfinity.com/w/default/mcp`，清空仓库 `.mcp.json` 的重复条目，在 `.codex/config.toml` 禁用旧 `inftask`，并更新 `AGENTS.md` 路由，再切 go-backend 的配置与开票流程（在其仓库另行处理）。确认所有写入者都指向公网后，本机 launchd 保持卸载，保留 plist、原库及备份。
 
 **回滚：** 先冻结写入、停公网 app 并停用新 webhook，保留公网数据库的一致性备份和排障文件。公网开始接受新写入后，不能直接用旧本机快照覆盖这些写入；先由维护者决定如何保全或接受丢失新增数据。需要恢复切换前基线时，在本机服务停止的条件下保留原库/WAL/SHM，移走目标旧 WAL/SHM，用切换前一致性备份恢复本机数据库，核对二进制 schema 兼容性和文件属主，恢复 agent 的本机地址，再 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.inftask.plist`。核对健康和票据后恢复写入；公网保持停止，避免双写。
 
