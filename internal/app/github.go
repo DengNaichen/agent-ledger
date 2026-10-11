@@ -209,7 +209,7 @@ func (g *GitHubSync) link(ctx context.Context, s *Service, repo string, pull git
 func (s *Service) advance(ctx context.Context, issue Issue, state, source string) error {
 	var target Status
 	switch {
-	case state == "open" && slices.Contains([]Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProgress}, issue.Status):
+	case state == "open" && slices.Contains([]Status{StatusTriage, StatusBacklog, StatusTodo, StatusAgentReady, StatusInProgress}, issue.Status):
 		target = StatusInReview
 	case state == "merged" && issue.Status != StatusDone && issue.Status != StatusCanceled:
 		target = StatusDone

@@ -18,7 +18,7 @@ make test
 | 改动 | 定向检查 | 证明范围 |
 | --- | --- | --- |
 | Service、输入、关系 | `go test ./internal/app -run TestIssueLifecycle` | 真实临时 SQLite 上的生命周期与业务规则 |
-| schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚、迁移 1 按前缀回填 team 和编号、迁移 2 把引用改为 id 后每张票输出不变、迁移 3 把现有数据放进 workspace `default` 且每张票输出不变 |
+| schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚、迁移 1 按前缀回填 team 和编号、迁移 2 把引用改为 id 后每张票输出不变、迁移 3 把现有数据放进 workspace `default` 且每张票输出不变、迁移 4 增加 backlog 且全部表数据与引用不变 |
 | 标签、互斥组、筛选与已有库安装 | `go test ./internal/app -run 'TestLabels\|TestLabelFilters\|TestLabelUpgrade'` | 真实 SQLite 上的互斥、幂等、批量回滚、归档、合并、筛选与旧数据保留 |
 | 备份 | `go test ./internal/app -run TestBackup` | 每日副本与保留行为 |
 | REST 读写、跨站边界 | `go test ./internal/httpapi` | httptest 请求、临时数据库、跨站 POST 被拒绝、workspace 的新建/列出/改名与 slug 校验 |
@@ -54,7 +54,7 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
    node scripts/browser/seed.mjs --url http://127.0.0.1:<端口>
    ```
 
-   脚本先经 `POST /api/workspaces` 建 workspace `default`，再经 `/w/default/mcp` 建 team `AL`，写入两个 Project 和 11 张 AL ticket，覆盖全部状态和 type、带两个子票的 spec、blocks / blocked_by / related、一个链接，以及含表格和代码块的正文和评论，逐行打印标识符、状态、type 和标题。服务里已有任何 workspace 时拒绝写入并 exit 1。AL-2 就是这张 spec，详情页的各种元素都在它上面；页面在 `/default/`，`/` 会跳到这里。
+   脚本先经 `POST /api/workspaces` 建 workspace `default`，再经 `/w/default/mcp` 建 team `AL`，写入两个 Project 和 11 张 AL ticket，覆盖除 `backlog` 外的状态和全部 type、带两个子票的 spec、blocks / blocked_by / related、一个链接，以及含表格和代码块的正文和评论，逐行打印标识符、状态、type 和标题。服务里已有任何 workspace 时拒绝写入并 exit 1。AL-2 就是这张 spec，详情页的各种元素都在它上面；页面在 `/default/`，`/` 会跳到这里。
 3. 在仓库外写截图列表，每项给出 `url`、`width`、`height` 和输出 `path`，再运行截图脚本：
 
    ```sh

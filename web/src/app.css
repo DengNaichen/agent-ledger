@@ -37,7 +37,8 @@
   --link: #4c57b7;
   --link-underline: rgba(76, 87, 183, .4);
   --code-bg: rgba(0, 0, 0, .055);
-  --status-triage: #737b86;
+  --status-triage: #fc7840;
+  --status-backlog: #737b86;
   --status-todo: #626974;
   --status-agent-ready: #8665b0;
   --status-in-progress: #987000;
@@ -185,7 +186,8 @@
     --link: #8f9af0;
     --link-underline: rgba(143, 154, 240, .4);
     --code-bg: rgba(255, 255, 255, .06);
-    --status-triage: #bec2c8;
+    --status-triage: #fc7840;
+    --status-backlog: #bec2c8;
     --status-todo: #e2e2e2;
     --status-agent-ready: #b49bdd;
     --status-in-progress: #f2c94c;
