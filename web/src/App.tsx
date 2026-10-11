@@ -327,14 +327,14 @@ function App() {
         ) : (
           <section className="list-view" aria-label="Issue list">
             {visibleColumns.map((column) => (
-              <section key={column.status}>
+              <section className="list-group" key={column.status}>
                 <button type="button" className="group-header" aria-expanded={!collapsed[column.status]} aria-controls={`rows-${column.status}`} onClick={() => setCollapsed((current) => ({ ...current, [column.status]: !current[column.status] }))}>
                   <ChevronDown className="icon chevron" />
                   <StatusIcon status={column.status} />
                   <span>{column.label}</span>
                   <small>{grouped[column.status].length}</small>
                 </button>
-                <div id={`rows-${column.status}`} hidden={collapsed[column.status]}>
+                <div className="list-rows" id={`rows-${column.status}`} hidden={collapsed[column.status]}>
                   {loading && <p className="list-empty">Loading…</p>}
                   {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
                   {grouped[column.status].map((issue) => (
