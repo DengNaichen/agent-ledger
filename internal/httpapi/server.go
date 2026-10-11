@@ -125,7 +125,7 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issues": issues})
+	writeJSON(w, http.StatusOK, map[string]any{"issues": app.Summaries(issues)})
 }
 
 func (s *server) createIssue(w http.ResponseWriter, r *http.Request) {
