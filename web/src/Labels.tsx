@@ -1,6 +1,6 @@
-import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { api, apiPath, Label, LabelBadge, LabelGroup, RequestError } from "./shared";
+import { api, apiPath, Label, LabelBadge, LabelGroup, ModalDialog, RequestError } from "./shared";
 
 export function useLabels() {
   const [labels, setLabels] = useState<Label[]>([]);
@@ -30,19 +30,8 @@ export function useLabels() {
 export type Catalog = ReturnType<typeof useLabels>;
 
 function LabelDialog({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = ref.current!;
-    const opener = document.activeElement as HTMLElement;
-    element.showModal();
-    element.querySelector<HTMLElement>('input:not([type="checkbox"]), select, textarea')!.focus();
-    return () => {
-      element.close();
-      opener.focus();
-    };
-  }, []);
   return (
-    <dialog ref={ref} className="issue-dialog label-dialog" aria-label={title} onCancel={onClose}>
+    <ModalDialog className="issue-dialog label-dialog" aria-label={title} restoreFocus onClose={onClose}>
       <header>
         <h2>{title}</h2>
         <button type="button" className="ghost" aria-label="Close labels" onClick={onClose}>
@@ -50,7 +39,7 @@ function LabelDialog({ title, children, onClose }: { title: string; children: Re
         </button>
       </header>
       {children}
-    </dialog>
+    </ModalDialog>
   );
 }
 function labelTitle(label: Label, groups: LabelGroup[]) {

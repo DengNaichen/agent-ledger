@@ -2,7 +2,7 @@
 
 ## 导航与任务上下文
 
-`shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 将筛选、视图和折叠状态保存在组件内存中，不持久化到 URL 或 localStorage；刷新不能承诺恢复这些选择。
+`shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 的 `WorkspaceView` 将筛选、视图和折叠状态保存在组件内存中，经属性交给侧边栏、筛选栏和看板/列表，不持久化到 URL 或 localStorage；刷新不能承诺恢复这些选择。
 
 侧边栏 Teams 分组列出全部 team，点一个 team 只看该 team 的票，筛选栏出现可清除的 team chip，All issues 清除 team、状态和 Project 筛选；team 筛选和 Project 筛选一样只在内存中，窄屏下侧边栏分组隐藏。Teams 旁的 “+” 打开 Create team 弹窗：key、名称和可选的起始编号，成功后切到新 team，失败保留输入并显示 role=alert。
 

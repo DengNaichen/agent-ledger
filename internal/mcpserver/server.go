@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/DengNaichen/inftask/internal/app"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -74,9 +76,15 @@ func Handler(service *app.Service) http.Handler {
 
 func New(service *app.Service) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "inftask", Version: "0.1.0"}, nil)
-	const statuses = "Statuses: triage, backlog, todo, agent_ready, in_progress, in_review, done, canceled. "
-	const types = "Types: spec, feature, bug, improvement, chore; empty string means no type. "
-	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, including priority. Default sort: priority for status=agent_ready, otherwise newest updated first. Explicit sort=priority or updated overrides; no priority sorts last; ties use newest updated then newest id. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types},
+	statusNames := make([]string, len(app.Statuses))
+	for i, status := range app.Statuses {
+		statusNames[i] = string(status)
+	}
+	statusList := strings.Join(statusNames, ", ")
+	typeList := strings.Join(app.Types, ", ")
+	statuses := "Statuses: " + statusList + ". "
+	types := "Types: " + typeList + "; empty string means no type. "
+	mcp.AddTool(server, issueTool[app.ListIssues](&mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, including priority. Default sort: priority for status=agent_ready, otherwise newest updated first. Explicit sort=priority or updated overrides; no priority sorts last; ties use newest updated then newest id. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types}, statusList, typeList),
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ListIssues) (*mcp.CallToolResult, listOutput, error) {
 			issues, err := service.List(ctx, input)
 			return nil, listOutput{Issues: app.Summaries(issues)}, err
@@ -86,12 +94,12 @@ func New(service *app.Service) *mcp.Server {
 			issue, err := service.Details(ctx, input.Identifier)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_issue", Description: "Create an issue in a team; team and title are required, status defaults to triage. There is no default team: use the team key the repository names, or list_teams. The identifier is <team key>-<n>, where n is the team's next number. Project and parent must already exist. " + statuses + types},
+	mcp.AddTool(server, issueTool[app.CreateIssue](&mcp.Tool{Name: "create_issue", Description: "Create an issue in a team; team and title are required, status defaults to triage. There is no default team: use the team key the repository names, or list_teams. The identifier is <team key>-<n>, where n is the team's next number. Project and parent must already exist. " + statuses + types}, statusList, typeList),
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Create(ctx, input)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "update_issue", Description: "Update only supplied fields; omitted priority is unchanged and priority=0 clears it. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types},
+	mcp.AddTool(server, issueTool[app.UpdateIssue](&mcp.Tool{Name: "update_issue", Description: "Update only supplied fields; omitted priority is unchanged and priority=0 clears it. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types}, statusList, typeList),
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Update(ctx, input)
 			return nil, issue, err
@@ -151,4 +159,18 @@ func New(service *app.Service) *mcp.Server {
 		})
 	addLabelTools(server, service)
 	return server
+}
+
+// issueTool infers the input schema of In and appends the allowed values to
+// the description of its status and type properties. The values are
+// documentation only; the Service validates them.
+func issueTool[In any](tool *mcp.Tool, statusList, typeList string) *mcp.Tool {
+	schema, err := jsonschema.For[In](nil)
+	if err != nil {
+		panic(err)
+	}
+	schema.Properties["status"].Description += ". Statuses: " + statusList
+	schema.Properties["type"].Description += ". Types: " + typeList
+	tool.InputSchema = schema
+	return tool
 }
