@@ -18,4 +18,4 @@
 | linkback | 默认关闭的 GitHub 回写：把 issue 标题、描述作为评论发到关联的 open/draft PR。不是本地 link。 |
 | events / comments | events 记录创建与状态变化；comments 是用户或 Agent 追加的正文，不能编辑或删除；`author` 只有从 Linear 导入的评论才有，本地追加的为空。 |
 
-定义以 `internal/app/service.go`、`schema.sql`、`github.go`、MCP 工具描述及 [ticket skill](../.agents/skills/ticket/SKILL.md) 为依据。
+定义以 `internal/app` 的 `workspace.go`、`issue.go`、`project.go`、`team.go`、`schema.sql`、`github.go`、MCP 工具描述及 [ticket skill](../.agents/skills/ticket/SKILL.md) 为依据。
