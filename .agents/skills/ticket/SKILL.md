@@ -16,6 +16,8 @@ Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: 
 ## Type and status
 
 - `type`: `spec` for a top-level user-visible requirement; `feature`, `bug`, `improvement`, or `chore` for a ticket that delivers a change; empty for records.
+- `triage` means newly arrived work whose retention has not been decided.
+- `backlog` means work worth keeping, without a commitment to when it will be done.
 - `todo` means the work is committed to. It says nothing about the type or who executes it.
 - `agent_ready` admits a ticket to the agent queue once it passes the gate below. Work the user asked to do right now goes straight to `in_progress`.
 - `in_review` once the pull request can be reviewed; `done` after it is merged. GitHub sync sets both; see [git-workflow](../git-workflow/SKILL.md).

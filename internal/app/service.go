@@ -18,6 +18,7 @@ type Status string
 
 const (
 	StatusTriage     Status = "triage"
+	StatusBacklog    Status = "backlog"
 	StatusTodo       Status = "todo"
 	StatusAgentReady Status = "agent_ready"
 	StatusInProgress Status = "in_progress"
@@ -30,7 +31,7 @@ var (
 	ErrNotFound        = errors.New("issue not found")
 	ErrProjectNotFound = errors.New("project not found")
 	ErrInvalidTitle    = errors.New("title is required")
-	ErrInvalidStatus   = errors.New("invalid status: use triage, todo, agent_ready, in_progress, in_review, done, or canceled")
+	ErrInvalidStatus   = errors.New("invalid status: use triage, backlog, todo, agent_ready, in_progress, in_review, done, or canceled")
 	ErrInvalidType     = errors.New("invalid type: use spec, feature, bug, improvement, chore, or an empty string")
 	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
 	ErrTeamRequired    = errors.New("team is required")
@@ -41,7 +42,7 @@ var (
 
 var teamKey = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,5}$`)
 
-var Statuses = []Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProgress, StatusInReview, StatusDone, StatusCanceled}
+var Statuses = []Status{StatusTriage, StatusBacklog, StatusTodo, StatusAgentReady, StatusInProgress, StatusInReview, StatusDone, StatusCanceled}
 
 //go:embed schema.sql
 var schema string

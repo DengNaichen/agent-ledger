@@ -60,7 +60,7 @@ func Handler(service *app.Service) http.Handler {
 
 func New(service *app.Service) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "inftask", Version: "0.1.0"}, nil)
-	const statuses = "Statuses: triage, todo, agent_ready, in_progress, in_review, done, canceled. "
+	const statuses = "Statuses: triage, backlog, todo, agent_ready, in_progress, in_review, done, canceled. "
 	const types = "Types: spec, feature, bug, improvement, chore; empty string means no type. "
 	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, newest updated first. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ListIssues) (*mcp.CallToolResult, listOutput, error) {

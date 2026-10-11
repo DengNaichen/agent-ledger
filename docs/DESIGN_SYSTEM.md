@@ -12,9 +12,10 @@
 
 界面图标来自 `lucide-react`（ISC 许可）。组件写 `className="icon"`，尺寸和描边由 `.icon` 统一设为 16px、1.5，不在组件上传 `size` 或 `strokeWidth`。现有对应：`List` 是全部 issue 和列表视图，`Columns2` 是看板视图，`Box` 是 Project，`ChevronDown` 是分组折叠，`Search` 是搜索，`Tag` 是 type 筛选，`X` 是清除筛选和关闭弹窗。lucide 在没有 accessible name 时自动加 `aria-hidden`；只有图标的按钮在按钮上写 `aria-label`。
 
-状态图标由 `shared.tsx` 的 `StatusIcon` 在 14×14 网格上自绘，按 14px 显示，不用 lucide，也不从其他项目复制代码。形状和颜色都写在组件里。颜色参照 Linear 的状态配色：todo、in_progress、done 按 Linear 截图取色；triage、in_review、canceled 的取值没有找到公开来源核实；agent_ready 在 Linear 没有对应状态，用自定的紫色。
+状态图标由 `shared.tsx` 的 `StatusIcon` 在 14×14 网格上自绘，按 14px 显示，不用 lucide，也不从其他项目复制代码。形状和颜色都写在组件里。颜色参照 Linear 的状态配色：todo、in_progress、done 按 Linear 截图取色；triage、backlog 采用 AL-32 指定的颜色；in_review、canceled 的取值没有找到公开来源核实；agent_ready 在 Linear 没有对应状态，用自定的紫色。
 
-- triage：虚线圈，`#bec2c8`
+- triage：实心圆加 ⇄ 形状的双箭头，`#fc7840`
+- backlog：虚线圈，`#bec2c8`
 - todo：空心圈，`#e2e2e2`
 - agent_ready：空心圈加中心小点，`#b49bdd`
 - in_progress：圈内填一半扇形，`#f2c94c`
@@ -22,7 +23,7 @@
 - done：实心圆加对勾，`#5e6ad2`
 - canceled：实心圆加叉，`#95a2b3`
 
-对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用两列 24px 控件空间，展开箭头与复选框居中于首列，状态图标居中于第二列。
+双箭头、对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用两列 24px 控件空间，展开箭头与复选框居中于首列，状态图标居中于第二列。
 
 ## 状态与可访问外观
 
