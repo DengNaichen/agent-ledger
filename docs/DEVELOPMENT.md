@@ -76,6 +76,8 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.in
 
 正式实例在云端，合并后按下方云端部署流程以及服务器 `/opt/inftask/RUNBOOK.txt` 更新，保留现有 Compose project、数据和 Caddy 卷。本机 launchd 已停用，不能再用 `launchctl kickstart` 更新正式实例。本机库和 plist 仅供有明确授权的回滚使用。
 
+正式实例所在的主机就是 `harnessagent.tokensinfinity.com` 解析到的机器，连接前先用 `dig +short harnessagent.tokensinfinity.com` 核对地址。维护者本机的 SSH 别名 `harness` 指向另一台服务器，那台机器上没有 `/opt/inftask`，不得用它部署或运维 InfTask。建议在自己的 `~/.ssh/config` 里给正式主机单独建一个别名，不要复用 `harness`。登录用户和密钥由维护者提供，不写进仓库。
+
 分支与工作树清理遵循 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。本地开发仍使用隔离临时库。
 
 ## 云端团队部署
