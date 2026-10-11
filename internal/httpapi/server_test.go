@@ -335,8 +335,8 @@ func TestCreateTeamOverREST(t *testing.T) {
 		want  int
 		check string
 	}{
-		{`{"key":"TOK","name":"TokfinityFde","start_number":1227}`, http.StatusCreated, `{"key":"TOK","name":"TokfinityFde","next_number":1227}`},
-		{`{"key":"OPS","name":"Ops"}`, http.StatusCreated, `{"key":"OPS","name":"Ops","next_number":1}`},
+		{`{"key":"TOK","name":"TokfinityFde","start_number":1227}`, http.StatusCreated, `{"emoji":"","key":"TOK","name":"TokfinityFde","next_number":1227}`},
+		{`{"key":"OPS","name":"Ops"}`, http.StatusCreated, `{"emoji":"","key":"OPS","name":"Ops","next_number":1}`},
 		{`{"key":"TOK","name":"Again"}`, http.StatusConflict, `{"error":"` + app.ErrTeamExists.Error() + `"}`},
 		{`{"key":"tok","name":"Lowercase"}`, http.StatusBadRequest, `{"error":"` + app.ErrInvalidTeam.Error() + `"}`},
 		{`{"key":"ZERO","name":"Zero","start_number":0}`, http.StatusBadRequest, `{"error":"` + app.ErrInvalidTeam.Error() + `"}`},

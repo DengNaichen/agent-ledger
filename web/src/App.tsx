@@ -3,6 +3,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { IssueDetail } from "./IssueDetail";
 import { RequestError, api, apiPath, columns, Issue, IssueMeta, IssueSummary, navigate, NavLink, pagePath, Project, Status, StatusIcon, StatusSelect, Team, Workspace, workspaceSlug, priorities, Priority, PrioritySelect, IssueSort } from "./shared";
 
+import { EmojiPicker, EntityEmoji } from "./EmojiPicker";
+
 import { Session } from "./Session";
 
 import { emptyLabelFilter, LabelFilter, LabelFilterValue, LabelManager, LabelPicker, useLabels } from "./Labels";
@@ -163,6 +165,19 @@ function WorkspaceView() {
     setDialog(null);
   }
 
+  async function changeProjectEmoji(item: Project, emoji: string) {
+    const updated = await api<Project>(apiPath(`/projects/${encodeURIComponent(item.name)}`), "PATCH", { emoji });
+    setProjects((current) => current.map((project) => project.name === item.name ? updated : project));
+  }
+
+  async function changeTeamEmoji(item: Team, emoji: string) {
+    const updated = await api<Team>(apiPath(`/teams/${encodeURIComponent(item.key)}`), "PATCH", { emoji });
+    setTeams((current) => current.map((team) => team.key === item.key ? updated : team));
+  }
+
+  const activeProject = projects.find((item) => item.name === project);
+  const activeTeam = teams.find((item) => item.key === team);
+
   function addTeam(created: Team) {
     setTeams((current) => [...current, created].sort((a, b) => a.key.localeCompare(b.key)));
     selectFilter("all", "", created.key);
@@ -227,11 +242,12 @@ function WorkspaceView() {
             <button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={() => setDialog("team")}><Plus className="icon" /></button>
           </div>
           {teams.map((item) => (
-            <button type="button" key={item.key} className={`nav-item ${team === item.key && !managingLabels ? "active" : ""}`} aria-pressed={team === item.key && !managingLabels} onClick={() => selectFilter("all", "", item.key)}>
-              <span className="team-mark">{item.key.slice(0, 2)}</span>
-              <span className="nav-label">{item.name}</span>
-              <small>{item.key}</small>
-            </button>
+            <div key={item.key} className={`nav-item entity-nav ${team === item.key && !managingLabels ? "active" : ""}`}>
+              <EmojiPicker value={item.emoji} teamKey={item.key} label={`Change emoji for team ${item.name}`} onChange={(emoji) => changeTeamEmoji(item, emoji)} />
+              <button type="button" className="entity-link" aria-pressed={team === item.key && !managingLabels} onClick={() => selectFilter("all", "", item.key)}>
+                <span className="nav-label">{item.name}</span><small>{item.key}</small>
+              </button>
+            </div>
           ))}
 
           <div className="sidebar-label">Statuses</div>
@@ -245,10 +261,10 @@ function WorkspaceView() {
 
           {projects.length > 0 && <div className="sidebar-label">Projects</div>}
           {projects.map((item) => (
-            <button type="button" key={item.name} title={item.description} className={`nav-item ${project === item.name ? "active" : ""}`} aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}>
-              <Box className="icon" />
-              <span className="nav-label">{item.name}</span>
-            </button>
+            <div key={item.name} title={item.description} className={`nav-item entity-nav ${project === item.name ? "active" : ""}`}>
+              <EmojiPicker value={item.emoji} label={`Change emoji for project ${item.name}`} onChange={(emoji) => changeProjectEmoji(item, emoji)} />
+              <button type="button" className="entity-link" aria-pressed={project === item.name} onClick={() => selectFilter("all", item.name)}><span className="nav-label">{item.name}</span></button>
+            </div>
           ))}
         </div>
 
@@ -258,6 +274,7 @@ function WorkspaceView() {
       <main className="panel">
         <header className="header-row">
           <nav className="breadcrumb" aria-label="Breadcrumb">
+            {!managingLabels && (activeProject ? <EmojiPicker value={activeProject.emoji} label={`Change emoji for project ${activeProject.name}`} onChange={(emoji) => changeProjectEmoji(activeProject, emoji)} /> : activeTeam ? <EmojiPicker value={activeTeam.emoji} teamKey={activeTeam.key} label={`Change emoji for team ${activeTeam.name}`} onChange={(emoji) => changeTeamEmoji(activeTeam, emoji)} /> : null)}
             {detailIdentifier ? (
               <><NavLink to={pagePath("/")}>{heading}</NavLink><span className="separator">/</span><span>{detailIdentifier}</span></>
             ) : (
@@ -283,14 +300,14 @@ function WorkspaceView() {
               )}
               {team && (
                 <span className="chip">
-                  <span className="team-mark">{team.slice(0, 2)}</span>
+                  <EntityEmoji emoji={activeTeam?.emoji || ""} teamKey={team} />
                   {team}
                   <button type="button" aria-label={`Clear ${team} filter`} onClick={() => selectFilter(filter, project, "")}><X className="icon" /></button>
                 </span>
               )}
               {project && (
                 <span className="chip">
-                  <Box className="icon" />
+                  <EntityEmoji emoji={activeProject?.emoji || ""} />
                   {project}
                   <button type="button" aria-label={`Clear ${project} filter`} onClick={() => selectFilter(filter, "")}><X className="icon" /></button>
                 </span>
@@ -513,6 +530,7 @@ function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate
   const keyInput = useRef<HTMLInputElement>(null);
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState("");
   const [startNumber, setStartNumber] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -529,7 +547,7 @@ function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate
     setSaving(true);
     setError("");
     try {
-      onCreate(await api<Team>(apiPath("/teams"), "POST", { key, name, start_number: startNumber ? Number(startNumber) : undefined }));
+      onCreate(await api<Team>(apiPath("/teams"), "POST", { key, name, emoji, start_number: startNumber ? Number(startNumber) : undefined }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -545,6 +563,7 @@ function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate
           <button type="button" className="ghost" aria-label="Close" onClick={onClose}><X className="icon" /></button>
         </header>
         <label>Key<input ref={keyInput} value={key} onChange={(event) => setKey(event.target.value.toUpperCase())} placeholder="TOK" pattern="[A-Z][A-Z0-9]{1,5}" maxLength={6} required /></label>
+        <div className="dialog-priority"><span>Emoji</span><EmojiPicker value={emoji} teamKey={key || "TE"} label="New team emoji" onChange={setEmoji} disabled={saving} /></div>
         <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Team name" required /></label>
         <label>Start number<input type="number" min={1} step={1} value={startNumber} onChange={(event) => setStartNumber(event.target.value)} placeholder="1" /></label>
         <p className="dialog-hint">Issues are numbered {key || "KEY"}-{startNumber || "1"}, {key || "KEY"}-{startNumber ? Number(startNumber) + 1 : "2"}, and so on. Set a start number above numbers the team already used elsewhere. The key cannot be changed later.</p>

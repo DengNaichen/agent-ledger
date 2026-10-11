@@ -307,6 +307,10 @@ var migrations = []string{
 	// 6: comment authors. Comments imported from Linear keep who wrote them;
 	// existing comments, like those added later, have no author.
 	`ALTER TABLE comments ADD COLUMN author TEXT NOT NULL DEFAULT '';`,
+
+	// Entity emoji icons. Empty values keep the existing default icons.
+	`ALTER TABLE projects ADD COLUMN emoji TEXT NOT NULL DEFAULT '';
+	ALTER TABLE teams ADD COLUMN emoji TEXT NOT NULL DEFAULT '';`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

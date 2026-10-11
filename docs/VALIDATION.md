@@ -19,6 +19,7 @@ make test
 | --- | --- | --- |
 | Service、输入、关系 | `go test ./internal/app -run TestIssueLifecycle` | 真实临时 SQLite 上的生命周期与业务规则 |
 | schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚、迁移 1 按前缀回填 team 和编号、迁移 2 把引用改为 id 后每张票输出不变、迁移 3 把现有数据放进 workspace `default` 且每张票输出不变、迁移 4 增加 backlog 且全部表数据与引用不变、迁移 6 给评论加空作者、本地评论作者为空，且新库与升级库的列、外键、索引和触发器一致 |
+| 项目/团队 emoji | `go test ./internal/app -run 'TestEntityEmojiLifecycle\|TestMigrateEntityEmoji'`，`go test ./internal/httpapi ./internal/mcpserver -run TestEntityEmoji` | Unicode 序列校验、保存/清空/省略、workspace 隔离、编号保留、迁移备份和新旧 schema 一致、REST 跨站及 MCP 工具契约 |
 | 标签、互斥组、筛选与已有库安装 | `go test ./internal/app -run 'TestLabels\|TestLabelFilters\|TestLabelUpgrade'` | 真实 SQLite 上的互斥、幂等、批量回滚、归档、合并、筛选与旧数据保留 |
 | 备份 | `go test ./internal/app -run TestBackup` | 每日副本与保留行为 |
 | Linear 导入 | `go test ./internal/app -run TestImportLinear` | 手写虚构快照（`internal/app/testdata/linear/`）上的全部映射：字段原样、状态、priority、type、Project 新建/匹配/归档、parent、blocks/related、评论顺序与作者、非 GitHub 附件转链接、`created` 事件、跳过回收站；team 不存在、编号不小于 `next_number`、编号已占用及映射外的输入都中止且不写入。不证明真实快照的数量，那要在 `.backup` 副本上试导入核对 |

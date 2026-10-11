@@ -68,9 +68,9 @@ export type IssueDetails = Issue & {
   related: IssueSummary[];
 };
 
-export type Project = { name: string; description: string; archived: boolean };
+export type Project = { name: string; description: string; archived: boolean; emoji: string };
 
-export type Team = { key: string; name: string; next_number: number };
+export type Team = { key: string; name: string; next_number: number; emoji: string };
 
 export type Workspace = { slug: string; name: string };
 

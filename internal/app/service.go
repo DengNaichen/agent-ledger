@@ -136,24 +136,28 @@ type UpdateIssue struct {
 }
 
 type Project struct {
+	Emoji       string `json:"emoji" jsonschema:"emoji icon; empty uses the default icon"`
 	Name        string `json:"name" jsonschema:"unique Project name"`
 	Description string `json:"description" jsonschema:"the Project outcome"`
 	Archived    bool   `json:"archived"`
 }
 
 type UpdateProject struct {
+	Emoji       *string `json:"emoji,omitempty" jsonschema:"Unicode emoji icon; omitted leaves unchanged, empty clears"`
 	Name        string  `json:"name" jsonschema:"existing Project name; cannot be renamed"`
 	Description *string `json:"description,omitempty" jsonschema:"new Project outcome; omitted leaves unchanged"`
 	Archived    *bool   `json:"archived,omitempty" jsonschema:"archive or unarchive the Project; omitted leaves unchanged"`
 }
 
 type Team struct {
+	Emoji      string `json:"emoji" jsonschema:"emoji icon; empty uses the default icon"`
 	Key        string `json:"key" jsonschema:"identifier prefix; fixed once created"`
 	Name       string `json:"name"`
 	NextNumber int    `json:"next_number" jsonschema:"number the team's next issue gets"`
 }
 
 type CreateTeam struct {
+	Emoji       string `json:"emoji,omitempty" jsonschema:"optional Unicode emoji icon; empty uses the default icon"`
 	Key         string `json:"key" jsonschema:"2 to 6 uppercase letters or digits starting with a letter, such as AL; cannot be changed later"`
 	Name        string `json:"name" jsonschema:"required nonempty team name"`
 	StartNumber *int   `json:"start_number,omitempty" jsonschema:"number the team's first issue gets, at least 1; omitted starts at 1"`
@@ -753,7 +757,7 @@ func (s *Service) Relation(ctx context.Context, identifier, kind, other string, 
 }
 
 func (s *Service) ListProjects(ctx context.Context, includeArchived bool) ([]Project, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT name, description, archived FROM projects WHERE workspace_id = ? AND (? OR NOT archived) ORDER BY name`, s.workspace, includeArchived)
+	rows, err := s.db.QueryContext(ctx, `SELECT name, description, archived, emoji FROM projects WHERE workspace_id = ? AND (? OR NOT archived) ORDER BY name`, s.workspace, includeArchived)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +765,7 @@ func (s *Service) ListProjects(ctx context.Context, includeArchived bool) ([]Pro
 	projects := []Project{}
 	for rows.Next() {
 		var project Project
-		if err := rows.Scan(&project.Name, &project.Description, &project.Archived); err != nil {
+		if err := rows.Scan(&project.Name, &project.Description, &project.Archived, &project.Emoji); err != nil {
 			return nil, err
 		}
 		projects = append(projects, project)
@@ -775,9 +779,12 @@ func (s *Service) CreateProject(ctx context.Context, name, description string) (
 }
 
 func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Project, error) {
+	if input.Emoji != nil && !validEmoji(*input.Emoji) {
+		return Project{}, ErrInvalidEmoji
+	}
 	var project Project
-	err := s.db.QueryRowContext(ctx, `UPDATE projects SET description = COALESCE(?, description), archived = COALESCE(?, archived)
-		WHERE workspace_id = ? AND name = ? RETURNING name, description, archived`, input.Description, input.Archived, s.workspace, input.Name).Scan(&project.Name, &project.Description, &project.Archived)
+	err := s.db.QueryRowContext(ctx, `UPDATE projects SET description = COALESCE(?, description), archived = COALESCE(?, archived), emoji = COALESCE(?, emoji)
+		WHERE workspace_id = ? AND name = ? RETURNING name, description, archived, emoji`, input.Description, input.Archived, input.Emoji, s.workspace, input.Name).Scan(&project.Name, &project.Description, &project.Archived, &project.Emoji)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, ErrProjectNotFound
 	}
@@ -785,7 +792,7 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 }
 
 func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, name, next_number FROM teams WHERE workspace_id = ? ORDER BY key`, s.workspace)
+	rows, err := s.db.QueryContext(ctx, `SELECT key, name, next_number, emoji FROM teams WHERE workspace_id = ? ORDER BY key`, s.workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -793,7 +800,7 @@ func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
 	teams := []Team{}
 	for rows.Next() {
 		var team Team
-		if err := rows.Scan(&team.Key, &team.Name, &team.NextNumber); err != nil {
+		if err := rows.Scan(&team.Key, &team.Name, &team.NextNumber, &team.Emoji); err != nil {
 			return nil, err
 		}
 		teams = append(teams, team)
@@ -802,17 +809,20 @@ func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
 }
 
 // CreateTeam adds a team whose numbering starts at StartNumber, or 1 when it
-// is omitted. Teams cannot be changed or deleted.
+// is omitted. A team's key, name, and numbering cannot be changed.
 func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error) {
-	team := Team{Key: input.Key, Name: strings.TrimSpace(input.Name), NextNumber: 1}
+	team := Team{Key: input.Key, Name: strings.TrimSpace(input.Name), NextNumber: 1, Emoji: input.Emoji}
+	if !validEmoji(input.Emoji) {
+		return Team{}, ErrInvalidEmoji
+	}
 	if input.StartNumber != nil {
 		team.NextNumber = *input.StartNumber
 	}
 	if !teamKey.MatchString(team.Key) || team.Name == "" || team.NextNumber < 1 {
 		return Team{}, ErrInvalidTeam
 	}
-	result, err := s.db.ExecContext(ctx, `INSERT INTO teams(workspace_id, key, name, next_number) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO NOTHING`,
-		s.workspace, team.Key, team.Name, team.NextNumber)
+	result, err := s.db.ExecContext(ctx, `INSERT INTO teams(workspace_id, key, name, next_number, emoji) VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO NOTHING`,
+		s.workspace, team.Key, team.Name, team.NextNumber, team.Emoji)
 	if err != nil {
 		return Team{}, err
 	}

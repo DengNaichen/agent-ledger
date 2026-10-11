@@ -35,6 +35,8 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/w/{workspace}/issues/{identifier}", s.in((*server).getIssue))
 	mux.HandleFunc("POST /api/w/{workspace}/issues/{identifier}/comments", s.in((*server).addComment))
 	mux.HandleFunc("GET /api/w/{workspace}/projects", s.in((*server).listProjects))
+	mux.HandleFunc("PATCH /api/w/{workspace}/projects/{name}", s.in((*server).updateProject))
+	mux.HandleFunc("PATCH /api/w/{workspace}/teams/{key}", s.in((*server).updateTeam))
 	mux.HandleFunc("GET /api/w/{workspace}/teams", s.in((*server).listTeams))
 	mux.HandleFunc("POST /api/w/{workspace}/teams", s.in((*server).createTeam))
 	for _, method := range []string{"GET", "POST", "DELETE"} {
@@ -248,7 +250,7 @@ func writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound), errors.Is(err, app.ErrWorkspaceNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidPriority), errors.Is(err, app.ErrInvalidSort), errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam), errors.Is(err, app.ErrInvalidWorkspace):
+	case errors.Is(err, app.ErrInvalidEmoji), errors.Is(err, app.ErrInvalidPriority), errors.Is(err, app.ErrInvalidSort), errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam), errors.Is(err, app.ErrInvalidWorkspace):
 		status = http.StatusBadRequest
 	case errors.Is(err, app.ErrTeamExists), errors.Is(err, app.ErrWorkspaceExists):
 		status = http.StatusConflict
