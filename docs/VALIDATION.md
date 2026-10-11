@@ -27,6 +27,7 @@ make test
 | REST 读写、跨站边界 | `go test ./internal/httpapi` | httptest 请求、临时数据库、跨站 POST 被拒绝、workspace 的新建/列出/改名与 slug 校验 |
 | MCP 工具契约 | `go test ./internal/mcpserver` | MCP 客户端经 HTTP 执行工作流和非法输入，两个 workspace 经各自 `/w/<slug>/mcp` 互不可见 |
 | UC 云端认证 | `go test ./internal/ucauth ./cmd/inftask` | 假 UC 上的 state/cookie/PKCE/token 边界及监听配置，不证明真实 UC 配置或公网部署 |
+| GitHub 仓库参数 | `go test ./cmd/inftask -run TestGitHubRepoFlag -v` | 单绑定、重复 flag、逗号列表和混合传法；空列表项与缺失 workspace 报错，失败列表不部分追加。不证明真实 GitHub 权限或 Compose 部署 |
 | GitHub 同步 | `go test ./internal/app -run TestGitHubSync` | 受控 HTTP 服务上的关联、推进、游标、仓库失败隔离、每轮重读所绑定 workspace 的 team key、不匹配其他 workspace 的同名 key 以及 webhook 用的 Notify 唤醒，不证明真实凭据权限 |
 | UI、导航、共享外观 | `npm --prefix web run build`，另加 [UI 检查](#ui-检查) | 编译/打包与实际操作分别报告 |
 

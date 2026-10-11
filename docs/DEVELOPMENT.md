@@ -106,7 +106,7 @@ install -m 755 inftask ~/.local/bin/inftask
 launchctl kickstart -k gui/$(id -u)/io.github.dengnaichen.inftask
 ```
 
-`-github-repo` 的值是 `<slug>=<owner>/<name>`；plist 里还是不带 `<slug>=` 的旧格式时，服务启动即退出，日志写出期望的格式。改 plist 后用 `bootout` 再 `bootstrap` 重新加载，`kickstart` 不会重读 plist。
+`-github-repo` 的值是 `<slug>=<owner>/<name>`，支持逗号分隔多个绑定，也可重复传入该 flag；plist 里还是不带 `<slug>=` 的旧格式时，服务启动即退出，日志写出期望的格式。改 plist 后用 `bootout` 再 `bootstrap` 重新加载，`kickstart` 不会重读 plist。
 
 分支与工作树的清理顺序见 [git-workflow](../.agents/skills/git-workflow/SKILL.md)。上述安装和重启不是本地验证的前置条件。
 
@@ -134,7 +134,7 @@ UC 地址与外部地址只允许 HTTPS；本地假 UC 验证允许 loopback HTT
 
 ### 容器与 HTTPS
 
-前提：Docker Engine、Compose 插件、解析到部署主机的域名、开放 80/443、UC 配置和可读的验证公钥。不要在维护者实例上试部署。将变量放入仓库外受保护的环境文件（权限 `0600`），Compose 另需 `INFTASK_DOMAIN` 和 `GITHUB_REPO=<slug>=<owner>/<name>`（例如 `GITHUB_REPO=default=owner/name`，仓库的 PR 只关联该 workspace 的票）；`INFONE_SHARE_DIR` 是宿主的公钥目录。环境文件不要提交。
+前提：Docker Engine、Compose 插件、解析到部署主机的域名、开放 80/443、UC 配置和可读的验证公钥。不要在维护者实例上试部署。将变量放入仓库外受保护的环境文件（权限 `0600`），Compose 另需 `INFTASK_DOMAIN` 和 `GITHUB_REPOS=<slug>=<owner>/<name>[,<slug>=<owner>/<name>...]`（例如 `GITHUB_REPOS=default=owner/one,default=owner/two`，仓库的 PR 只关联该 workspace 的票）；`INFONE_SHARE_DIR` 是宿主的公钥目录。环境文件不要提交。
 
 ```sh
 docker compose --env-file /secure/inftask.env -f deploy/compose.yaml config --quiet
@@ -159,6 +159,26 @@ MCP host 配置服务 URL `https://<域名>/w/<slug>/mcp`、public client ID `in
 ### 验证边界
 
 `go test ./internal/ucauth ./internal/httpapi ./internal/app ./cmd/inftask` 覆盖假 UC、签名、回调绑定、PKCE、注销、入口保护和 webhook 验签；不证明真实 UC 公钥/client/回调匹配。上线验收还需真实 UC 浏览器登录与退出、远程 MCP host 的 tool call 和 refresh、GitHub Delivery 成功，以及临时卷上的重启保留与备份恢复。不得以构建成功代替这些检查。
+
+### 本机数据迁入公网实例（AL-34）
+
+当前阶段只准备多仓库配置与手册，远程 MCP 和 agent 配置切换暂缓。以下是后续正式切换的操作顺序，不代表已执行。正式迁移前逐步取得维护者同意；远程 MCP 未验收时，不停用 agent 依赖的本机实例、不把公网副本作为独立可写正式库，以免两边数据分叉。
+
+1. **准备与演练。** 核实本机 TOK 导入已经实际完成，不能用 AL-29 的副本验收代替。记录当前版本、数据库路径、launchd plist、服务器 Compose project/文件/卷名，以及各表计数和逐票状态。对运行中的库用 SQLite `.backup` 创建隔离副本，在空闲 loopback 端口用副本运行新版本，绑定两个仓库并注入真实 `GITHUB_TOKEN`，不启用 linkback。首次同步会读取历史 PR；等待两个仓库的 `github_sync` 游标建立且无同步失败，再比较同步前后 TOK 状态，列出 identifier、原状态、新状态供维护者确认。演练不用 8700、不访问正式库写入。检查 `PRAGMA integrity_check` 为 `ok`、`PRAGMA foreign_key_check` 无输出。
+2. **准备凭据。** Fine-grained PAT 限定两个仓库的 Pull requests 读取权限和 Metadata 读取权限。另生成随机 webhook secret；两者只保存在仓库外 `0600` 环境文件。部署变量改为 `GITHUB_REPOS`，旧 `GITHUB_REPO` 不再被 Compose 读取：
+
+   ```dotenv
+   GITHUB_REPOS=default=DengNaichen/inftask,default=DengNaichen/harnesskit-shared-memory
+   ```
+
+   `GITHUB_TOKEN`、`GITHUB_WEBHOOK_SECRET` 另填真实值，不提交。保持 `-github-linkback` 关闭。现有服务器部署先读 `/opt/inftask/RUNBOOK.txt` 和 `deployment.json`，在原 Compose project 与数据卷上更新 app 参数及环境；不要直接启动仓库的完整 Compose 去争用现有 80/443 或意外创建新数据卷。
+3. **冻结写入并备份。** 在约定维护窗口暂停所有 agent 和人工写入。用 `launchctl bootout gui/$(id -u)/io.github.dengnaichen.inftask` 停本机服务，保留 plist。对本机库执行 `sqlite3 <本机数据库> ".backup '<唯一备份路径>'"`，保留这份切换前基线。停止服务器 app（保留代理），对服务器原库也做一致性备份，并保留原库及对应 WAL/SHM、版本和环境文件。核对两份备份的完整性及校验和后再替换；不得删除数据卷。
+4. **安装数据与版本。** 将本机一致性备份传至服务器受保护的暂存路径，核对传输前后校验和。在 app 停止时把备份安装为已确认数据卷内的 `/data/inftask.db`，移走该路径原有的 `inftask.db-wal` 和 `inftask.db-shm`（旧文件已保留），设置数据库及数据目录归 UID 10001 可读写。使用支持本机 schema 的新镜像和准备好的环境，先运行现有部署的 Compose `config --quiet`，再启动 app。不要输出带真实凭据的完整 Compose config。
+5. **验证数据与同步。** 冻结期间的本机快照是比较基线：公网 AL/TOK 票数、评论、关系、链接计数必须一致，抽查正文和评论作者；状态变化必须与演练确认结果一致。检查健康、真实 UC 网页登录、数据库完整性、两个仓库的同步游标和错误日志。若失败，停止公网 app，按下面的回滚步骤处理，不切 agent 配置。
+6. **创建 webhook。** 两个 GitHub 仓库分别进入 Settings → Webhooks → Add webhook。Payload URL 为 `https://harnessagent.tokensinfinity.com/webhooks/github`，Content type 为 `application/json`，Secret 与服务端 `GITHUB_WEBHOOK_SECRET` 完全一致，启用 SSL verification，选择 Let me select individual events 后只勾 Pull requests。启用后初始 `ping` 返回 204；实际已配置仓库的 `pull_request` delivery 才应返回 202。在 Recent Deliveries 检查该事件和签名验证结果，并核对随后发生同步。轮询每分钟补漏，webhook 不代替读取凭据。
+7. **远程 MCP 与最终切换（暂缓）。** 恢复这阶段后，先在 Claude Code 和 Codex 各完成真实 UC OAuth 登录、tool call 与 refresh。任一失败就停止切换。全部验收通过后才将 `.mcp.json`、`.codex/config.toml`、`AGENTS.md` 的实例入口改为 `https://harnessagent.tokensinfinity.com/w/default/mcp`（文档按页面/REST/MCP 各自路径修改），再切 go-backend 的配置与开票流程（在其仓库另行处理）。确认所有写入者都指向公网后，本机 launchd 保持卸载，保留 plist、原库及备份。
+
+**回滚：** 先冻结写入、停公网 app 并停用新 webhook，保留公网数据库的一致性备份和排障文件。公网开始接受新写入后，不能直接用旧本机快照覆盖这些写入；先由维护者决定如何保全或接受丢失新增数据。需要恢复切换前基线时，在本机服务停止的条件下保留原库/WAL/SHM，移走目标旧 WAL/SHM，用切换前一致性备份恢复本机数据库，核对二进制 schema 兼容性和文件属主，恢复 agent 的本机地址，再 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.inftask.plist`。核对健康和票据后恢复写入；公网保持停止，避免双写。
 
 ### 不改现有入口的 SSH 隧道试运行
 
