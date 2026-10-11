@@ -82,6 +82,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const [projectDialog, setProjectDialog] = useState<Project | "new" | null>(null);
   const [archivedProjects, setArchivedProjects] = useState(false);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [savedIssue, setSavedIssue] = useState<{ issue: IssueSummary; action: "Created" | "Updated" } | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | "team" | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -135,8 +136,10 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
     setCollapsed({});
   }
 
-  function addIssue(issue: IssueSummary) {
-    insertIssue(issue);
+  async function addIssue(issue: IssueSummary) {
+    setSavedIssue({ issue, action: "Created" });
+    await insertIssue(issue);
+    if (!mounted.current) return;
     setCollapsed((current) => ({ ...current, [issue.status]: false }));
     setDialog(null);
   }
@@ -179,11 +182,12 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
 
         {scopeError && <div className="scope-message"><RequestError message={scopeError} /><button type="button" className="button" onClick={() => void loadIssues()}>Retry</button> <NavLink to={pagePath("/")}>Back to all issues</NavLink></div>}
 
+        {savedIssue && <p className="scope-description" role="status">{savedIssue.action} {savedIssue.issue.identifier}. <NavLink to={pagePath(`/issue/${savedIssue.issue.identifier}`)}>View issue</NavLink></p>}
         {error && <RequestError message={error} />}
 
         {listingIssues && !scopeError && !loading && <div className="label-bulk-bar"><button className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button>{selectedVisible.length > 0 && <><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></>}</div>}
         {blockingError ? null : managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
-          <IssueDetail catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
+          <IssueDetail teams={teams} onSaved={async (issue) => { setSavedIssue({ issue, action: "Updated" }); await loadIssues(); }} catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
         ) : listingProjects ? (
           <ProjectList projects={projects.filter((item) => item.archived === archivedProjects && (!scopeTeam || item.teams.includes(scopeTeam)))} teams={teams} loading={loading} archived={archivedProjects} />
         ) : listingIssues && !loading && teams.length === 0 ? (
@@ -201,7 +205,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
         if (mounted.current) setProjectDialog(null);
       }} />}
       {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
-      {dialog === "new" && <NewIssueDialog teams={teams} team={team} status={filter === "all" ? "triage" : filter} project={activeProject?.name ?? ""} onClose={() => setDialog(null)} onCreate={addIssue} />}
+      {dialog === "new" && <NewIssueDialog teams={teams} team={scopeTeam} projects={projects} status={filter === "all" ? "triage" : filter} project={activeProject} onClose={() => setDialog(null)} onCreate={addIssue} />}
       {renamingTeam && <RenameTeamDialog team={renamingTeam} onClose={() => setRenamingTeam(null)} onSaved={(updated) => { replaceTeam(updated); setRenamingTeam(null); }} />}
       {dialog === "team" && <CreateTeamDialog onClose={() => setDialog(null)} onCreate={addTeam} />}
     </div>

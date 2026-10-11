@@ -70,9 +70,9 @@ export function useIssues(route: WorkspaceRoute, { archivedProjects, team, type,
     }
   }
 
-  function insertIssue(_issue: IssueSummary) {
+  async function insertIssue(_issue: IssueSummary) {
     // The server applies the full scope and filters to the created issue.
-    if (current()) void loadIssues();
+    if (current()) await loadIssues();
   }
 
   async function changeProjectEmoji(item: Project, emoji: string) {

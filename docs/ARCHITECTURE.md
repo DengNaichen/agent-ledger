@@ -8,11 +8,13 @@ workspace 只做分组：team、Project、标签和 PR 记录各属于一个 wor
 
 `internal/app/service.go` 只持有 `Service` 及其单连接 SQLite 的打开和关闭；模型、输入校验和业务操作按领域放在 `workspace.go`、`issue.go`、`project.go`、`team.go`，导出的错误集中在 `errors.go` 并各带类别（找不到、输入非法、冲突），HTTP 按类别选状态码。建票在同一事务里把 team 的 `next_number` 加一并插入 issue。Service 直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 
-`web/src/App.tsx` 按路径第一段选 workspace（`/` 跳到按 slug 排序的第一个，没有 workspace 时显示创建提示），其中 `WorkspaceView` 持有路径与会话视图/排序偏好，每次导航按递增 visit 挂载 `ScopeView`，隔离当前范围的筛选、选择和弹窗。`shared.tsx` 的 `WorkspaceRoute` 区分全部任务/项目、Team 任务/项目、稳定 Project id、详情和标签路径；`ProjectList.tsx` 展示活动/归档项目列表，Team 项目按显式关联筛选；`ProjectManagement.tsx` 提供创建/编辑modal与稳定项目页归档/恢复操作。页面组装中：`useIssues.ts` 加载默认未归档项目目录与 Team，项目范围另以 by-id 读取（可含归档），任务按 team/project_id 和临时筛选查询；挂载、查询及读取版本门禁防止旧范围响应或写入回调更新新页面，创建后重读筛选结果，`Sidebar.tsx` 是侧边栏，`IssueFilters.tsx` 是筛选栏，`IssueViews.tsx` 是看板与列表，`Dialogs.tsx` 是新建 issue 和 team 的弹窗；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper（`apiPath`、`pagePath` 给路径加上当前 workspace）、导航、状态和优先级控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
+`web/src/App.tsx` 按路径第一段选 workspace（`/` 跳到按 slug 排序的第一个，没有 workspace 时显示创建提示），其中 `WorkspaceView` 持有路径与会话视图/排序偏好，每次导航按递增 visit 挂载 `ScopeView`，隔离当前范围的筛选、选择和弹窗。`shared.tsx` 的 `WorkspaceRoute` 区分全部任务/项目、Team 任务/项目、稳定 Project id、详情和标签路径；`ProjectList.tsx` 展示活动/归档项目列表，Team 项目按显式关联筛选；`ProjectManagement.tsx` 提供创建/编辑modal与稳定项目页归档/恢复操作。页面组装中：`useIssues.ts` 加载默认未归档项目目录与 Team，项目范围另以 by-id 读取（可含归档），任务按 team/project_id 和临时筛选查询；挂载、查询及读取版本门禁防止旧范围响应或写入回调更新新页面，创建后重读筛选结果，`Sidebar.tsx` 是侧边栏，`IssueFilters.tsx` 是筛选栏，`IssueViews.tsx` 是看板与列表，`Dialogs.tsx` 提供新建 issue/team 弹窗及共用 `IssueProjectSelect`，新建依据明确范围预选，提交 stable project_id；`IssueDetail.tsx` 管详情、评论和编辑，详情及编辑显示只读 Team，Project 编辑器按 Team 单独读含归档目录并只允许保留当前归档项目。`shared.tsx` 共享类型、状态列、API helper（`apiPath`、`pagePath` 给路径加上当前 workspace）、导航、状态和优先级控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
 
 ## 从用户动作到写入
 
 状态选择或拖动调用 `PATCH /api/w/{workspace}/issues/{identifier}/status`，HTTP 适配为 `app.UpdateIssue`，交给 `Service.Update` 校验并更新数据库。MCP 的 `update_issue` 走同一个 Service；因此业务校验要放在 Service，不能只保护网页路径。传输层负责解析请求、调用和结果表达。
+
+任务创建/编辑成功由 `App.tsx` 显示结果与查看入口，`useIssues.ts` 重读当前范围与筛选，不强插新票。`IssueDetail.tsx` 的 `loadVersion` 对详情读取编号，编辑成功先失效旧读取并应用返回字段，再重读详情；编辑器项目目录用独立版本与挂载门禁，目录失败保留草稿并提供重试。新建/编辑保存期间禁止关闭，卸载后的保存回调不再影响新范围；这些局部门禁不代表全部交错写入已经串行化。
 
 增加 issue 字段时，先核对 `CreateIssue`、`UpdateIssue`、查询列和扫描，再判断是否需要 schema/迁移、MCP schema、HTTP 测试和前端类型/编辑器一起变更。REST 并未暴露 MCP 的全部能力，不因工具存在就假设有对应 HTTP endpoint。
 

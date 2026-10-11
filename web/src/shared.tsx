@@ -45,6 +45,9 @@ export type IssueSummary = {
 
 export type Issue = IssueSummary & { description: string; created_at: string };
 
+// Historical team keys may contain hyphens; only the final segment is a number.
+export const issueTeamKey = (identifier: string) => identifier.slice(0, identifier.lastIndexOf("-"));
+
 export type Comment = { body: string; created_at: string; author: string };
 export type Link = { title: string; url: string };
 export type PullRequest = { repo: string; number: number; title: string; url: string; state: "open" | "draft" | "merged" | "closed"; updated_at: string };
