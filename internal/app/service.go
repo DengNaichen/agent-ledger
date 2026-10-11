@@ -166,9 +166,12 @@ type Workspace struct {
 	Name string `json:"name"`
 }
 
+// Comment is append-only. Author names who wrote a comment imported from
+// Linear and is empty for comments added here.
 type Comment struct {
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
+	Author    string `json:"author"`
 }
 
 type Link struct {
@@ -655,14 +658,14 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 		}
 		*group.target = Summaries(issues)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT body, created_at FROM comments WHERE issue_id = ? ORDER BY id`, id)
+	rows, err := s.db.QueryContext(ctx, `SELECT body, created_at, author FROM comments WHERE issue_id = ? ORDER BY id`, id)
 	if err != nil {
 		return IssueDetails{}, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var comment Comment
-		if err := rows.Scan(&comment.Body, &comment.CreatedAt); err != nil {
+		if err := rows.Scan(&comment.Body, &comment.CreatedAt, &comment.Author); err != nil {
 			return IssueDetails{}, err
 		}
 		detail.Comments = append(detail.Comments, comment)

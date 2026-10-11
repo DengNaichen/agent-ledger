@@ -22,6 +22,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "import-linear" {
+		os.Exit(importLinear(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	data := flag.String("data", "inftask.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
 	var repos []app.GitHubRepo

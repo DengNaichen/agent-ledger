@@ -372,7 +372,8 @@ a:focus-visible, button:focus-visible { outline: var(--focus-width) solid var(--
 
 .comment { padding: var(--space-12) var(--space-16); background: var(--raised); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); }
 .comment + .comment { margin-top: var(--space-8); }
-.comment time { display: block; margin-bottom: var(--space-4); color: var(--muted); font-size: var(--font-size-12); }
+.comment-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8); margin-bottom: var(--space-4); color: var(--muted); font-size: var(--font-size-12); }
+.comment-author { color: var(--text-2); font-weight: var(--weight-medium); }
 .comment-form { display: grid; gap: var(--space-8); margin-top: var(--space-12); padding: var(--space-12); background: var(--raised); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); }
 .comment-form:focus-within { border-color: var(--border-strong); }
 .comment-form textarea { width: 100%; min-height: var(--comment-min-height); padding: 0; color: var(--text); background: transparent; border: 0; outline: none; line-height: var(--line-body); resize: vertical; }

@@ -16,6 +16,6 @@
 | related | 无方向关联，数据库规范化两端顺序以避免重复。与 parent 的归属含义不同。 |
 | link / pull_requests | 前者是人工附加的标题和 URL；后者是 GitHub 同步记录的 PR，有仓库、编号与状态。 |
 | linkback | 默认关闭的 GitHub 回写：把 issue 标题、描述作为评论发到关联的 open/draft PR。不是本地 link。 |
-| events / comments | events 记录创建与状态变化；comments 是用户或 Agent 追加的正文，不能编辑或删除。 |
+| events / comments | events 记录创建与状态变化；comments 是用户或 Agent 追加的正文，不能编辑或删除；`author` 只有从 Linear 导入的评论才有，本地追加的为空。 |
 
 定义以 `internal/app/service.go`、`schema.sql`、`github.go`、MCP 工具描述及 [ticket skill](../.agents/skills/ticket/SKILL.md) 为依据。

@@ -18,9 +18,11 @@ make test
 | 改动 | 定向检查 | 证明范围 |
 | --- | --- | --- |
 | Service、输入、关系 | `go test ./internal/app -run TestIssueLifecycle` | 真实临时 SQLite 上的生命周期与业务规则 |
-| schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚、迁移 1 按前缀回填 team 和编号、迁移 2 把引用改为 id 后每张票输出不变、迁移 3 把现有数据放进 workspace `default` 且每张票输出不变、迁移 4 增加 backlog 且全部表数据与引用不变 |
+| schema / 迁移 | `go test ./internal/app -run TestMigrate` | 新数据库跳过历史迁移、重建引用表保留数据、外键违规回滚、迁移 1 按前缀回填 team 和编号、迁移 2 把引用改为 id 后每张票输出不变、迁移 3 把现有数据放进 workspace `default` 且每张票输出不变、迁移 4 增加 backlog 且全部表数据与引用不变、迁移 6 给评论加空作者、本地评论作者为空，且新库与升级库的列、外键、索引和触发器一致 |
 | 标签、互斥组、筛选与已有库安装 | `go test ./internal/app -run 'TestLabels\|TestLabelFilters\|TestLabelUpgrade'` | 真实 SQLite 上的互斥、幂等、批量回滚、归档、合并、筛选与旧数据保留 |
 | 备份 | `go test ./internal/app -run TestBackup` | 每日副本与保留行为 |
+| Linear 导入 | `go test ./internal/app -run TestImportLinear` | 手写虚构快照（`internal/app/testdata/linear/`）上的全部映射：字段原样、状态、priority、type、Project 新建/匹配/归档、parent、blocks/related、评论顺序与作者、非 GitHub 附件转链接、`created` 事件、跳过回收站；team 不存在、编号不小于 `next_number`、编号已占用及映射外的输入都中止且不写入。不证明真实快照的数量，那要在 `.backup` 副本上试导入核对 |
+| 导入命令 | `go test ./cmd/inftask -run TestImportLinear` | `inftask import-linear` 的参数校验、退出码和输出，重复导入非 0 退出并列出已占用编号，导入后 REST 和 MCP `get_issue` 的评论带 `author` |
 | REST 读写、跨站边界 | `go test ./internal/httpapi` | httptest 请求、临时数据库、跨站 POST 被拒绝、workspace 的新建/列出/改名与 slug 校验 |
 | MCP 工具契约 | `go test ./internal/mcpserver` | MCP 客户端经 HTTP 执行工作流和非法输入，两个 workspace 经各自 `/w/<slug>/mcp` 互不可见 |
 | UC 云端认证 | `go test ./internal/ucauth ./cmd/inftask` | 假 UC 上的 state/cookie/PKCE/token 边界及监听配置，不证明真实 UC 配置或公网部署 |
