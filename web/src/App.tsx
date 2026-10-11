@@ -1,7 +1,6 @@
-import { Pencil } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CreateTeamDialog, NewIssueDialog, RenameTeamDialog } from "./Dialogs";
-import { EmojiPicker } from "./EmojiPicker";
+import { CreateTeamDialog, NewIssueDialog } from "./Dialogs";
+import { EmojiPicker, EntityEmoji } from "./EmojiPicker";
 import { IssueDetail } from "./IssueDetail";
 import { IssueFilters } from "./IssueFilters";
 import { IssueViews, ViewMode } from "./IssueViews";
@@ -10,6 +9,7 @@ import { RequestError, api, columns, IssueSummary, navigate, NavLink, pagePath, 
 import { ProjectDialog, ProjectOverview } from "./ProjectManagement";
 import { ProjectList } from "./ProjectList";
 import { Sidebar } from "./Sidebar";
+import { SettingsPage } from "./SettingsPage";
 import { useIssues } from "./useIssues";
 
 // The first path segment names the workspace; the root opens the first one.
@@ -72,7 +72,6 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const [batchLabels, setBatchLabels] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Status | "all">("all");
-  const [renamingTeam, setRenamingTeam] = useState<Team | null>(null);
   const [teamFilter, setTeamFilter] = useState("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [type, setType] = useState("");
@@ -88,12 +87,13 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const scopeTeam = route.kind === "issues" || route.kind === "projects" ? route.team : "";
   const team = scopeTeam || teamFilter;
+  const managingSettings = route.kind === "settings";
   const managingLabels = route.kind === "labels";
   const listingProjects = route.kind === "projects";
   const listingIssues = route.kind === "issues" || route.kind === "project";
   const detailIdentifier = route.kind === "issue" ? route.identifier : "";
 
-  const { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority } = useIssues(route, { archivedProjects, team, type, query, priority, labelFilter }, setError);
+  const { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, moveIssue, changePriority } = useIssues(route, { archivedProjects, team, type, query, priority, labelFilter }, setError);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status).sort((a, b) => {
@@ -111,9 +111,9 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const defaultCollapsed = (status: Status) => filter === "all" && !query && (status === "done" || status === "canceled");
   const isCollapsed = (status: Status) => collapsed[status] ?? defaultCollapsed(status);
   const activeTeam = teams.find((item) => item.key === scopeTeam);
-  const heading = managingLabels ? "Labels" : activeProject?.name || (scopeTeam ? `${activeTeam?.name ?? scopeTeam} / ${listingProjects ? "Projects" : "Issues"}` : listingProjects ? "All projects" : "All issues");
+  const heading = managingSettings ? "Settings" : managingLabels ? "Labels" : activeProject?.name || (scopeTeam ? `${activeTeam?.name ?? scopeTeam} / ${listingProjects ? "Projects" : "Issues"}` : listingProjects ? "All projects" : "All issues");
   const scopeError = route.kind === "invalid" ? "This page does not exist." : loadError;
-  const blockingError = !detailIdentifier && !managingLabels ? scopeError : "";
+  const blockingError = !detailIdentifier && !managingLabels && !(managingSettings && teams.length > 0) ? scopeError : "";
   const canCreate = listingIssues && !loading && !scopeError && !activeProject?.archived && (activeProject === null || activeProject.teams.length > 0);
   const selectedVisible = selected.filter((id) => issues.some((issue) => issue.identifier === id && (filter === "all" || issue.status === filter)));
   function toggleIssue(id: string) { setSelected((ids) => ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]); }
@@ -150,20 +150,19 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
 
   return (
     <div className="app-shell">
-      <Sidebar route={route} teams={teams} onCreateTeam={() => setDialog("team")} onRenameTeam={setRenamingTeam} changeTeamEmoji={changeTeamEmoji} />
+      <Sidebar route={route} teams={teams} onCreateTeam={() => setDialog("team")} />
 
       <main className="panel">
         <header className="header-row">
           <nav className="breadcrumb" aria-label="Breadcrumb">
-            {!managingLabels && (activeProject ? <EmojiPicker value={activeProject.emoji} label={`Change emoji for project ${activeProject.name}`} onChange={(emoji) => changeProjectEmoji(activeProject, emoji)} /> : activeTeam ? <EmojiPicker value={activeTeam.emoji} teamKey={activeTeam.key} label={`Change emoji for team ${activeTeam.name}`} onChange={(emoji) => changeTeamEmoji(activeTeam, emoji)} /> : null)}
+            {!managingLabels && (activeProject ? <EmojiPicker value={activeProject.emoji} label={`Change emoji for project ${activeProject.name}`} onChange={(emoji) => changeProjectEmoji(activeProject, emoji)} /> : activeTeam ? <EntityEmoji emoji={activeTeam.emoji} teamKey={activeTeam.key} /> : null)}
             {detailIdentifier ? (
               <><NavLink to={pagePath("/")}>{heading}</NavLink><span className="separator">/</span><span>{detailIdentifier}</span></>
             ) : (
               <span>{heading}</span>
             )}
-            {!managingLabels && activeTeam && !activeProject && <button type="button" className="ghost" aria-label={`Rename team ${activeTeam.name}`} title="Rename team" onClick={() => setRenamingTeam(activeTeam)}><Pencil className="icon" /></button>}
           </nav>
-          {blockingError ? null : managingLabels ? <NavLink to={pagePath("/")}>Back to issues</NavLink> : detailIdentifier ? (
+          {blockingError ? null : managingLabels || managingSettings ? <NavLink to={pagePath("/")}>Back to issues</NavLink> : detailIdentifier ? (
             <button type="button" className="button" onClick={() => setDialog("edit")}>Edit</button>
           ) : listingIssues ? (
             <button type="button" className="button" disabled={!canCreate} onClick={() => setDialog("new")}>New issue</button>
@@ -186,7 +185,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
         {error && <RequestError message={error} />}
 
         {listingIssues && !scopeError && !loading && selectedVisible.length > 0 && <div className="selection-toolbar" role="toolbar" aria-label="Selected issues"><button type="button" className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></div>}
-        {blockingError ? null : managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
+        {blockingError ? null : managingSettings ? <SettingsPage teams={teams} loading={loading} onSaved={replaceTeam} /> : managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
           <IssueDetail teams={teams} onSaved={async (issue) => { setSavedIssue({ issue, action: "Updated" }); await loadIssues(); }} catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
         ) : listingProjects ? (
           <ProjectList projects={projects.filter((item) => item.archived === archivedProjects && (!scopeTeam || item.teams.includes(scopeTeam)))} teams={teams} loading={loading} archived={archivedProjects} />
@@ -206,7 +205,6 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
       }} />}
       {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
       {dialog === "new" && <NewIssueDialog teams={teams} team={scopeTeam} projects={projects} status={filter === "all" ? "triage" : filter} project={activeProject} onClose={() => setDialog(null)} onCreate={addIssue} />}
-      {renamingTeam && <RenameTeamDialog team={renamingTeam} onClose={() => setRenamingTeam(null)} onSaved={(updated) => { replaceTeam(updated); setRenamingTeam(null); }} />}
       {dialog === "team" && <CreateTeamDialog onClose={() => setDialog(null)} onCreate={addTeam} />}
     </div>
   );

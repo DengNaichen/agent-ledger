@@ -89,11 +89,6 @@ export function useIssues(route: WorkspaceRoute, { archivedProjects, team, type,
     void loadIssues();
   }
 
-  async function changeTeamEmoji(item: Team, emoji: string) {
-    const updated = await api<Team>(apiPath(`/teams/${encodeURIComponent(item.key)}`), "PATCH", { emoji });
-    replaceTeam(updated);
-  }
-
   async function moveIssue(identifier: string, status: Status) {
     const previous = issues.find((issue) => issue.identifier === identifier)!;
     setIssues((items) => items.map((issue) => issue.identifier === identifier ? { ...issue, status } : issue));
@@ -123,5 +118,5 @@ export function useIssues(route: WorkspaceRoute, { archivedProjects, team, type,
     }
   }
 
-  return { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority };
+  return { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, moveIssue, changePriority };
 }

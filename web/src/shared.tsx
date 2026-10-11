@@ -80,12 +80,14 @@ export type WorkspaceRoute =
   | { kind: "project"; id: number }
   | { kind: "issue"; identifier: string }
   | { kind: "labels" }
+  | { kind: "settings" }
   | { kind: "invalid" };
 
 export function workspaceRoute(path: string): WorkspaceRoute {
   const route = "/" + path.split("/").slice(2).join("/");
   if (route === "/") return { kind: "issues", team: "" };
   if (route === "/projects") return { kind: "projects", team: "" };
+  if (route === "/settings") return { kind: "settings" };
   if (route === "/labels") return { kind: "labels" };
   const team = route.match(/^\/team\/([^/]+)\/(issues|projects)$/);
   if (team) {

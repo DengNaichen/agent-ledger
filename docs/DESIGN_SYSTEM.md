@@ -55,7 +55,7 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 
 ## 项目与团队 emoji
 
-`EmojiPicker.tsx` 使用 `@radix-ui/react-popover`（MIT）。项目/团队的 emoji 入口与导航按钮并列；空值沿用 Project 的 Box 和 team 的缩写。布局参考本地 Linear 应用的 Emoji 页：顶部搜索、Frequently used 和带标题的连续分类网格；只提供 emoji，没有 Icons 页和颜色选择。桌面弹层宽/高约 450px、14 列，窄屏按可用宽度减少列数（390px 视口为 11 列），宽度不超过视口减 16px，高度按可用空间缩短，内容内部滚动。`--emoji-picker-width`、`--emoji-picker-height`、`--emoji-cell-height` 和 `--font-emoji` 控制尺寸与系统 emoji 字体，其余消费现有主题 token。原生 dialog 内的 portal 挂在 dialog 上。
+`EmojiPicker.tsx` 使用 `@radix-ui/react-popover`（MIT）。项目标题与团队 Settings 表单提供 emoji 选择入口；空值沿用 Project 的 Box 和 team 的缩写。布局参考本地 Linear 应用的 Emoji 页：顶部搜索、Frequently used 和带标题的连续分类网格；只提供 emoji，没有 Icons 页和颜色选择。桌面弹层宽/高约 450px、14 列，窄屏按可用宽度减少列数（390px 视口为 11 列），宽度不超过视口减 16px，高度按可用空间缩短，内容内部滚动。`--emoji-picker-width`、`--emoji-picker-height`、`--emoji-cell-height` 和 `--font-emoji` 控制尺寸与系统 emoji 字体，其余消费现有主题 token。原生 dialog 内的 portal 挂在 dialog 上。
 
 目录来自 Unicode 16.0 的 fully-qualified emoji 数据，存于 `internal/app/emojidata/emoji.json`，Go 和前端共用；来源与 Unicode 许可见同目录 LICENSE 和 `emoji.go`。默认分类浏览省略肤色变体，按完整英文名称或粘贴 emoji 可搜索这些序列。表情用本机字体绘制，不同系统的字形可能不同。Frequently used 由最近成功选择及常用默认项组成，浏览器 localStorage 仅保存最多 28 个 emoji，无外部图片/CDN 请求。
 
@@ -69,13 +69,13 @@ Priority 的档位与 [Linear](https://linear.app/docs/issue-property#priority) 
 
 状态图标供侧栏、列表、看板和详情复用。`StatusSelect` 使用 Radix Select，与优先级共享菜单表面；列表/卡片展示带 accessible name 的 24px 图标按钮，详情展示图标加名称。菜单保留全部八种状态，支持键盘操作，原生 dialog 内的 portal 挂到该 dialog。`.status-control:focus-within` 显示焦点，链接和按钮有 `:focus-visible` 描边。禁用按钮降低不透明度并改变 cursor；保存流程见 [交互](INTERACTION_DESIGN.md)。
 
-列表与卡片的复选框默认仅视觉隐藏，仍在 Tab 顺序中；条目 hover、focus-within、已选中或已有批量选择时显示。无 hover 或粗指针设备始终显示。选中条目消费 `--selected`，卡片同时强调边界。Team 改名按钮沿用 hover/focus 显示，触屏保持可见。
+列表与卡片的复选框默认仅视觉隐藏，仍在 Tab 顺序中；条目 hover、focus-within、已选中或已有批量选择时显示。无 hover 或粗指针设备始终显示。选中条目消费 `--selected`，卡片同时强调边界。Team 侧栏无改名按钮；编辑集中在 Settings 正式页面。
 
 增加状态需同时核对共享 `columns` 和 `StatusIcon` 的颜色与图形（两张表按 `Status` 类型定义，缺项时前端构建报错），再在列表、卡片及详情检查，不凭单页截图证明全部场景。仓库没有自动视觉回归测试或对比度认证。
 
 ## 范围导航与项目列表
 
-Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`。任务工具栏提供 Filter 和 Display 弹层：前者容纳状态、Team、type、priority 与标签筛选，后者容纳 List/Board、排序及 Select visible issues；搜索和结果数留在工具栏，已应用筛选显示可清除 chip。批量工具栏仅在当前范围有选中条目时出现。`ProjectList.tsx` 将项目名称链接、说明和关联 Team 排成紧凑行，长文本截断，复用主题文字/边界/间距与 EntityEmoji。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
+Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`。Workspace 分组的 Settings 链接直达设置页；团队图标只作展示，emoji 使用 14px 字号、16px 方形容器，与普通图标同列，团队之间留 8px 间距。Settings 沿用主面板，居中内容最大 768px，各团队表单展示名称、emoji 和只读编号；窄屏字段上下排列。任务工具栏提供 Filter 和 Display 弹层：前者容纳状态、Team、type、priority 与标签筛选，后者容纳 List/Board、排序及 Select visible issues；搜索和结果数留在工具栏，已应用筛选显示可清除 chip。批量工具栏仅在当前范围有选中条目时出现。`ProjectList.tsx` 将项目名称链接、说明和关联 Team 排成紧凑行，长文本截断，复用主题文字/边界/间距与 EntityEmoji。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
 
 ## 布局
 
