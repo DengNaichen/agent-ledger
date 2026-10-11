@@ -1,10 +1,10 @@
-import { List, Plus, Tag } from "lucide-react";
+import { List, Pencil, Plus, Tag } from "lucide-react";
 import { EmojiPicker } from "./EmojiPicker";
 import { Session } from "./Session";
 import { WorkspaceMenu } from "./WorkspaceMenu";
 import { columns, IssueSummary, navigate, pagePath, Project, Status, StatusIcon, Team } from "./shared";
 
-export function Sidebar({ issueCount, grouped, teams, projects, filter, project, team, managingLabels, selectFilter, onCreateTeam, changeTeamEmoji, changeProjectEmoji }: {
+export function Sidebar({ issueCount, grouped, teams, projects, filter, project, team, managingLabels, selectFilter, onCreateTeam, onRenameTeam, changeTeamEmoji, changeProjectEmoji }: {
   issueCount: number;
   grouped: Record<Status, IssueSummary[]>;
   teams: Team[];
@@ -15,6 +15,7 @@ export function Sidebar({ issueCount, grouped, teams, projects, filter, project,
   managingLabels: boolean;
   selectFilter: (status: Status | "all", project: string, team?: string) => void;
   onCreateTeam: () => void;
+  onRenameTeam: (team: Team) => void;
   changeTeamEmoji: (team: Team, emoji: string) => Promise<void>;
   changeProjectEmoji: (project: Project, emoji: string) => Promise<void>;
 }) {
@@ -43,6 +44,7 @@ export function Sidebar({ issueCount, grouped, teams, projects, filter, project,
             <button type="button" className="entity-link" aria-pressed={team === item.key && !managingLabels} onClick={() => selectFilter("all", "", item.key)}>
               <span className="nav-label">{item.name}</span><small>{item.key}</small>
             </button>
+            <button type="button" className="ghost" aria-label={`Rename team ${item.name}`} title="Rename team" onClick={() => onRenameTeam(item)}><Pencil className="icon" /></button>
           </div>
         ))}
 

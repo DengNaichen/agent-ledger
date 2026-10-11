@@ -25,6 +25,7 @@ type CreateTeam struct {
 }
 
 type UpdateTeam struct {
+	Name  *string `json:"name,omitempty" jsonschema:"new display name; trimmed and nonempty; omitted leaves unchanged"`
 	Key   string  `json:"key" jsonschema:"existing team key; key and numbering cannot change"`
 	Emoji *string `json:"emoji,omitempty" jsonschema:"Unicode emoji icon; omitted leaves unchanged, empty clears"`
 }
@@ -47,7 +48,7 @@ func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
 }
 
 // CreateTeam adds a team whose numbering starts at StartNumber, or 1 when it
-// is omitted. A team's key, name, and numbering cannot be changed.
+// is omitted. A team's key and numbering cannot be changed.
 func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error) {
 	team := Team{Key: input.Key, Name: strings.TrimSpace(input.Name), NextNumber: 1, Emoji: input.Emoji}
 	if !validEmoji(input.Emoji) {
@@ -74,8 +75,15 @@ func (s *Service) UpdateTeam(ctx context.Context, input UpdateTeam) (Team, error
 	if input.Emoji != nil && !validEmoji(*input.Emoji) {
 		return Team{}, ErrInvalidEmoji
 	}
+	if input.Name != nil {
+		name := strings.TrimSpace(*input.Name)
+		if name == "" {
+			return Team{}, ErrInvalidName
+		}
+		input.Name = &name
+	}
 	var team Team
-	err := s.db.QueryRowContext(ctx, `UPDATE teams SET emoji = COALESCE(?, emoji) WHERE workspace_id = ? AND key = ? RETURNING key, name, next_number, emoji`, input.Emoji, s.workspace, input.Key).Scan(&team.Key, &team.Name, &team.NextNumber, &team.Emoji)
+	err := s.db.QueryRowContext(ctx, `UPDATE teams SET name = COALESCE(?, name), emoji = COALESCE(?, emoji) WHERE workspace_id = ? AND key = ? RETURNING key, name, next_number, emoji`, input.Name, input.Emoji, s.workspace, input.Key).Scan(&team.Key, &team.Name, &team.NextNumber, &team.Emoji)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Team{}, ErrTeamNotFound
 	}

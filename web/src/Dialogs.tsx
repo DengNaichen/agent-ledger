@@ -1,5 +1,5 @@
 import { Box, X } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { EmojiPicker } from "./EmojiPicker";
 import { RequestError, api, apiPath, columns, Issue, ModalDialog, Priority, PrioritySelect, Status, StatusIcon, Team } from "./shared";
 
@@ -97,4 +97,39 @@ export function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; o
       </form>
     </ModalDialog>
   );
+}
+
+export function RenameTeamDialog({ team, onClose, onSaved }: { team: Team; onClose: () => void; onSaved: (team: Team) => void }) {
+  const [name, setName] = useState(team.name);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const saved = await api<Team>(apiPath(`/teams/${encodeURIComponent(team.key)}`), "PATCH", { name });
+      if (mounted.current) onSaved(saved);
+    } catch (cause) {
+      if (mounted.current) setError((cause as Error).message);
+    } finally {
+      if (mounted.current) setSaving(false);
+    }
+  }
+
+  return <ModalDialog className="issue-dialog" aria-labelledby="rename-team-title" restoreFocus onClose={() => { if (!saving) onClose(); }}>
+    <form onSubmit={save}>
+      <header><h2 id="rename-team-title">Rename team</h2><button type="button" className="ghost" aria-label="Close" disabled={saving} onClick={onClose}><X className="icon" /></button></header>
+      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} required disabled={saving} /></label>
+      <p className="dialog-hint">The key {team.key} and existing issue identifiers stay unchanged.</p>
+      {error && <RequestError message={error} />}
+      <footer><button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button><button type="submit" className="button primary" disabled={saving}>{saving ? "Saving…" : "Save name"}</button></footer>
+    </form>
+  </ModalDialog>;
 }

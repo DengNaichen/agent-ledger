@@ -1,5 +1,6 @@
+import { Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { CreateTeamDialog, NewIssueDialog } from "./Dialogs";
+import { CreateTeamDialog, NewIssueDialog, RenameTeamDialog } from "./Dialogs";
 import { EmojiPicker } from "./EmojiPicker";
 import { IssueDetail } from "./IssueDetail";
 import { IssueFilters } from "./IssueFilters";
@@ -61,6 +62,7 @@ function WorkspaceView() {
   const [view, setView] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<Status | "all">("all");
   const [project, setProject] = useState("");
+  const [renamingTeam, setRenamingTeam] = useState<Team | null>(null);
   const [team, setTeam] = useState("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [sort, setSort] = useState<IssueSort>("auto");
@@ -83,7 +85,7 @@ function WorkspaceView() {
     return () => window.removeEventListener("popstate", sync);
   }, []);
 
-  const { issues, projects, teams, loading, savingPriorities, loadIssues, insertIssue, insertTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority } = useIssues(path, { team, project, type, query, priority, labelFilter }, setError);
+  const { issues, projects, teams, loading, savingPriorities, loadIssues, insertIssue, insertTeam, replaceTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority } = useIssues(path, { team, project, type, query, priority, labelFilter }, setError);
 
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status).sort((a, b) => {
@@ -136,7 +138,7 @@ function WorkspaceView() {
 
   return (
     <div className="app-shell">
-      <Sidebar issueCount={issues.length} grouped={grouped} teams={teams} projects={projects} filter={filter} project={project} team={team} managingLabels={managingLabels} selectFilter={selectFilter} onCreateTeam={() => setDialog("team")} changeTeamEmoji={changeTeamEmoji} changeProjectEmoji={changeProjectEmoji} />
+      <Sidebar issueCount={issues.length} grouped={grouped} teams={teams} projects={projects} filter={filter} project={project} team={team} managingLabels={managingLabels} selectFilter={selectFilter} onCreateTeam={() => setDialog("team")} onRenameTeam={setRenamingTeam} changeTeamEmoji={changeTeamEmoji} changeProjectEmoji={changeProjectEmoji} />
 
       <main className="panel">
         <header className="header-row">
@@ -147,6 +149,7 @@ function WorkspaceView() {
             ) : (
               <span>{heading}</span>
             )}
+            {!managingLabels && activeTeam && !activeProject && <button type="button" className="ghost" aria-label={`Rename team ${activeTeam.name}`} title="Rename team" onClick={() => setRenamingTeam(activeTeam)}><Pencil className="icon" /></button>}
           </nav>
           {managingLabels ? <NavLink to={pagePath("/")}>Back to issues</NavLink> : detailIdentifier ? (
             <button type="button" className="button" onClick={() => setDialog("edit")}>Edit</button>
@@ -176,6 +179,7 @@ function WorkspaceView() {
 
       {batchLabels && <LabelPicker identifiers={selectedVisible} current={null} catalog={catalog} onClose={() => setBatchLabels(false)} onChanged={async () => { await loadIssues(); setSelected([]); }} />}
       {dialog === "new" && <NewIssueDialog teams={teams} team={team} status={filter === "all" ? "triage" : filter} project={project} onClose={() => setDialog(null)} onCreate={addIssue} />}
+      {renamingTeam && <RenameTeamDialog team={renamingTeam} onClose={() => setRenamingTeam(null)} onSaved={(updated) => { replaceTeam(updated); setRenamingTeam(null); }} />}
       {dialog === "team" && <CreateTeamDialog onClose={() => setDialog(null)} onCreate={addTeam} />}
     </div>
   );

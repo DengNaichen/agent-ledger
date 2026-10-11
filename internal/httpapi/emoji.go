@@ -80,12 +80,13 @@ func (s *server) updateProject(w http.ResponseWriter, r *http.Request) {
 func (s *server) updateTeam(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Emoji *string `json:"emoji"`
+		Name  *string `json:"name"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	team, err := s.service.UpdateTeam(r.Context(), app.UpdateTeam{Key: r.PathValue("key"), Emoji: body.Emoji})
+	team, err := s.service.UpdateTeam(r.Context(), app.UpdateTeam{Key: r.PathValue("key"), Emoji: body.Emoji, Name: body.Name})
 	if err != nil {
 		writeError(w, err)
 		return
