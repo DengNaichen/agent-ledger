@@ -18,6 +18,16 @@
 
 既有贡献约定要求迁移 n 前保留 `backups/before-migration-<n>.db`。当前实现是在待执行批次开始前，用下一项版本号生成一次备份，并非批次内每项都备份；修改迁移执行器时需明确这个差异，不能把约定当作已实现保证。
 
+## Schema 票的排队与合并
+
+所有修改 `internal/app/schema.sql` 或 `internal/app/migrate.go` 的票遵守以下规则：
+
+1. 票、分支和计划不预写迁移编号，只写“追加一个迁移”。编号由合并时该项在 `internal/app/migrate.go` 的 `migrations` 中的位置决定（从 1 开始），不能提前占号。
+2. 同一时间只执行一张改 schema 的票。设为 `agent_ready` 前，分别用 `list_issues` 查询 `agent_ready`、`in_progress`、`in_review` 的票（`limit: -1`，避免默认上限漏票），再用 `get_issue` 阅读候选票的范围，确认是否也修改上述任一文件；有冲突就用 `blocks` 明确先后顺序，前票合并后再执行后票。门禁流程见 [ticket skill](../../.agents/skills/ticket/SKILL.md#agent_ready-gate)。
+3. 合并前 rebase 到最新 `main`。若 `main` 新增了迁移，将自己的未交付迁移挪到 `migrations` 末尾，并按合并后的当前 `schema.sql` 重写其中的建表和重建语句；复制数据的语句也必须保留别人刚加入的列及其数据。已交付迁移仍不得改写。合并流程见 [git-workflow skill](../../.agents/skills/git-workflow/SKILL.md#commits-and-pull-requests)。
+
+完成 rebase 和迁移调整后，重新验证新库与已有库的升级路径，检查要求见 [验证指南](../VALIDATION.md)。
+
 ## 写入与同步
 
 创建 issue、更新状态及对应事件需要一起成功，沿用 Service 的事务；单语句不另包事务。数据库使用 WAL、外键和单个打开连接，不能以单连接推断外部 GitHub 操作也具备事务性。
