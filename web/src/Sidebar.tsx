@@ -27,8 +27,8 @@ export function Sidebar({ route, teams, onCreateTeam }: {
             <EntityEmoji emoji={item.emoji} teamKey={item.key} />
             <span className="nav-label" title={item.name}>{item.name}</span>
           </div>
-          <NavLink className={`nav-item team-destination ${active("issues", item.key) ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(item.key)}/issues`)}><List className="icon" />Issues</NavLink>
-          <NavLink className={`nav-item team-destination ${active("projects", item.key) ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(item.key)}/projects`)}><Box className="icon" />Projects</NavLink>
+          <NavLink className={`nav-item team-destination ${active("issues", item.key) ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(item.key)}/issues`)}><List className="icon" /><span className="nav-label">Issues</span></NavLink>
+          <NavLink className={`nav-item team-destination ${active("projects", item.key) ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(item.key)}/projects`)}><Box className="icon" /><span className="nav-label">Projects</span></NavLink>
         </section>)}
       </nav>
       <Session />

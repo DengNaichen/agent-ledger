@@ -147,6 +147,32 @@
   --label-max-width: 150px;
   --search-width: 160px;
   --sidebar-width: 220px;
+  /* Sidebar roles use the Workspace navigation as their baseline. */
+  --sidebar-font-size: var(--font-size-13);
+  --sidebar-font-weight: var(--weight-medium);
+  --sidebar-line-height: var(--line-control);
+  --sidebar-caption-size: var(--font-size-12);
+  --sidebar-row-height: var(--space-28);
+  --sidebar-identity-height: var(--space-32);
+  --sidebar-identity-weight: var(--weight-strong);
+  --sidebar-avatar-size: var(--space-24);
+  --sidebar-icon-size: var(--space-14);
+  --sidebar-emoji-size: var(--font-size-14);
+  --sidebar-inset: var(--space-8);
+  --sidebar-content-gap: var(--space-8);
+  --sidebar-row-gap: var(--space-1);
+  --sidebar-section-gap: var(--space-8);
+  --sidebar-label-space: var(--space-16);
+  --sidebar-label-gap: var(--space-4);
+  --sidebar-child-inset: calc(var(--sidebar-inset) + var(--sidebar-icon-size) + var(--sidebar-content-gap));
+  --sidebar-radius: var(--radius);
+  --sidebar-color: var(--text-3);
+  --sidebar-hover-color: var(--text-2);
+  --sidebar-active-color: var(--text);
+  --sidebar-muted-color: var(--muted);
+  --sidebar-hover: var(--hover);
+  --sidebar-selected: var(--selected);
+  --sidebar-selected-hover: var(--button-hover);
   --board-column-width: 320px;
   --label-options-height: 300px;
   --property-panel-width: 312px;
@@ -239,22 +265,7 @@ a:focus-visible, button:focus-visible { outline: var(--focus-width) solid var(--
 
 /* Shell: the sidebar sits on the app background, the main panel is inset. */
 .app-shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); height: 100dvh; }
-.sidebar { display: flex; flex-direction: column; gap: var(--space-1); min-height: 0; overflow-y: auto; padding: var(--space-8); color: var(--text-3); }
-.sidebar-group { display: flex; flex-direction: column; gap: var(--space-1); }
-.sidebar-label { margin: var(--space-16) var(--space-8) var(--space-4); color: var(--muted); font-size: var(--font-size-12); font-weight: var(--weight-medium); }
-.sidebar-heading { display: flex; align-items: center; justify-content: space-between; }
-.sidebar-heading .ghost { display: grid; place-items: center; width: var(--space-20); height: var(--space-20); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-4)) calc(-1 * var(--space-2)) 0; padding: 0; }
-.sidebar-heading .icon { width: var(--space-14); height: var(--space-14); }
 .team-mark { display: grid; flex: none; place-items: center; width: var(--space-16); height: var(--space-16); color: var(--text-2); background: var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-size-8); font-weight: var(--weight-mark); letter-spacing: var(--tracking-mark); }
-.nav-item { display: flex; align-items: center; gap: var(--space-8); width: 100%; height: var(--space-28); padding: 0 var(--space-8); color: var(--text-3); background: transparent; border: 0; border-radius: var(--radius); text-align: left; font-weight: var(--weight-medium); }
-.nav-item:hover { color: var(--text-2); background: var(--hover); }
-.nav-item.active { color: var(--text); background: var(--selected); }
-.nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nav-item small { color: var(--muted); font-size: var(--font-size-12); font-variant-numeric: tabular-nums; }
-/* 14px status icons sit centered in the 16px icon column so labels line up. */
-.nav-item .status-icon { margin: 0 var(--space-1); }
-.sidebar-footer { display: flex; align-items: center; gap: var(--space-8); margin-top: auto; padding: var(--space-8); color: var(--muted); font-size: var(--font-size-12); }
-.sidebar-footer > span { width: var(--space-6); height: var(--space-6); background: var(--success); border-radius: var(--radius-circle); }
 
 .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: var(--space-8) var(--space-8) var(--space-8) 0; overflow: hidden; background: var(--panel); border: var(--border-width) solid var(--border); border-radius: var(--radius-panel); }
 /* The root page without a workspace has no sidebar. */
@@ -378,9 +389,6 @@ a:focus-visible, button:focus-visible { outline: var(--focus-width) solid var(--
 
 @media (max-width: 760px) {
   .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .sidebar { flex-direction: row; align-items: center; justify-content: space-between; }
-  .sidebar > .sidebar-label, .sidebar-group, .sidebar-footer { display: none; }
-  .sidebar .nav-item { width: auto; }
   .panel { margin: 0 var(--space-8) var(--space-8); }
   .header-row { padding: 0 var(--space-16); }
   .project-label, .row-date { display: none; }
