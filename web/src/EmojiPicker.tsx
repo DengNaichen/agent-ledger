@@ -24,7 +24,7 @@ function readUsage(): string[] {
 }
 
 export function EntityEmoji({ emoji, teamKey }: { emoji: string; teamKey?: string }) {
-  return emoji ? <span className="entity-emoji" aria-hidden="true">{emoji}</span> : teamKey ? <span className="team-mark" aria-hidden="true">{teamKey.slice(0, 2)}</span> : <Box className="icon" />;
+  return emoji ? <span className="entity-emoji" aria-hidden="true"><span className="entity-emoji-glyph">{emoji}</span></span> : teamKey ? <span className="team-mark" aria-hidden="true">{teamKey.slice(0, 2)}</span> : <Box className="icon" />;
 }
 
 export function EmojiPicker({ value, teamKey, label, onChange, disabled = false }: { value: string; teamKey?: string; label: string; onChange: (emoji: string) => void | Promise<void>; disabled?: boolean }) {

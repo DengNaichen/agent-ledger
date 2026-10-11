@@ -126,6 +126,8 @@
 .settings-field { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); padding: var(--space-16) 0; border-bottom: var(--border-width) solid var(--border); }
 .settings-name { display: flex; align-items: center; gap: var(--space-8); width: 50%; min-width: 0; }
 .settings-name .emoji-trigger { width: var(--space-32); height: var(--space-32); border: var(--border-width) solid var(--border-strong); border-radius: var(--radius); background: var(--button-bg); }
+/* Native emoji side bearings make the glyph look right-heavy in these slots. */
+.team-heading .entity-emoji-glyph, .settings-name .entity-emoji-glyph { transform: translateX(calc(-1 * var(--space-1))); }
 .settings-name .entity-emoji { width: var(--space-16); height: var(--space-16); font-size: var(--font-size-14); }
 .settings-name input { height: var(--space-32); width: 100%; min-width: 0; padding: var(--space-6) var(--space-8); border: var(--border-width) solid var(--border-strong); border-radius: var(--radius); background: var(--button-bg); }
 .settings-name input:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--border-width); }
