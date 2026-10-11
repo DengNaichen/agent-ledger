@@ -75,7 +75,7 @@ Priority 的档位与 [Linear](https://linear.app/docs/issue-property#priority) 
 
 ## 范围导航与项目列表
 
-Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`。Workspace 分组的 Settings 链接直达设置页；团队图标只作展示，emoji 使用 13px 字号、16px 方形容器，与普通图标同列，导航文字行高统一为 16px，团队之间留 8px 间距。Settings 沿用主面板，居中内容最大 768px，各团队表单展示名称、emoji 和只读编号；窄屏字段上下排列。名称输入框与图标按钮均高 32px，图标按钮为方形，内部 emoji 使用 14px 字号和 16px 方形容器。团队侧栏与 Settings 的原生 emoji 内层字形左移 1px，校正当前 macOS 字体在图标槽内偏右的观感；不移动外层图标槽、点击区域或垂直位置。其它系统字体需另行视觉验证。任务工具栏提供 Filter 和 Display 弹层：前者容纳状态、Team、type、priority 与标签筛选，后者容纳 List/Board、排序及 Select visible issues；搜索和结果数留在工具栏，已应用筛选显示可清除 chip。批量工具栏仅在当前范围有选中条目时出现。`ProjectList.tsx` 将项目名称链接、说明和关联 Team 排成紧凑行，长文本截断，复用主题文字/边界/间距与 EntityEmoji。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
+Sidebar 按 Workspace 与 Team 分组，各自的任务/项目是链接，当前项消费 `.nav-item.active`。Workspace 分组的 Settings 链接直达设置页；团队图标只作展示，emoji 使用 13px 字号、16px 方形容器，与普通图标同列，导航文字行高统一为 16px，团队之间留 8px 间距。Settings 沿用主面板，居中内容最大 768px，各团队表单展示名称、emoji 和只读编号；窄屏字段上下排列。名称输入框与图标按钮均高 32px，图标按钮为方形，内部 emoji 使用 14px 字号和 16px 方形容器。任务工具栏提供 Filter 和 Display 弹层：前者容纳状态、Team、type、priority 与标签筛选，后者容纳 List/Board、排序及 Select visible issues；搜索和结果数留在工具栏，已应用筛选显示可清除 chip。批量工具栏仅在当前范围有选中条目时出现。`ProjectList.tsx` 将项目名称链接、说明和关联 Team 排成紧凑行，长文本截断，复用主题文字/边界/间距与 EntityEmoji。窄屏保留 Workspace 入口，用 Navigation 按钮展开可滚动导航；选择目的地重新挂载并收起。项目说明、待归属/归档提示和错误恢复使用现有 token。
 
 ## 布局
 
