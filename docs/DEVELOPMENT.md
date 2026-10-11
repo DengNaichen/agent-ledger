@@ -154,6 +154,12 @@ Caddy 自动申请证书并反向代理到容器内部 8787；app 不向宿主�
 
 MCP host 配置服务 URL `https://<域名>/w/<slug>/mcp`、public client ID `inftask`（与后端使用的 UC client ID 不同），使用 Authorization Code + S256 PKCE；本版不提供动态 client 注册。授权请求必须带 `resource=https://<域名>/w/<slug>/mcp`，换 token 时的 `resource` 必须与授权时相同，callback 只接受带端口的 `http://127.0.0.1`、`http://[::1]` 或 `http://localhost` URL，不接受 query 或 fragment。后端将其转到 UC 的固定网页回调。公网托管 MCP host 的 HTTPS callback 不在本版范围。
 
+客户端配置（2026-10-11 用 Claude Code 2.1.296 和 Codex 0.162.1 对 `https://harnessagent.tokensinfinity.com` 实测，见 AL-37）。两者都用预注册的 public client ID `inftask`，第一次连接时在浏览器完成 UC 登录：
+
+- Claude Code：`claude mcp add --transport http --scope user --client-id inftask <名称> https://<域名>/w/<slug>/mcp`。已经在运行的会话不会重读 user 级 MCP 配置，先重启会话（`claude --continue` 可接着原对话），再在 `/mcp` 里选该服务并 Authenticate。
+- Codex：`codex mcp add <名称> --url https://<域名>/w/<slug>/mcp --oauth-client-id inftask`，再 `codex mcp login <名称>`。不要加 `--oauth-resource`：Codex 会自动带上 `resource`，再配一次会让授权请求出现两个 `resource`，后端按重复字段返回 `{"error":"invalid_request"}`。
+- 也可以安装仓库自带的 agent 插件，它带好了同样的 MCP 配置，见 [README 的 Agent plugin 一节](../README.md#agent-plugin)。
+
 后端的 `/mcp/oauth/token` 接受 form-urlencoded：code grant 必须有 `grant_type`、`client_id`、`resource`、`code`、`redirect_uri`、`code_verifier`；refresh grant 必须有 `grant_type`、`client_id`、`resource`、`refresh_token`。重复、额外或空字段被拒绝。后端只在短期内存 grant 中保存 UC token，完成 PKCE 校验后将 access/refresh token 交给 host；secret 不交给 host。直接持有合法 access token 的客户端也可用 `Authorization: Bearer ...` 访问 REST/MCP。
 
 ### 验证边界
