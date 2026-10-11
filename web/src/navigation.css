@@ -34,10 +34,11 @@
 .workspace-option .icon { flex: none; }
 .workspace-actions { border-top: var(--border-width) solid var(--border); margin-top: var(--space-4); padding-top: var(--space-4); }
 .navigation-toggle { display: none; }
-.scope-navigation, .team-navigation { display: flex; flex: none; flex-direction: column; gap: var(--sidebar-row-gap); }
+.scope-navigation, .team-navigation, .team-destinations:not([hidden]) { display: flex; flex: none; flex-direction: column; gap: var(--sidebar-row-gap); }
 .scope-navigation a { text-decoration: none; }
 .scope-sidebar .team-mark { width: var(--sidebar-icon-size); height: var(--sidebar-icon-size); line-height: 1; }
 .team-heading .entity-emoji { width: var(--sidebar-icon-size); height: var(--sidebar-icon-size); font-size: var(--sidebar-emoji-size); }
+.team-heading > .icon { flex: none; }
 .team-navigation + .team-navigation { margin-top: calc(var(--sidebar-section-gap) - var(--sidebar-row-gap)); }
 .team-destination { padding-left: var(--sidebar-child-inset); }
 .sidebar-account { margin-top: auto; padding: var(--sidebar-section-gap) 0 0; }
