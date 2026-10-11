@@ -175,6 +175,15 @@ const issueColumns = `id, identifier, title, status, type,
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
 	updated_at, description, created_at, priority`
 
+// scanIssue reads a row of issueColumns into an issue without its labels and
+// returns the issue's id with it.
+func scanIssue(row interface{ Scan(...any) error }) (Issue, int64, error) {
+	var issue Issue
+	var id int64
+	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority)
+	return issue, id, err
+}
+
 // teamID, projectID, and issueID look up the id of a team key, a Project name,
 // and an issue identifier in the workspace; an empty string gives NULL.
 func (s *Service) teamID(ctx context.Context, key string) (sql.NullInt64, error) {
@@ -222,9 +231,8 @@ func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue,
 	issues := []Issue{}
 	ids := []int64{}
 	for rows.Next() {
-		var issue Issue
-		var id int64
-		if err := rows.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority); err != nil {
+		issue, id, err := scanIssue(rows)
+		if err != nil {
 			return nil, err
 		}
 		issues = append(issues, issue)
@@ -387,10 +395,7 @@ func (s *Service) Get(ctx context.Context, identifier string) (Issue, error) {
 
 // get also returns the issue's id, which other tables reference.
 func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, error) {
-	var issue Issue
-	var id int64
-	err := s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(
-		&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority)
+	issue, id, err := scanIssue(s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, 0, ErrNotFound
 	}
