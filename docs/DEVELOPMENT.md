@@ -74,7 +74,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.in
 
 ## 合并后更新正式实例
 
-正式实例在云端。合并后在主检出的 `main` 上，先运行 `deploy/release.sh --dry-run <ssh-host>` 核对将执行的命令，再运行 `deploy/release.sh <ssh-host>` 发布；`<ssh-host>` 是下一段所说的正式主机别名。脚本只重建 app，保留现有 Compose project、数据卷和 Caddy，验证失败时不自动回滚。服务器布局、镜像标签、备份和回滚见 [deploy/README](../deploy/README.md)。脚本里的服务器布局与 `/opt/inftask/RUNBOOK.txt` 核对完成前，真实发布会拒绝执行，在此之前仍按 RUNBOOK 手动更新。本机 launchd 已停用，不能再用 `launchctl kickstart` 更新正式实例。本机库和 plist 仅供有明确授权的回滚使用。
+正式实例在云端。合并后在主检出的 `main` 上，先运行 `deploy/release.sh --dry-run <ssh-host>` 核对将执行的命令，再运行 `deploy/release.sh <ssh-host>` 发布；`<ssh-host>` 是下一段所说的正式主机别名。脚本先备份，再只重建 app，保留现有 Compose project、数据目录和 Caddy，验证失败时不自动回滚；成功后更新服务器的 `deployment.json` 和 `/opt/inftask/RUNBOOK.txt`。服务器布局、镜像标签、备份和回滚见 [deploy/README](../deploy/README.md)。本机 launchd 已停用，不能再用 `launchctl kickstart` 更新正式实例。本机库和 plist 仅供有明确授权的回滚使用。
 
 正式实例所在的主机就是 `harnessagent.tokensinfinity.com` 解析到的机器，连接前先用 `dig +short harnessagent.tokensinfinity.com` 核对地址。维护者本机的 SSH 别名 `harness` 指向另一台服务器，那台机器上没有 `/opt/inftask`，不得用它部署或运维 InfTask。建议在自己的 `~/.ssh/config` 里给正式主机单独建一个别名，不要复用 `harness`。登录用户和密钥由维护者提供，不写进仓库。
 
