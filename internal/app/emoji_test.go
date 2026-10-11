@@ -87,6 +87,35 @@ func TestEntityEmojiLifecycle(t *testing.T) {
 	if p["emoji"] != "💻" || team.NextNumber != 42 {
 		t.Fatalf("team = %#v", p)
 	}
+	for _, emoji := range []string{"🚀", "👩🏽‍💻", "🇨🇳", ""} {
+		updated, err := def.UpdateTeam(ctx, UpdateTeam{Key: "DEV", Emoji: &emoji})
+		if err != nil || updated.Emoji != emoji || updated.Key != "DEV" || updated.Name != "Developers" || updated.NextNumber != 42 {
+			t.Fatalf("update team = %#v, error %v", updated, err)
+		}
+	}
+	emoji := "💻"
+	if _, err := def.UpdateTeam(ctx, UpdateTeam{Key: "AL", Emoji: &emoji}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := def.UpdateTeam(ctx, UpdateTeam{Key: "AL"})
+	if err != nil || updated.Emoji != emoji {
+		t.Fatalf("omitted emoji changed: %#v, %v", updated, err)
+	}
+	otherTeams, err := other.ListTeams(ctx)
+	if err != nil || otherTeams[0].Emoji != "" {
+		t.Fatalf("cross-workspace update: %#v, %v", otherTeams, err)
+	}
+	for _, invalid := range []string{"text", "🚀🚀"} {
+		if _, err := def.UpdateTeam(ctx, UpdateTeam{Key: "AL", Emoji: &invalid}); !errors.Is(err, ErrInvalidEmoji) {
+			t.Fatal(err)
+		}
+		if _, err := def.CreateTeam(ctx, CreateTeam{Key: "BAD", Name: "Invalid", Emoji: invalid}); !errors.Is(err, ErrInvalidEmoji) {
+			t.Fatal(err)
+		}
+	}
+	if _, err := def.UpdateTeam(ctx, UpdateTeam{Key: "missing"}); !errors.Is(err, ErrTeamNotFound) {
+		t.Fatal(err)
+	}
 }
 
 func TestMigrateEntityEmoji(t *testing.T) {
@@ -134,25 +163,7 @@ func TestMigrateEntityEmoji(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fresh.Close()
-	for _, table := range []string{"projects", "teams"} {
-		columns := func(db *sql.DB) []string {
-			rows, err := db.Query(`SELECT name || ':' || type || ':' || "notnull" || ':' || COALESCE(dflt_value,'') FROM pragma_table_info(?) ORDER BY name`, table)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer rows.Close()
-			var result []string
-			for rows.Next() {
-				var col string
-				if err := rows.Scan(&col); err != nil {
-					t.Fatal(err)
-				}
-				result = append(result, col)
-			}
-			return result
-		}
-		if !reflect.DeepEqual(columns(service.db), columns(fresh.db)) {
-			t.Fatalf("schema mismatch %s", table)
-		}
+	if !reflect.DeepEqual(structure(t, service.db), structure(t, fresh.db)) {
+		t.Fatal("fresh and upgraded schemas differ")
 	}
 }

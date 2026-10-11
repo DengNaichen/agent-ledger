@@ -4,7 +4,7 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 6 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 7 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
@@ -15,6 +15,8 @@
 - 迁移 5 用 `ALTER TABLE issues ADD COLUMN` 增加 `priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4))`，已有票回填为 No priority，原引用、正文及时间保留。迁移前备份为 `before-migration-5.db`（从版本 4 升级时）；旧版程序可以忽略此新增列，但不会读取或设置优先级。
 
 - 迁移 6 用 `ALTER TABLE comments ADD COLUMN` 增加 `author TEXT NOT NULL DEFAULT ''`，已有评论的作者为空，其他列和 id 不变。从版本 5 升级前备份为 `before-migration-6.db`。旧版程序能直接打开升级后的库，读写评论和票都正常，只是不返回作者，它新加的评论作者为空。回滚有两种：停服务换回旧版二进制，作者留在库里、页面和接口不显示；或停服务恢复 `before-migration-6.db`，此后的写入（包括从 Linear 导入的数据）会丢失。
+
+- 迁移 7 给 `projects` 和 `teams` 追加 `emoji TEXT NOT NULL DEFAULT ''`，现有图标沿用默认值；名称、描述、归档、内部 id、team key 和 next_number 保留。从版本 6 升级前备份为 `before-migration-7.db`。旧版服务可忽略新增列继续读写；回滚二进制后 emoji 仍在库中，但旧页面不显示。恢复升级前备份会丢失此后的写入。
 
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 

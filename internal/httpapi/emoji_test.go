@@ -31,6 +31,16 @@ func TestEntityEmojiHTTP(t *testing.T) {
 			if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 				t.Fatal(err)
 			}
+			list := httptest.NewRecorder()
+			handler.ServeHTTP(list, httptest.NewRequest("GET", "/api/w/default/"+strings.Split(path, "/")[1], nil))
+			var persisted map[string][]map[string]any
+			if err := json.Unmarshal(list.Body.Bytes(), &persisted); err != nil {
+				t.Fatal(err)
+			}
+			entities := persisted[strings.Split(path, "/")[1]]
+			if list.Code != http.StatusOK || len(entities) != 1 || entities[0]["emoji"] != value {
+				t.Fatalf("GET after PATCH: %d %s", list.Code, list.Body.String())
+			}
 			if result["emoji"] != value {
 				t.Fatalf("emoji = %#v, want %q", result["emoji"], value)
 			}
@@ -41,6 +51,7 @@ func TestEntityEmojiHTTP(t *testing.T) {
 		}{
 			{"default", `{"emoji":"hello"}`, 400},
 			{"default", `{"emoji":"🚀🚀"}`, 400},
+			{"default", `{"emoji":"🚀","name":"Renamed"}`, 400},
 			{"other", `{"emoji":"🚀"}`, 404},
 		} {
 			rec := httptest.NewRecorder()

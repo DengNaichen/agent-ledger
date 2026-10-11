@@ -55,6 +55,7 @@ func TestWorkspaceScopedMCP(t *testing.T) {
 			t.Fatalf("%s: identifier = %s, want AL-1", slug, created.Identifier)
 		}
 	}
+	call(t, def, "update_team", map[string]any{"key": "AL", "emoji": "🚀"}, &team)
 	call(t, acme, "create_issue", map[string]any{"team": "AL", "title": "Second in acme"}, &created)
 	call(t, acme, "create_project", map[string]any{"name": "Acme only"}, &app.Project{})
 	var label app.Label
@@ -74,7 +75,7 @@ func TestWorkspaceScopedMCP(t *testing.T) {
 		}
 		var teams teamsOutput
 		call(t, session, "list_teams", map[string]any{}, &teams)
-		if len(teams.Teams) != 1 || teams.Teams[0].Name != "Team in "+slug {
+		if len(teams.Teams) != 1 || teams.Teams[0].Name != "Team in "+slug || (slug == "default" && teams.Teams[0].Emoji != "🚀") || (slug == "acme" && teams.Teams[0].Emoji != "") {
 			t.Fatalf("%s: teams = %#v", slug, teams)
 		}
 	}
@@ -118,6 +119,7 @@ func TestWorkspaceScopedMCP(t *testing.T) {
 		{"project", "create_issue", map[string]any{"team": "AL", "title": "In Project", "project": "Acme only"}, app.ErrProjectNotFound.Error()},
 		{"updated project", "update_issue", map[string]any{"identifier": "AL-1", "project": "Acme only"}, app.ErrProjectNotFound.Error()},
 		{"project filter", "list_issues", map[string]any{"project": "Acme only"}, app.ErrProjectNotFound.Error()},
+		{"project emoji", "update_project", map[string]any{"name": "Acme only", "emoji": "🚀"}, app.ErrProjectNotFound.Error()},
 		{"archive project", "update_project", map[string]any{"name": "Acme only", "archived": true}, app.ErrProjectNotFound.Error()},
 		{"apply label", "change_issue_labels", map[string]any{"identifiers": []string{"AL-1"}, "add": []int64{label.ID}}, app.ErrLabelNotFound.Error()},
 		{"update label", "update_label", map[string]any{"id": label.ID, "name": "Taken"}, app.ErrLabelNotFound.Error()},
