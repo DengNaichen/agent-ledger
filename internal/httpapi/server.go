@@ -11,8 +11,9 @@ import (
 
 type server struct{ service *app.Service }
 
-// New serves the REST API, the MCP endpoint, and the web UI. Browsers may only
-// reach them from the same origin; MCP clients send no Origin and pass through.
+// New serves the REST API, the MCP endpoint of each workspace, and the web UI.
+// Browsers may only reach them from the same origin; MCP clients send no
+// Origin and pass through.
 func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s := &server{service: service}
 	mux := http.NewServeMux()
@@ -23,20 +24,76 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("GET /api/issues", s.listIssues)
-	mux.HandleFunc("POST /api/issues", s.createIssue)
-	mux.HandleFunc("PATCH /api/issues/{identifier}/status", s.moveIssue)
-	mux.HandleFunc("PATCH /api/issues/{identifier}", s.updateIssue)
-	mux.HandleFunc("GET /api/issues/{identifier}", s.getIssue)
-	mux.HandleFunc("POST /api/issues/{identifier}/comments", s.addComment)
-	mux.HandleFunc("GET /api/projects", s.listProjects)
-	mux.HandleFunc("GET /api/teams", s.listTeams)
-	mux.HandleFunc("POST /api/teams", s.createTeam)
+	mux.HandleFunc("GET /api/workspaces", s.listWorkspaces)
+	mux.HandleFunc("POST /api/workspaces", s.createWorkspace)
+	mux.HandleFunc("PATCH /api/workspaces/{workspace}", s.renameWorkspace)
+	mux.HandleFunc("GET /api/w/{workspace}/issues", s.in((*server).listIssues))
+	mux.HandleFunc("POST /api/w/{workspace}/issues", s.in((*server).createIssue))
+	mux.HandleFunc("PATCH /api/w/{workspace}/issues/{identifier}/status", s.in((*server).moveIssue))
+	mux.HandleFunc("PATCH /api/w/{workspace}/issues/{identifier}", s.in((*server).updateIssue))
+	mux.HandleFunc("GET /api/w/{workspace}/issues/{identifier}", s.in((*server).getIssue))
+	mux.HandleFunc("POST /api/w/{workspace}/issues/{identifier}/comments", s.in((*server).addComment))
+	mux.HandleFunc("GET /api/w/{workspace}/projects", s.in((*server).listProjects))
+	mux.HandleFunc("GET /api/w/{workspace}/teams", s.in((*server).listTeams))
+	mux.HandleFunc("POST /api/w/{workspace}/teams", s.in((*server).createTeam))
 	for _, method := range []string{"GET", "POST", "DELETE"} {
-		mux.Handle(method+" /mcp", mcp)
+		mux.Handle(method+" /w/{workspace}/mcp", mcp)
 	}
 	mux.Handle("GET /", web)
 	return http.NewCrossOriginProtection().Handler(mux)
+}
+
+// in serves a route of the workspace named in the path; handle reads and
+// writes only that workspace. An unknown slug is not found.
+func (s *server) in(handle func(*server, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		workspace, err := s.service.InWorkspace(r.Context(), r.PathValue("workspace"))
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		handle(&server{service: workspace}, w, r)
+	}
+}
+
+func (s *server) listWorkspaces(w http.ResponseWriter, r *http.Request) {
+	workspaces, err := s.service.ListWorkspaces(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"workspaces": workspaces})
+}
+
+func (s *server) createWorkspace(w http.ResponseWriter, r *http.Request) {
+	var input app.Workspace
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	workspace, err := s.service.CreateWorkspace(r.Context(), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, workspace)
+}
+
+// renameWorkspace changes only the name; the slug cannot change.
+func (s *server) renameWorkspace(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name string `json:"name"`
+	}
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	workspace, err := s.service.RenameWorkspace(r.Context(), r.PathValue("workspace"), input.Name)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, workspace)
 }
 
 func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
@@ -180,11 +237,11 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 func writeError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound):
+	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound), errors.Is(err, app.ErrWorkspaceNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam):
+	case errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam), errors.Is(err, app.ErrInvalidWorkspace):
 		status = http.StatusBadRequest
-	case errors.Is(err, app.ErrTeamExists):
+	case errors.Is(err, app.ErrTeamExists), errors.Is(err, app.ErrWorkspaceExists):
 		status = http.StatusConflict
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {

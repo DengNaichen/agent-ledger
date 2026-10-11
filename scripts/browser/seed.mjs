@@ -4,11 +4,11 @@ import { parseArgs } from "node:util";
 
 const usage = `Usage: node scripts/browser/seed.mjs --url http://127.0.0.1:<port>
 
-Creates team AL, two Projects, and eleven AL tickets through the server's
-/mcp endpoint: every status and type, a spec with two children, blocks,
-blocked_by and related relations, a link, and Markdown tables and code blocks
-in a description and a comment. Refuses to write when the server already has
-tickets. AL-2 is the spec that shows all of these.`;
+Creates workspace default, then team AL, two Projects, and eleven AL tickets
+through its /w/default/mcp endpoint: every status and type, a spec with two
+children, blocks, blocked_by and related relations, a link, and Markdown
+tables and code blocks in a description and a comment. Refuses to write when
+the server already has a workspace. AL-2 is the spec that shows all of these.`;
 
 const { values } = parseArgs({ options: { url: { type: "string" }, help: { type: "boolean" } } });
 if (values.help) {
@@ -20,7 +20,21 @@ if (!values.url) {
   process.exit(2);
 }
 
-const endpoint = new URL("/mcp", values.url);
+const workspaces = new URL("/api/workspaces", values.url);
+const existing = await fetch(workspaces);
+if (!existing.ok) throw new Error(`GET ${workspaces}: HTTP ${existing.status} ${await existing.text()}`);
+if ((await existing.json()).workspaces.length > 0) {
+  console.error(`${values.url} already has workspaces; seed only a development server started on a new temporary database.`);
+  process.exit(1);
+}
+const create = await fetch(workspaces, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ slug: "default", name: "Default" }),
+});
+if (!create.ok) throw new Error(`POST ${workspaces}: HTTP ${create.status} ${await create.text()}`);
+
+const endpoint = new URL("/w/default/mcp", values.url);
 let requestId = 0;
 
 async function call(name, args) {
@@ -34,12 +48,6 @@ async function call(name, args) {
   if (message.error) throw new Error(`${name}: ${message.error.message}`);
   if (message.result.isError) throw new Error(`${name}: ${message.result.content[0].text}`);
   return message.result.structuredContent;
-}
-
-const existing = await call("list_issues", { limit: 1 });
-if (existing.issues.length > 0) {
-  console.error(`${values.url} already has tickets; seed only a development server started on a new temporary database.`);
-  process.exit(1);
 }
 
 async function issue(fields) {

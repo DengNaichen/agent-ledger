@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { api, Label, LabelBadge, LabelGroup, RequestError } from "./shared";
+import { api, apiPath, Label, LabelBadge, LabelGroup, RequestError } from "./shared";
 
 export function useLabels() {
   const [labels, setLabels] = useState<Label[]>([]);
@@ -9,8 +9,8 @@ export function useLabels() {
   async function reload() {
     try {
       const [l, g] = await Promise.all([
-        api<{ labels: Label[] }>("/api/labels?include_archived=true"),
-        api<{ groups: LabelGroup[] }>("/api/label-groups"),
+        api<{ labels: Label[] }>(apiPath("/labels?include_archived=true")),
+        api<{ groups: LabelGroup[] }>(apiPath("/label-groups")),
       ]);
       setLabels(l.labels);
       setGroups(g.groups);
@@ -86,7 +86,7 @@ export function LabelPicker({
     setBusy(true);
     setError("");
     try {
-      await api("/api/issue-labels", "POST", { identifiers, add, remove });
+      await api(apiPath("/issue-labels"), "POST", { identifiers, add, remove });
       await onChanged();
       if (batch) onClose();
     } catch (cause) {
@@ -390,7 +390,7 @@ function LabelEditor({ label, catalog, onClose }: { label: Label | "new"; catalo
     setBusy(true);
     setError("");
     try {
-      await api(isNew ? "/api/labels" : `/api/labels/${label.id}`, isNew ? "POST" : "PATCH", {
+      await api(apiPath(isNew ? "/labels" : `/labels/${label.id}`), isNew ? "POST" : "PATCH", {
         name,
         color,
         description,
@@ -468,7 +468,7 @@ function GroupEditor({ group, catalog, onClose }: { group: LabelGroup | "new"; c
     setBusy(true);
     setError("");
     try {
-      await api("/api/label-groups", "POST", { name, ...(group === "new" ? {} : { id: group.id }) });
+      await api(apiPath("/label-groups"), "POST", { name, ...(group === "new" ? {} : { id: group.id }) });
       await catalog.reload();
       onClose();
     } catch (cause) {
@@ -516,7 +516,7 @@ function MergeEditor({
     setBusy(true);
     setError("");
     try {
-      await api("/api/labels/merge", "POST", { source_id: source.id, target_id: Number(target) });
+      await api(apiPath("/labels/merge"), "POST", { source_id: source.id, target_id: Number(target) });
       onMerged();
       await catalog.reload();
       onClose();

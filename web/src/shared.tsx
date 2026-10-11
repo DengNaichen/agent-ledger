@@ -58,6 +58,18 @@ export type Project = { name: string; description: string; archived: boolean };
 
 export type Team = { key: string; name: string; next_number: number };
 
+export type Workspace = { slug: string; name: string };
+
+// Pages live under /<workspace slug>/ and the workspace's API under
+// /api/w/<workspace slug>/; the slug is the first segment of the page path.
+export function workspaceSlug() {
+  return window.location.pathname.split("/")[1];
+}
+
+export const pagePath = (path: string) => `/${workspaceSlug()}${path}`;
+
+export const apiPath = (path: string) => `/api/w/${workspaceSlug()}${path}`;
+
 export async function api<T>(path: string, method = "GET", body?: object): Promise<T> {
   const response = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
@@ -82,14 +94,14 @@ export function NavLink({ to, className, children }: { to: string; className?: s
 }
 
 const statusColors: Record<Status, string> = {
-  triage: "#fc7840",
-  backlog: "#bec2c8",
-  todo: "#e2e2e2",
-  agent_ready: "#b49bdd",
-  in_progress: "#f2c94c",
-  in_review: "#4cb782",
-  done: "#5e6ad2",
-  canceled: "#95a2b3",
+  triage: "var(--status-triage)",
+  backlog: "var(--status-backlog)",
+  todo: "var(--status-todo)",
+  agent_ready: "var(--status-agent-ready)",
+  in_progress: "var(--status-in-progress)",
+  in_review: "var(--status-in-review)",
+  done: "var(--status-done)",
+  canceled: "var(--status-canceled)",
 };
 
 // Backlog and planned states are rings; progress fills a pie inside the ring.

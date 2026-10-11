@@ -2,11 +2,15 @@
 
 ## 导航与任务上下文
 
-`shared.tsx` 用 History API 和 popstate 导航；详情路径是 `/issue/<identifier>`，Go 静态处理器提供直达路由回退。`App.tsx` 将筛选、视图和折叠状态保存在组件内存中，不持久化到 URL 或 localStorage；刷新不能承诺恢复这些选择。
+`shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 将筛选、视图和折叠状态保存在组件内存中，不持久化到 URL 或 localStorage；刷新不能承诺恢复这些选择。
 
 侧边栏 Teams 分组列出全部 team，点一个 team 只看该 team 的票，筛选栏出现可清除的 team chip，All issues 清除 team、状态和 Project 筛选；team 筛选和 Project 筛选一样只在内存中，窄屏下侧边栏分组隐藏。Teams 旁的 “+” 打开 Create team 弹窗：key、名称和可选的起始编号，成功后切到新 team，失败保留输入并显示 role=alert。
 
 Team、Project、type、标签条件和搜索词参与 API 查询，搜索框按 Enter 才提交搜索词；状态筛选在列表数据中选择可见列。切换状态或 Project 筛选重置折叠，在详情页选择筛选会返回列表。创建弹窗沿用当前 Project 和状态；All issues 下使用 triage。弹窗的 team 下拉预选正在查看的 team，没有 team 筛选时预选按 key 排序的第一个；还没有 team 时显示提示并禁用提交。创建成功后展开所在状态组；有具体标签筛选或新票不属于正在查看的 team 时重读列表，由筛选结果决定新 issue 是否显示。
+
+## 自动明暗主题
+
+页面默认跟随系统的 `prefers-color-scheme`，没有深色偏好时使用 light。首次加载、刷新和详情直达使用同一套 CSS 媒体查询；打开页面后系统偏好改变无需刷新。没有手动覆盖或 localStorage 主题状态。主题变化只改变样式，不卸载组件，不关闭 dialog 或清空编辑草稿。原生表单控件通过 `color-scheme` 跟随主题，浏览器 UI 的 `theme-color` 通过两条带 media 的 meta 跟随。token 分类与字面量边界见 [设计系统](DESIGN_SYSTEM.md)。
 
 ## 写入完成点
 
@@ -18,7 +22,7 @@ Team、Project、type、标签条件和搜索词参与 API 查询，搜索框按
 
 ## 标签操作
 
-标签管理页为 `/labels`。名称、颜色、描述和归档状态在原生 dialog 中编辑；失败保留草稿，创建时提示相似名称。标签所属组创建后固定，组支持创建与改名。合并前展示关联转移及源 ID 删除的影响。
+标签管理页为 `/<slug>/labels`。名称、颜色、描述和归档状态在原生 dialog 中编辑；失败保留草稿，创建时提示相似名称。标签所属组创建后固定，组支持创建与改名。合并前展示关联转移及源 ID 删除的影响。
 
 详情标签选择器支持搜索与原生 checkbox 键盘操作，逐次增量保存，保存期间禁用选择，等待服务端成功和详情重读后显示结果。批量添加/移除由原生 dialog 提交一次事务；组内添加自动替换，移除可以同时选择多个组内值。列表/看板展示前两个标签和 `+N`。标签筛选对话框使用显式 Apply/Clear；组选项匹配任意子标签，any/all/none 组合所选标签和组，unlabeled 不允许再选标签。标签筛选参与 API 查询，筛选与批量选择不跨刷新持久化。
 

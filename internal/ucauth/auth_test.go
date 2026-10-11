@@ -136,15 +136,15 @@ func begin(t *testing.T, f *fixture, target string) (*http.Cookie, string) {
 }
 func TestWebLoginAndLogout(t *testing.T) {
 	f := newFixture(t)
-	for _, path := range []string{"/api/issues", "/mcp"} {
+	for _, path := range []string{"/api/w/default/issues", "/w/default/mcp"} {
 		if got := request(f.handler, "GET", path, nil, nil).Code; got != 401 {
 			t.Fatalf("%s = %d", path, got)
 		}
 	}
-	if got := request(f.handler, "GET", "/issue/AL-1", nil, nil).Code; got != 302 {
+	if got := request(f.handler, "GET", "/default/issue/AL-1", nil, nil).Code; got != 302 {
 		t.Fatal(got)
 	}
-	c, state := begin(t, f, "/auth/login?return_to=%2Fissue%2FAL-1")
+	c, state := begin(t, f, "/auth/login?return_to=%2Fdefault%2Fissue%2FAL-1")
 	if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode {
 		t.Fatal("unsafe flow cookie")
 	}
@@ -153,7 +153,7 @@ func TestWebLoginAndLogout(t *testing.T) {
 		t.Fatal("missing state cookie accepted")
 	}
 	w := request(f.handler, "GET", callback, c, nil)
-	if w.Code != 302 || w.Header().Get("Location") != "/issue/AL-1" {
+	if w.Code != 302 || w.Header().Get("Location") != "/default/issue/AL-1" {
 		t.Fatalf("callback: %d %s", w.Code, w.Body)
 	}
 	session := getCookie(t, w, sessionCookie)
@@ -163,13 +163,13 @@ func TestWebLoginAndLogout(t *testing.T) {
 	if got := request(f.handler, "GET", callback, c, nil).Code; got != 400 {
 		t.Fatal("state replay accepted")
 	}
-	if got := request(f.handler, "GET", "/api/issues", session, nil).Code; got != 200 {
+	if got := request(f.handler, "GET", "/api/w/default/issues", session, nil).Code; got != 200 {
 		t.Fatal(got)
 	}
-	if got := request(f.handler, "GET", "/mcp", session, nil).Code; got != 401 {
+	if got := request(f.handler, "GET", "/w/default/mcp", session, nil).Code; got != 401 {
 		t.Fatal("MCP accepted cookie")
 	}
-	r := httptest.NewRequest("POST", "/api/issues", nil)
+	r := httptest.NewRequest("POST", "/api/w/default/issues", nil)
 	r.AddCookie(session)
 	r.Header.Set("Origin", "https://evil.test")
 	rec := httptest.NewRecorder()
@@ -180,7 +180,7 @@ func TestWebLoginAndLogout(t *testing.T) {
 	if got := request(f.handler, "POST", "/auth/logout", session, nil).Code; got != 204 {
 		t.Fatal(got)
 	}
-	if got := request(f.handler, "GET", "/api/issues", session, nil).Code; got != 401 {
+	if got := request(f.handler, "GET", "/api/w/default/issues", session, nil).Code; got != 401 {
 		t.Fatal("logged-out session still valid")
 	}
 }
@@ -244,7 +244,7 @@ func TestUCTokenValidation(t *testing.T) {
 		t.Fatal("wrong issuer accepted")
 	}
 	f.auth.verifier.issuer = ""
-	r := httptest.NewRequest("POST", "/mcp", nil)
+	r := httptest.NewRequest("POST", "/w/default/mcp", nil)
 	r.Header.Set("Authorization", "Bearer "+f.token)
 	w := httptest.NewRecorder()
 	f.handler.ServeHTTP(w, r)
@@ -253,7 +253,7 @@ func TestUCTokenValidation(t *testing.T) {
 	}
 }
 func mcpQuery(challenge string) url.Values {
-	return url.Values{"response_type": {"code"}, "client_id": {"inftask"}, "redirect_uri": {"http://127.0.0.1:54321/callback"}, "state": {"client-state"}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}, "resource": {"https://board.example.test/mcp"}}
+	return url.Values{"response_type": {"code"}, "client_id": {"inftask"}, "redirect_uri": {"http://127.0.0.1:54321/callback"}, "state": {"client-state"}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}, "resource": {"https://board.example.test/w/default/mcp"}}
 }
 func TestMCPOAuthPKCEAndRefresh(t *testing.T) {
 	f := newFixture(t)
@@ -334,13 +334,21 @@ func TestAuthenticatedMCPWritesSharedBoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
-	if _, err := service.CreateTeam(context.Background(), app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
+	ctx := context.Background()
+	if _, err := service.CreateWorkspace(ctx, app.Workspace{Slug: "default", Name: "Default"}); err != nil {
+		t.Fatal(err)
+	}
+	def, err := service.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := def.CreateTeam(ctx, app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewServer(f.auth.Handler(httpapi.New(service, http.NotFoundHandler(), mcpserver.Handler(service))))
 	defer server.Close()
 	client := mcp.NewClient(&mcp.Implementation{Name: "uc-test", Version: "1"}, nil)
-	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp", HTTPClient: &http.Client{Transport: bearerTransport{f.token}}}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL + "/w/default/mcp", HTTPClient: &http.Client{Transport: bearerTransport{f.token}}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,8 +357,73 @@ func TestAuthenticatedMCPWritesSharedBoard(t *testing.T) {
 	if err != nil || result.IsError {
 		t.Fatal(err, result)
 	}
-	stored, err := service.Get(context.Background(), "AL-1")
+	stored, err := def.Get(ctx, "AL-1")
 	if err != nil || stored.Title != "Shared UC issue" {
 		t.Fatal(err, stored)
+	}
+}
+func TestMCPOAuthPerWorkspace(t *testing.T) {
+	f := newFixture(t)
+	for _, slug := range []string{"default", "acme-2"} {
+		w := request(f.handler, "GET", "/.well-known/oauth-protected-resource/w/"+slug+"/mcp", nil, nil)
+		var metadata struct {
+			Resource string `json:"resource"`
+		}
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &metadata) != nil || metadata.Resource != "https://board.example.test/w/"+slug+"/mcp" {
+			t.Fatalf("%s metadata: %d %s", slug, w.Code, w.Body)
+		}
+		for _, method := range []string{"GET", "POST"} {
+			w := request(f.handler, method, "/w/"+slug+"/mcp", nil, nil)
+			want := `Bearer resource_metadata="https://board.example.test/.well-known/oauth-protected-resource/w/` + slug + `/mcp"`
+			if w.Code != 401 || w.Header().Get("WWW-Authenticate") != want {
+				t.Fatalf("%s %s: %d %q", method, slug, w.Code, w.Header().Get("WWW-Authenticate"))
+			}
+		}
+	}
+	for _, path := range []string{"/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/w/Acme/mcp"} {
+		if got := request(f.handler, "GET", path, nil, nil).Code; got == 200 {
+			t.Fatalf("%s: %d", path, got)
+		}
+	}
+
+	verifier := strings.Repeat("v", 43)
+	sum := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
+	for _, resource := range []string{
+		"https://board.example.test/mcp", "https://other.test/w/default/mcp", "https://board.example.test/w/default/mcp/extra",
+		"https://board.example.test/w/default", "https://board.example.test/w//mcp", "https://board.example.test/w/Default/mcp",
+	} {
+		q := mcpQuery(challenge)
+		q.Set("resource", resource)
+		before := f.upstreamCalls.Load()
+		if w := request(f.handler, "GET", "/mcp/oauth/authorize?"+q.Encode(), nil, nil); w.Code != 400 || f.upstreamCalls.Load() != before {
+			t.Fatalf("authorize accepted resource %s: %d", resource, w.Code)
+		}
+	}
+
+	// A code is bound to the resource it was authorized for.
+	q := mcpQuery(challenge)
+	q.Set("resource", "https://board.example.test/w/acme-2/mcp")
+	c, state := begin(t, f, "/mcp/oauth/authorize?"+q.Encode())
+	callback, _ := url.Parse(request(f.handler, "GET", "/auth/callback?code=good&state="+state, c, nil).Header().Get("Location"))
+	form := url.Values{"grant_type": {"authorization_code"}, "client_id": {"inftask"}, "resource": {"https://board.example.test/w/default/mcp"}, "redirect_uri": q["redirect_uri"], "code": {callback.Query().Get("code")}, "code_verifier": {verifier}}
+	if got := request(f.handler, "POST", "/mcp/oauth/token", nil, form).Code; got != 400 {
+		t.Fatalf("code for acme-2 redeemed for default: %d", got)
+	}
+	c, state = begin(t, f, "/mcp/oauth/authorize?"+q.Encode())
+	callback, _ = url.Parse(request(f.handler, "GET", "/auth/callback?code=good&state="+state, c, nil).Header().Get("Location"))
+	form.Set("resource", "https://board.example.test/w/acme-2/mcp")
+	form.Set("code", callback.Query().Get("code"))
+	if w := request(f.handler, "POST", "/mcp/oauth/token", nil, form); w.Code != 200 {
+		t.Fatalf("token: %d %s", w.Code, w.Body)
+	}
+	refresh := url.Values{"grant_type": {"refresh_token"}, "client_id": {"inftask"}, "resource": {"https://board.example.test/w/default/mcp"}, "refresh_token": {"refresh"}}
+	if got := request(f.handler, "POST", "/mcp/oauth/token", nil, refresh).Code; got != 200 {
+		t.Fatalf("refresh: %d", got)
+	}
+	refresh.Set("resource", "https://board.example.test/mcp")
+	before := f.upstreamCalls.Load()
+	if got := request(f.handler, "POST", "/mcp/oauth/token", nil, refresh).Code; got != 400 || f.upstreamCalls.Load() != before {
+		t.Fatal("refresh for /mcp reached UC")
 	}
 }

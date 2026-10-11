@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RequestError, api, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, Status, StatusIcon, StatusSelect } from "./shared";
+import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, pagePath, Status, StatusIcon, StatusSelect } from "./shared";
 
 import { Catalog, LabelPicker } from "./Labels";
 import { LabelBadge } from "./shared";
@@ -18,7 +18,7 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
-    const load = () => api<IssueDetails>(`/api/issues/${identifier}`).then(setIssue, (cause: Error) => setError(cause.message));
+    const load = () => api<IssueDetails>(apiPath(`/issues/${identifier}`)).then(setIssue, (cause: Error) => setError(cause.message));
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
@@ -26,7 +26,7 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
 
   async function changeStatus(status: Status) {
     try {
-      const updated = await api<Issue>(`/api/issues/${identifier}/status`, "PATCH", { status });
+      const updated = await api<Issue>(apiPath(`/issues/${identifier}/status`), "PATCH", { status });
       setIssue((current) => ({ ...current!, ...updated }));
     } catch (cause) {
       setError((cause as Error).message);
@@ -38,7 +38,7 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
     setPosting(true);
     setError("");
     try {
-      const added = await api<Comment>(`/api/issues/${identifier}/comments`, "POST", { body: comment });
+      const added = await api<Comment>(apiPath(`/issues/${identifier}/comments`), "POST", { body: comment });
       setIssue((current) => ({ ...current!, comments: [...current!.comments, added] }));
       setComment("");
     } catch (cause) {
@@ -65,7 +65,7 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
       <dt>Project</dt>
       <dd>{issue.project ?? <span className="none">None</span>}</dd>
       <dt>Parent</dt>
-      <dd>{issue.parent ? <NavLink to={`/issue/${issue.parent}`}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd>
+      <dd>{issue.parent ? <NavLink to={pagePath(`/issue/${issue.parent}`)}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd>
       <dt>Created</dt>
       <dd>{timestamp(issue.created_at)}</dd>
       <dt>Updated</dt>
@@ -152,7 +152,7 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
         {properties}
       </aside>
 
-      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={async () => { const updated = await api<IssueDetails>(`/api/issues/${identifier}`); setIssue(updated); }} />}
+      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={async () => { const updated = await api<IssueDetails>(apiPath(`/issues/${identifier}`)); setIssue(updated); }} />}
       {editing && <IssueEditor issue={issue} onClose={closeEditor} onSave={(updated) => {
         setIssue({ ...issue, ...updated });
         closeEditor();
@@ -171,7 +171,7 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
       {issues.map((item) => (
         <li key={item.identifier}>
           <StatusIcon status={item.status} />
-          <NavLink to={`/issue/${item.identifier}`}><span className="identifier">{item.identifier}</span> {item.title}</NavLink>
+          <NavLink to={pagePath(`/issue/${item.identifier}`)}><span className="identifier">{item.identifier}</span> {item.title}</NavLink>
           <small>{columns.find((column) => column.status === item.status)!.label}</small>
         </li>
       ))}
@@ -200,7 +200,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/issues/${issue.identifier}`, {
+      const response = await fetch(apiPath(`/issues/${issue.identifier}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, description, status }),

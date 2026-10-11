@@ -18,7 +18,7 @@ type listLabelsInput struct {
 }
 
 func addLabelTools(server *mcp.Server, service *app.Service) {
-	mcp.AddTool(server, &mcp.Tool{Name: "list_labels", Description: "List global issue labels by name. Reuse existing labels; include_archived includes historical labels usable in filters."}, func(ctx context.Context, _ *mcp.CallToolRequest, input listLabelsInput) (*mcp.CallToolResult, labelsOutput, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "list_labels", Description: "List the workspace's issue labels by name. Reuse existing labels; include_archived includes historical labels usable in filters."}, func(ctx context.Context, _ *mcp.CallToolRequest, input listLabelsInput) (*mcp.CallToolResult, labelsOutput, error) {
 		labels, err := service.ListLabels(ctx, input.IncludeArchived)
 		return nil, labelsOutput{labels}, err
 	})
@@ -30,7 +30,7 @@ func addLabelTools(server *mcp.Server, service *app.Service) {
 		group, err := service.SaveLabelGroup(ctx, input)
 		return nil, group, err
 	})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_label", Description: "Explicitly create a global issue label. Search existing labels first. Names are trimmed and unique ignoring case within a group. Group membership is fixed."}, func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateLabel) (*mcp.CallToolResult, app.Label, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "create_label", Description: "Explicitly create an issue label in the workspace. Search existing labels first. Names are trimmed and unique ignoring case within a group. Group membership is fixed."}, func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateLabel) (*mcp.CallToolResult, app.Label, error) {
 		label, err := service.CreateLabel(ctx, input)
 		return nil, label, err
 	})

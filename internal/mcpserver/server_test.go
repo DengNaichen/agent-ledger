@@ -14,6 +14,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// connect opens a session on the MCP endpoint of workspace default, which has
+// team AL.
 func connect(t *testing.T) *mcp.ClientSession {
 	t.Helper()
 	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -21,13 +23,21 @@ func connect(t *testing.T) *mcp.ClientSession {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { service.Close() })
-	if _, err := service.CreateTeam(context.Background(), app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
+	ctx := context.Background()
+	if _, err := service.CreateWorkspace(ctx, app.Workspace{Slug: "default", Name: "Default"}); err != nil {
+		t.Fatal(err)
+	}
+	def, err := service.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := def.CreateTeam(ctx, app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewServer(httpapi.New(service, http.NotFoundHandler(), Handler(service)))
 	t.Cleanup(server.Close)
 	client := mcp.NewClient(&mcp.Implementation{Name: "inftask-test", Version: "0.1.0"}, nil)
-	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL + "/w/default/mcp"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
