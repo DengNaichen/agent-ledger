@@ -36,7 +36,7 @@ func main() {
 		log.Fatal("GITHUB_TOKEN is required with -github-repo")
 	}
 
-	auth, err := cloudAuth(*addr)
+	auth, err := cloudAuth(*addr, *data)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func serve(ctx context.Context, addr string, handler http.Handler) {
 	}
 }
 
-func cloudAuth(addr string) (*ucauth.Auth, error) {
+func cloudAuth(addr, data string) (*ucauth.Auth, error) {
 	cfg := ucauth.Config{
 		BaseURL: os.Getenv("INFONE_UC_BASE_URL"), ClientID: os.Getenv("INFONE_UC_CLIENT_ID"), ClientSecret: os.Getenv("INFONE_UC_CLIENT_SECRET"),
 		PublicURL: os.Getenv("INFTASK_PUBLIC_URL"), Issuer: os.Getenv("INFONE_UC_JWT_ISSUER"),
@@ -141,5 +141,6 @@ func cloudAuth(addr string) (*ucauth.Auth, error) {
 		return nil, errors.New("INFONE_SHARE_DIR is required for UC authentication")
 	}
 	cfg.PublicKeyPath = filepath.Join(share, "infone.pub")
+	cfg.SessionFile = data + ".sessions"
 	return ucauth.New(cfg)
 }

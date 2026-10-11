@@ -19,7 +19,7 @@ import (
 const sessionCookie = "inftask_session"
 const flowCookie = "inftask_oauth_flow"
 const flowTTL = 10 * time.Minute
-const sessionTTL = 8 * time.Hour
+const sessionTTL = 30 * 24 * time.Hour
 const pendingLimit = 256
 
 // Config accepts the existing HarnessKit UC client credentials without baking
@@ -29,20 +29,22 @@ type Config struct {
 	ClientID      string
 	ClientSecret  string
 	PublicURL     string
+	SessionFile   string
 	PublicKeyPath string
 	Issuer        string
 }
 
 type Auth struct {
-	cfg      Config
-	verifier *InfOneVerifier
-	client   *http.Client
-	secure   bool
-	mu       sync.Mutex
-	flows    map[string]flow
-	sessions map[string]session
-	grants   map[string]grant
-	now      func() time.Time
+	cfg       Config
+	verifier  *InfOneVerifier
+	client    *http.Client
+	secure    bool
+	mu        sync.Mutex
+	refreshMu sync.Mutex
+	flows     map[string]flow
+	sessions  map[string]session
+	grants    map[string]grant
+	now       func() time.Time
 }
 type flow struct {
 	ReturnTo    string
@@ -53,8 +55,10 @@ type flow struct {
 	Expires     time.Time
 }
 type session struct {
-	Identity Identity
-	Expires  time.Time
+	Identity      Identity
+	Expires       time.Time
+	AccessExpires time.Time
+	RefreshToken  string
 }
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -79,11 +83,15 @@ func New(cfg Config) (*Auth, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Auth{
+	a := &Auth{
 		cfg: cfg, verifier: verifier, secure: strings.HasPrefix(cfg.PublicURL, "https:"),
 		client: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 		flows:  map[string]flow{}, sessions: map[string]session{}, grants: map[string]grant{}, now: time.Now,
-	}, nil
+	}
+	if err := a.loadSessions(); err != nil {
+		return nil, err
+	}
+	return a, nil
 }
 
 func (a *Auth) Handler(next http.Handler) http.Handler {
@@ -124,18 +132,25 @@ func (a *Auth) protect(next http.Handler) http.Handler {
 				}
 			}
 		} else if !mcpPath.MatchString(r.URL.Path) {
-			if _, ok := a.current(r); ok {
+			if _, err := a.current(r); err == nil {
 				if unsafe(r.Method) && r.Header.Get("Origin") != a.cfg.PublicURL {
 					fail(w, 403, "origin_forbidden")
 					return
 				}
 				next.ServeHTTP(w, r)
 				return
+			} else if errors.Is(err, errSessionUnavailable) {
+				fail(w, 503, "temporarily_unavailable")
+				return
 			}
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") || mcpPath.MatchString(r.URL.Path) {
 			if mcpPath.MatchString(r.URL.Path) {
-				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+a.cfg.PublicURL+`/.well-known/oauth-protected-resource`+r.URL.Path+`"`)
+				challenge := `Bearer resource_metadata="` + a.cfg.PublicURL + `/.well-known/oauth-protected-resource` + r.URL.Path + `"`
+				if r.Header.Get("Authorization") != "" {
+					challenge += `, error="invalid_token"`
+				}
+				w.Header().Set("WWW-Authenticate", challenge)
 			}
 			fail(w, 401, "unauthorized")
 			return
@@ -149,23 +164,13 @@ func (a *Auth) protect(next http.Handler) http.Handler {
 }
 
 func unsafe(method string) bool { return method != "GET" && method != "HEAD" && method != "OPTIONS" }
-func (a *Auth) current(r *http.Request) (Identity, bool) {
-	c, err := r.Cookie(sessionCookie)
-	if err != nil {
-		return Identity{}, false
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	s, ok := a.sessions[c.Value]
-	if !ok || !a.now().Before(s.Expires) {
-		delete(a.sessions, c.Value)
-		return Identity{}, false
-	}
-	return s.Identity, true
-}
 func (a *Auth) session(w http.ResponseWriter, r *http.Request) {
-	user, ok := a.current(r)
-	if !ok {
+	user, err := a.current(r)
+	if errors.Is(err, errSessionUnavailable) {
+		fail(w, 503, "temporarily_unavailable")
+		return
+	}
+	if err != nil {
 		fail(w, 401, "unauthorized")
 		return
 	}
@@ -179,7 +184,12 @@ func (a *Auth) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		a.mu.Lock()
 		delete(a.sessions, c.Value)
+		err := a.saveSessions()
 		a.mu.Unlock()
+		if err != nil {
+			fail(w, 503, "temporarily_unavailable")
+			return
+		}
 	}
 	a.cookie(w, sessionCookie, "", "/", -1)
 	w.WriteHeader(http.StatusNoContent)
@@ -248,13 +258,13 @@ func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
 		fail(w, 502, "uc_login_failed")
 		return
 	}
-	identity, err := a.verifier.VerifyToken(token.AccessToken)
+	claims, err := a.verifier.verifiedClaims(token.AccessToken)
 	if err != nil {
 		fail(w, 401, "invalid_uc_token")
 		return
 	}
 	profile, err := a.userinfo(r.Context(), token.AccessToken)
-	if err != nil || profile.Subject != identity.Subject {
+	if err != nil || profile.Subject != claims.Subject {
 		fail(w, 502, "uc_profile_failed")
 		return
 	}
@@ -273,13 +283,22 @@ func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
 	if old, err := r.Cookie(sessionCookie); err == nil {
 		delete(a.sessions, old.Value)
 	}
-	a.sessions[id] = session{Identity: profile, Expires: a.now().Add(sessionTTL)}
+	a.sessions[id] = session{Identity: profile, Expires: a.now().Add(sessionTTL), AccessExpires: time.Unix(claims.ExpiresAt, 0), RefreshToken: token.RefreshToken}
+	err = a.saveSessions()
+	if err != nil {
+		delete(a.sessions, id)
+	}
 	a.mu.Unlock()
+	if err != nil {
+		fail(w, 503, "temporarily_unavailable")
+		return
+	}
 	a.cookie(w, sessionCookie, id, "/", int(sessionTTL.Seconds()))
 	http.Redirect(w, r, f.ReturnTo, http.StatusFound)
 }
 
-// prune runs with mu held. All transient state is bounded and disappears on restart.
+// prune runs with mu held and removes expired in-memory entries.
+// Web sessions are persisted separately; flows and grants remain transient.
 func (a *Auth) prune() {
 	now := a.now()
 	for k, v := range a.flows {
@@ -332,9 +351,12 @@ func (a *Auth) requestJSON(req *http.Request, out any) error {
 	req.Header.Set("Accept", "application/json")
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return errors.New("UC request failed")
+		return errUCUnavailable
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+		return errUCUnavailable
+	}
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("UC rejected request")
 	}

@@ -80,7 +80,7 @@ func newFixture(t *testing.T) *fixture {
 	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pub}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	f.auth, err = New(Config{BaseURL: upstream.URL, ClientID: "harnesskit", ClientSecret: "test-only-secret", PublicURL: "https://board.example.test", PublicKeyPath: path})
+	f.auth, err = New(Config{BaseURL: upstream.URL, ClientID: "harnesskit", ClientSecret: "test-only-secret", PublicURL: "https://board.example.test", PublicKeyPath: path, SessionFile: filepath.Join(t.TempDir(), "sessions")})
 	if err != nil {
 		t.Fatal(err)
 	}

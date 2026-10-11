@@ -28,6 +28,6 @@ workspace 只做分组：team、Project、标签和 PR 记录各属于一个 wor
 
 `internal/app/github.go` 轮询配置的 GitHub repository，每个仓库由 `-github-repo <slug>=<owner>/<name>` 绑定一个 workspace，每轮按该 workspace 当时的 team key 从 PR 分支名和标题识别 issue identifier，记录 PR（带 workspace）并自动推进状态；PR 描述不参与匹配。启用 linkback 时还会向 GitHub 评论写入 ticket 内容，见 [安全边界](rules/SECURITY.md)。同步游标和 PR 记录持久化在 SQLite，不能视作纯浏览器功能。`POST /webhooks/github` 只验签并通知同一个串行 worker 读取最新状态；重复通知合并，轮询仍补漏。
 
-云端仍为单实例 SQLite；workspace 只分组，所有登录用户都能看到并修改全部 workspace，没有 tenant 隔离。UC 凭据通过配置注入，登录流程、网页会话、MCP 短期授权码在进程内存中，重启后失效；部署入口见 [开发](DEVELOPMENT.md#云端团队部署)。
+云端仍为单实例 SQLite；workspace 只分组，所有登录用户都能看到并修改全部 workspace，没有 tenant 隔离。UC 凭据通过配置注入，网页会话由 `internal/ucauth/sessions.go` 在数据库旁的加密 `.sessions` 文件中原子持久化，access 到期时按需向 UC 续期；登录流程和 MCP 短期授权码仍在进程内存中，重启后失效；部署入口见 [开发](DEVELOPMENT.md#云端团队部署)。
 
 选择检查见 [验证](VALIDATION.md)，本地启动与构建顺序见 [开发](DEVELOPMENT.md)。

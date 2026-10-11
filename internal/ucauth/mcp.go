@@ -3,6 +3,7 @@ package ucauth
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"mime"
 	"net"
 	"net/http"
@@ -158,6 +159,10 @@ func (a *Auth) tokenMCP(w http.ResponseWriter, r *http.Request) {
 		}
 		token, err = a.exchange(r.Context(), url.Values{"grant_type": {"refresh_token"}, "refresh_token": {f.Get("refresh_token")}})
 		if err != nil {
+			if errors.Is(err, errUCUnavailable) {
+				fail(w, 503, "temporarily_unavailable")
+				return
+			}
 			fail(w, 400, "invalid_grant")
 			return
 		}
@@ -165,9 +170,15 @@ func (a *Auth) tokenMCP(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "unsupported_grant_type")
 		return
 	}
-	if _, err := a.verifier.VerifyToken(token.AccessToken); err != nil {
+	claims, err := a.verifier.verifiedClaims(token.AccessToken)
+	if err != nil {
 		fail(w, 400, "invalid_grant")
 		return
+	}
+	// Report the remaining signed lifetime, including time spent in the code grant.
+	remaining := claims.ExpiresAt - a.verifier.now().Unix()
+	if token.ExpiresIn <= 0 || token.ExpiresIn > remaining {
+		token.ExpiresIn = remaining
 	}
 	w.Header().Set("Pragma", "no-cache")
 	jsonResponse(w, 200, token)
