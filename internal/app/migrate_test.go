@@ -254,10 +254,10 @@ func TestMigrateIssueReferencesToIDs(t *testing.T) {
 	// What every issue looked like before migration 2.
 	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
 	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2"}
-	spec := Issue{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1", Description: "Spec body", CreatedAt: "c1"}
-	nine := Issue{Labels: []Label{}, Identifier: "AL-9", Title: "Nine", Status: StatusInProgress, Type: new("feature"), Project: new("Core"), Parent: new("AL-1"), UpdatedAt: "u3", CreatedAt: "c2"}
-	ten := Issue{Labels: []Label{}, Identifier: "AL-10", Title: "Ten", Status: StatusTriage, Parent: new("AL-1"), UpdatedAt: "u2", Description: "Ten body", CreatedAt: "c3"}
-	tok := Issue{Labels: []Label{risk}, Identifier: "TOK-1", Title: "Other team", Status: StatusDone, Type: new("chore"), UpdatedAt: "u4", CreatedAt: "c4"}
+	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
+	nine := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-9", Title: "Nine", Status: StatusInProgress, Type: new("feature"), Project: new("Core"), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
+	ten := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Ten", Status: StatusTriage, Parent: new("AL-1"), UpdatedAt: "u2"}, Description: "Ten body", CreatedAt: "c3"}
+	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{risk}, Identifier: "TOK-1", Title: "Other team", Status: StatusDone, Type: new("chore"), UpdatedAt: "u4"}, CreatedAt: "c4"}
 	details := func(issue Issue) IssueDetails {
 		return IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
 			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}
@@ -348,9 +348,9 @@ func TestMigrateWorkspaces(t *testing.T) {
 	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
 	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2", Description: "Watch it"}
 	retired := Label{ID: 3, Name: "Old", Color: "#000000", Archived: true}
-	spec := Issue{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1", Description: "Spec body", CreatedAt: "c1"}
-	child := Issue{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), Parent: new("AL-1"), UpdatedAt: "u3", CreatedAt: "c2"}
-	tok := Issue{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2", Description: "Other body", CreatedAt: "c3"}
+	spec := Issue{IssueSummary: IssueSummary{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1"}, Description: "Spec body", CreatedAt: "c1"}
+	child := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), Parent: new("AL-1"), UpdatedAt: "u3"}, CreatedAt: "c2"}
+	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2"}, Description: "Other body", CreatedAt: "c3"}
 	details := func(issue Issue) IssueDetails {
 		return IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
 			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}

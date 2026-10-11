@@ -55,17 +55,9 @@ type IssueSummary struct {
 }
 
 type Issue struct {
-	Priority    int     `json:"priority"`
-	Labels      []Label `json:"labels"`
-	Identifier  string  `json:"identifier"`
-	Title       string  `json:"title"`
-	Status      Status  `json:"status"`
-	Type        *string `json:"type"`
-	Project     *string `json:"project"`
-	Parent      *string `json:"parent"`
-	UpdatedAt   string  `json:"updated_at"`
-	Description string  `json:"description"`
-	CreatedAt   string  `json:"created_at"`
+	IssueSummary
+	Description string `json:"description"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type IssueDetails struct {
@@ -255,10 +247,7 @@ func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue,
 func Summaries(issues []Issue) []IssueSummary {
 	summaries := make([]IssueSummary, 0, len(issues))
 	for _, issue := range issues {
-		summaries = append(summaries, IssueSummary{
-			Identifier: issue.Identifier, Title: issue.Title, Status: issue.Status, Type: issue.Type, Priority: issue.Priority,
-			Project: issue.Project, Parent: issue.Parent, UpdatedAt: issue.UpdatedAt, Labels: issue.Labels,
-		})
+		summaries = append(summaries, issue.IssueSummary)
 	}
 	return summaries
 }
