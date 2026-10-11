@@ -57,7 +57,7 @@ func TestWorkspaceScopedMCP(t *testing.T) {
 	}
 	call(t, def, "update_team", map[string]any{"key": "AL", "emoji": "🚀"}, &team)
 	call(t, acme, "create_issue", map[string]any{"team": "AL", "title": "Second in acme"}, &created)
-	call(t, acme, "create_project", map[string]any{"name": "Acme only"}, &app.Project{})
+	call(t, acme, "create_project", map[string]any{"teams": []string{"AL"}, "name": "Acme only"}, &app.Project{})
 	var label app.Label
 	call(t, acme, "create_label", map[string]any{"name": "Acme label", "color": "#123456"}, &label)
 	var group app.LabelGroup

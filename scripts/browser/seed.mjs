@@ -100,8 +100,8 @@ go test ./internal/app -run TestIssueLifecycle
 \`\`\``;
 
 await call("create_team", { key: "AL", name: "InfTask" });
-await call("create_project", { name: "Dogfooding v1", description: "Run InfTask as the tracker for its own development." });
-await call("create_project", { name: "Web polish", description: "Make the page pleasant to read and operate." });
+await call("create_project", { teams: ["AL"], name: "Dogfooding v1", description: "Run InfTask as the tracker for its own development." });
+await call("create_project", { teams: ["AL"], name: "Web polish", description: "Make the page pleasant to read and operate." });
 
 const backup = await issue({ title: "Back up the database daily and keep fourteen copies", status: "done", type: "feature", project: "Dogfooding v1" });
 const spec = await issue({ title: "Define the agent_ready gate for tickets", description: specBody, status: "in_progress", type: "spec", project: "Dogfooding v1" });

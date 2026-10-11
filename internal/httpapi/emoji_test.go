@@ -12,7 +12,7 @@ import (
 
 func TestEntityEmojiHTTP(t *testing.T) {
 	service, def := openService(t)
-	if _, err := def.CreateProject(context.Background(), "Core", "Keep outcome"); err != nil {
+	if _, err := def.CreateProject(context.Background(), "Core", "Keep outcome", "AL"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.CreateWorkspace(context.Background(), app.Workspace{Slug: "other", Name: "Other"}); err != nil {

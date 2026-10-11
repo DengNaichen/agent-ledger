@@ -38,6 +38,7 @@ export type IssueSummary = {
   priority: Priority;
   type: string | null;
   project: string | null;
+  project_id: number | null;
   parent: string | null;
   updated_at: string;
 };
@@ -58,7 +59,7 @@ export type IssueDetails = Issue & {
   related: IssueSummary[];
 };
 
-export type Project = { name: string; description: string; archived: boolean; emoji: string };
+export type Project = { id: number; teams: string[]; name: string; description: string; archived: boolean; emoji: string };
 
 export type Team = { key: string; name: string; next_number: number; emoji: string };
 

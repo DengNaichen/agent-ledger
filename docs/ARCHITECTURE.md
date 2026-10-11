@@ -18,6 +18,12 @@ workspace 只做分组：team、Project、标签和 PR 记录各属于一个 wor
 
 增加状态时，核对后端 `Statuses`、schema 的 CHECK、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
 
+## Project 与 Team
+
+`project_teams(project_id, team_id)` 保存显式多对多关联；外键保护引用，`project_teams_workspace` 插入触发器拒绝跨 workspace 关联。Project 输出既有 `projects.id` 与排序后的 Team key 数组。`project.go` 在事务中替换关联，移除仍有任务（含已关闭任务）的 Team 会整体回滚。`issue.go` 在建票或更新事务内校验 Team 兼容与归档状态，失败建票不消耗编号；省略 Project 不改归属，显式提交当前归档 Project 也允许编辑其它字段。
+
+REST 提供项目 POST、GET、PATCH，当前名称入口为 `/projects/{name}`，稳定 id 入口为 `/projects/by-id/{id}`；MCP `get_project`/`update_project` 接受 `id`/`name`，双传必须一致。任务 create/update/list 同时支持 `project_id` 与当前名称 `project`。迁移根据现有任务回填关联，历史空项目保持待归属；`linear.go` 在原导入事务内维护任务形成的关联，历史归档项目仍可导入。所有查询在复用单连接前关闭 rows，不在持有事务时调用使用 `s.db` 的查询。
+
 ## 标签
 
 `internal/app/labels.go` 管理 workspace 内的标签、单层互斥组、事务内增量批量关联、合并及筛选。`issue_labels` 连接 issue 和标签；SQLite trigger 阻止同组双选，Service 添加前删除旧组值。标签新增表由幂等 schema 在现有库启动时安装，不改写已有表。
