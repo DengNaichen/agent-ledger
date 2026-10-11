@@ -11,7 +11,8 @@ import (
 )
 
 func TestIssuePriorityOverREST(t *testing.T) {
-	handler := New(openService(t), http.NotFoundHandler(), http.NotFoundHandler())
+	service, _ := openService(t)
+	handler := New(service, http.NotFoundHandler(), http.NotFoundHandler())
 	request := func(method, path, body string, want int) []byte {
 		t.Helper()
 		rec := httptest.NewRecorder()
@@ -26,7 +27,7 @@ func TestIssuePriorityOverREST(t *testing.T) {
 		`{"team":"AL","title":"Low","status":"agent_ready","priority":4}`,
 		`{"team":"AL","title":"None","status":"agent_ready"}`,
 	} {
-		request("POST", "/api/issues", body, 201)
+		request("POST", "/api/w/default/issues", body, 201)
 	}
 	for _, tc := range []struct {
 		query string
@@ -38,7 +39,7 @@ func TestIssuePriorityOverREST(t *testing.T) {
 		{"?priority=0&status=agent_ready", []int{0}},
 	} {
 		var result struct{ Issues []app.Issue }
-		if err := json.Unmarshal(request("GET", "/api/issues"+tc.query, "", 200), &result); err != nil {
+		if err := json.Unmarshal(request("GET", "/api/w/default/issues"+tc.query, "", 200), &result); err != nil {
 			t.Fatal(err)
 		}
 		if len(result.Issues) != len(tc.want) {
@@ -57,7 +58,7 @@ func TestIssuePriorityOverREST(t *testing.T) {
 		{`{"title":"Keep priority"}`, 1}, {`{"priority":2}`, 2}, {`{"priority":0}`, 0},
 	} {
 		var issue app.Issue
-		if err := json.Unmarshal(request("PATCH", "/api/issues/AL-1", tc.body, 200), &issue); err != nil {
+		if err := json.Unmarshal(request("PATCH", "/api/w/default/issues/AL-1", tc.body, 200), &issue); err != nil {
 			t.Fatal(err)
 		}
 		if issue.Priority != tc.want {
@@ -65,11 +66,11 @@ func TestIssuePriorityOverREST(t *testing.T) {
 		}
 	}
 	for _, body := range []string{`{"priority":5}`, `{"priority":-1}`, `{"priority":1.5}`, `{"priority":"high"}`} {
-		request("PATCH", "/api/issues/AL-1", body, 400)
-		request("POST", "/api/issues", `{"team":"AL","title":"Bad",`+body[1:], 400)
+		request("PATCH", "/api/w/default/issues/AL-1", body, 400)
+		request("POST", "/api/w/default/issues", `{"team":"AL","title":"Bad",`+body[1:], 400)
 	}
 	for _, query := range []string{"priority=high", "priority=1.5", "priority=5", "priority=", "sort=title"} {
-		request("GET", "/api/issues?"+query, "", 400)
+		request("GET", "/api/w/default/issues?"+query, "", 400)
 	}
-	request("PATCH", "/api/issues/AL-999", `{"priority":1}`, 404)
+	request("PATCH", "/api/w/default/issues/AL-999", `{"priority":1}`, 404)
 }

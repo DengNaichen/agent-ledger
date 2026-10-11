@@ -20,18 +20,25 @@ const (
 	gitHubPageSize     = 100
 )
 
+// GitHubRepo binds a GitHub repository to a workspace: its pull requests link
+// only to that workspace's issues.
+type GitHubRepo struct {
+	Workspace string
+	Repo      string
+}
+
 // GitHubSync polls pull requests and coalesces webhook-triggered refreshes.
 // All reads and linkbacks run in the same worker.
 type GitHubSync struct {
 	service  *Service
-	repos    []string
+	repos    []GitHubRepo
 	token    string
 	linkback bool
 	baseURL  string
 	wake     chan struct{}
 }
 
-func NewGitHubSync(service *Service, repos []string, token string, linkback bool) *GitHubSync {
+func NewGitHubSync(service *Service, repos []GitHubRepo, token string, linkback bool) *GitHubSync {
 	return &GitHubSync{
 		service: service, repos: repos, token: token, linkback: linkback,
 		baseURL: "https://api.github.com",
@@ -78,18 +85,10 @@ func (g *GitHubSync) Run(ctx context.Context) {
 	}
 }
 
-// syncAll reads the teams at the start of every round, so a team created
-// while the server runs is recognized from the next round on.
 func (g *GitHubSync) syncAll(ctx context.Context) {
-	teams, err := g.service.ListTeams(ctx)
-	if err != nil {
-		log.Printf("github sync failed to read teams: %v", err)
-		return
-	}
-	identifiers := identifierFinder(teams)
-	for _, repo := range g.repos {
-		if err := g.syncRepo(ctx, repo, identifiers); err != nil {
-			log.Printf("github sync %s failed: %v", repo, err)
+	for _, binding := range g.repos {
+		if err := g.syncRepo(ctx, binding); err != nil {
+			log.Printf("github sync %s=%s failed: %v", binding.Workspace, binding.Repo, err)
 		}
 	}
 }
@@ -119,11 +118,21 @@ func identifierFinder(teams []Team) func(text string) []string {
 
 // syncRepo reads pull requests by most recent update and stops at the first
 // one updated before the previous sync. The cursor moves only after the whole
-// read succeeds.
-func (g *GitHubSync) syncRepo(ctx context.Context, repo string, identifiers func(string) []string) error {
-	db := g.service.db
+// read succeeds. It reads the workspace's teams first, so a team created while
+// the server runs is recognized from the next round on.
+func (g *GitHubSync) syncRepo(ctx context.Context, binding GitHubRepo) error {
+	s, err := g.service.InWorkspace(ctx, binding.Workspace)
+	if err != nil {
+		return err
+	}
+	teams, err := s.ListTeams(ctx)
+	if err != nil {
+		return err
+	}
+	identifiers := identifierFinder(teams)
+	repo := binding.Repo
 	var since string
-	if err := db.QueryRowContext(ctx, `SELECT COALESCE((SELECT last_updated_at FROM github_sync WHERE repo = ?), '')`, repo).Scan(&since); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE((SELECT last_updated_at FROM github_sync WHERE workspace_id = ? AND repo = ?), '')`, s.workspace, repo).Scan(&since); err != nil {
 		return err
 	}
 	newest := since
@@ -141,7 +150,7 @@ pages:
 			newest = max(newest, pull.UpdatedAt)
 			// When the branch and the title name the same issue, the second link changes nothing.
 			for _, identifier := range identifiers(pull.Head.Ref + " " + pull.Title) {
-				if err := g.link(ctx, repo, pull, identifier); err != nil {
+				if err := g.link(ctx, s, repo, pull, identifier); err != nil {
 					return err
 				}
 			}
@@ -150,25 +159,24 @@ pages:
 			break
 		}
 	}
-	_, err := db.ExecContext(ctx, `INSERT INTO github_sync(repo, last_updated_at) VALUES (?, ?)
-		ON CONFLICT(repo) DO UPDATE SET last_updated_at = excluded.last_updated_at`, repo, newest)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO github_sync(workspace_id, repo, last_updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(workspace_id, repo) DO UPDATE SET last_updated_at = excluded.last_updated_at`, s.workspace, repo, newest)
 	return err
 }
 
-// link records that a pull request names an issue. When the issue exists, it
-// moves the issue forward and, with linkback on, comments once on the pull
-// request while it is open.
-func (g *GitHubSync) link(ctx context.Context, repo string, pull gitHubPull, identifier string) error {
-	s := g.service
+// link records that a pull request names an issue of the workspace s reads.
+// When the issue exists, it moves the issue forward and, with linkback on,
+// comments once on the pull request while it is open.
+func (g *GitHubSync) link(ctx context.Context, s *Service, repo string, pull gitHubPull, identifier string) error {
 	state := pull.state()
 	var linkbackPostedAt *string
 	if err := s.db.QueryRowContext(ctx, `
-		INSERT INTO pull_requests(repo, number, title, url, head_ref, state, issue_identifier, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(repo, number, issue_identifier) DO UPDATE SET
+		INSERT INTO pull_requests(workspace_id, repo, number, title, url, head_ref, state, issue_identifier, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, repo, number, issue_identifier) DO UPDATE SET
 			title = excluded.title, url = excluded.url, head_ref = excluded.head_ref, state = excluded.state, updated_at = excluded.updated_at
 		RETURNING linkback_posted_at`,
-		repo, pull.Number, pull.Title, pull.URL, pull.Head.Ref, state, identifier, pull.UpdatedAt).Scan(&linkbackPostedAt); err != nil {
+		s.workspace, repo, pull.Number, pull.Title, pull.URL, pull.Head.Ref, state, identifier, pull.UpdatedAt).Scan(&linkbackPostedAt); err != nil {
 		return err
 	}
 	issue, err := s.Get(ctx, identifier)
@@ -190,8 +198,8 @@ func (g *GitHubSync) link(ctx context.Context, repo string, pull gitHubPull, ide
 	if err := g.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/issues/%d/comments", repo, pull.Number), bytes.NewReader(body), &struct{}{}); err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `UPDATE pull_requests SET linkback_posted_at = ? WHERE repo = ? AND number = ? AND issue_identifier = ?`,
-		s.now().UTC().Format(time.RFC3339Nano), repo, pull.Number, identifier)
+	_, err = s.db.ExecContext(ctx, `UPDATE pull_requests SET linkback_posted_at = ? WHERE workspace_id = ? AND repo = ? AND number = ? AND issue_identifier = ?`,
+		s.now().UTC().Format(time.RFC3339Nano), s.workspace, repo, pull.Number, identifier)
 	return err
 }
 
@@ -201,7 +209,7 @@ func (g *GitHubSync) link(ctx context.Context, repo string, pull gitHubPull, ide
 func (s *Service) advance(ctx context.Context, issue Issue, state, source string) error {
 	var target Status
 	switch {
-	case state == "open" && slices.Contains([]Status{StatusTriage, StatusTodo, StatusAgentReady, StatusInProgress}, issue.Status):
+	case state == "open" && slices.Contains([]Status{StatusTriage, StatusBacklog, StatusTodo, StatusAgentReady, StatusInProgress}, issue.Status):
 		target = StatusInReview
 	case state == "merged" && issue.Status != StatusDone && issue.Status != StatusCanceled:
 		target = StatusDone
@@ -214,11 +222,11 @@ func (s *Service) advance(ctx context.Context, issue Issue, state, source string
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at) SELECT id, 'status_changed', ?, ? FROM issues WHERE identifier = ?`,
-		fmt.Sprintf("%s -> %s via %s", issue.Status, target, source), now, issue.Identifier); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at) SELECT id, 'status_changed', ?, ? FROM issues WHERE workspace_id = ? AND identifier = ?`,
+		fmt.Sprintf("%s -> %s via %s", issue.Status, target, source), now, s.workspace, issue.Identifier); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE issues SET status = ?, updated_at = ? WHERE identifier = ?`, target, now, issue.Identifier); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE issues SET status = ?, updated_at = ? WHERE workspace_id = ? AND identifier = ?`, target, now, s.workspace, issue.Identifier); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -244,7 +252,7 @@ func (g *GitHubSync) request(ctx context.Context, method, path string, body io.R
 // Notify schedules a refresh only for a configured repository. Multiple pending
 // deliveries coalesce; polling recovers notifications lost during a restart.
 func (g *GitHubSync) Notify(repo string) bool {
-	if !slices.Contains(g.repos, repo) {
+	if !slices.ContainsFunc(g.repos, func(binding GitHubRepo) bool { return binding.Repo == repo }) {
 		return false
 	}
 	select {

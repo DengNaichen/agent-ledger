@@ -148,7 +148,159 @@ var migrations = []string{
 	)
 	BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;`,
 
-	// 3: Linear-compatible priority. Existing issues retain their data and
+	// 3: workspaces. Team keys, Project names, label group and label names,
+	// and issue identifiers become unique within a workspace, so those tables
+	// and the pull request records gain workspace_id. Everything so far moves
+	// into workspace default. Every row keeps its id. The trigger is dropped
+	// first because it names labels, which is rebuilt.
+	`CREATE TABLE workspaces (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		slug TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL
+	);
+	INSERT INTO workspaces(slug, name) VALUES ('default', 'Default');
+	DROP TRIGGER issue_labels_exclusive;
+	CREATE TABLE projects_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		name TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
+		UNIQUE (workspace_id, name)
+	);
+	INSERT INTO projects_new(id, workspace_id, name, description, archived)
+	SELECT id, (SELECT id FROM workspaces), name, description, archived FROM projects;
+	CREATE TABLE teams_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		key TEXT NOT NULL,
+		name TEXT NOT NULL,
+		next_number INTEGER NOT NULL,
+		UNIQUE (workspace_id, key)
+	);
+	INSERT INTO teams_new(id, workspace_id, key, name, next_number)
+	SELECT id, (SELECT id FROM workspaces), key, name, next_number FROM teams;
+	CREATE TABLE issues_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		identifier TEXT NOT NULL,
+		team_id INTEGER NOT NULL REFERENCES teams(id),
+		number INTEGER NOT NULL,
+		title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+		description TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL CHECK (status IN ('triage', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+		type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
+		project_id INTEGER REFERENCES projects(id),
+		parent_id INTEGER REFERENCES issues(id) CHECK (parent_id <> id),
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		UNIQUE (workspace_id, identifier)
+	);
+	INSERT INTO issues_new(id, workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
+	SELECT id, (SELECT id FROM workspaces), identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at
+	FROM issues;
+	CREATE TABLE pull_requests_new (
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		repo TEXT NOT NULL,
+		number INTEGER NOT NULL,
+		title TEXT NOT NULL,
+		url TEXT NOT NULL,
+		head_ref TEXT NOT NULL,
+		state TEXT NOT NULL CHECK (state IN ('open', 'draft', 'merged', 'closed')),
+		issue_identifier TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		linkback_posted_at TEXT,
+		PRIMARY KEY (workspace_id, repo, number, issue_identifier)
+	);
+	INSERT INTO pull_requests_new(workspace_id, repo, number, title, url, head_ref, state, issue_identifier, updated_at, linkback_posted_at)
+	SELECT (SELECT id FROM workspaces), repo, number, title, url, head_ref, state, issue_identifier, updated_at, linkback_posted_at
+	FROM pull_requests;
+	CREATE TABLE github_sync_new (
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		repo TEXT NOT NULL,
+		last_updated_at TEXT NOT NULL,
+		PRIMARY KEY (workspace_id, repo)
+	);
+	INSERT INTO github_sync_new(workspace_id, repo, last_updated_at)
+	SELECT (SELECT id FROM workspaces), repo, last_updated_at FROM github_sync;
+	CREATE TABLE label_groups_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+		name_key TEXT NOT NULL,
+		UNIQUE (workspace_id, name_key),
+		UNIQUE (workspace_id, id)
+	);
+	INSERT INTO label_groups_new(id, workspace_id, name, name_key)
+	SELECT id, (SELECT id FROM workspaces), name, name_key FROM label_groups;
+	CREATE TABLE labels_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+		name_key TEXT NOT NULL,
+		color TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		group_id INTEGER,
+		archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
+		FOREIGN KEY (workspace_id, group_id) REFERENCES label_groups(workspace_id, id)
+	);
+	INSERT INTO labels_new(id, workspace_id, name, name_key, color, description, group_id, archived)
+	SELECT id, (SELECT id FROM workspaces), name, name_key, color, description, group_id, archived FROM labels;
+	DROP TABLE labels;
+	DROP TABLE label_groups;
+	DROP TABLE github_sync;
+	DROP TABLE pull_requests;
+	DROP TABLE issues;
+	DROP TABLE teams;
+	DROP TABLE projects;
+	ALTER TABLE projects_new RENAME TO projects;
+	ALTER TABLE teams_new RENAME TO teams;
+	ALTER TABLE issues_new RENAME TO issues;
+	ALTER TABLE pull_requests_new RENAME TO pull_requests;
+	ALTER TABLE github_sync_new RENAME TO github_sync;
+	ALTER TABLE label_groups_new RENAME TO label_groups;
+	ALTER TABLE labels_new RENAME TO labels;
+	CREATE UNIQUE INDEX issues_team_number_idx ON issues(team_id, number);
+	CREATE INDEX issues_status_updated_idx ON issues(status, updated_at DESC);
+	CREATE INDEX issues_parent_idx ON issues(parent_id);
+	CREATE UNIQUE INDEX labels_name_idx ON labels(workspace_id, COALESCE(group_id, 0), name_key);
+	CREATE TRIGGER issue_labels_exclusive BEFORE INSERT ON issue_labels
+	WHEN EXISTS (
+		SELECT 1 FROM issue_labels il JOIN labels old ON old.id = il.label_id
+		JOIN labels incoming ON incoming.id = NEW.label_id
+		WHERE il.issue_id = NEW.issue_id AND old.group_id = incoming.group_id AND old.id <> incoming.id
+	)
+	BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;`,
+
+	// 4: backlog. Rebuild only issues to extend its status CHECK; every id,
+	// workspace, field, reference, and the autoincrement high-water mark stays.
+	`CREATE TABLE issues_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+		identifier TEXT NOT NULL,
+		team_id INTEGER NOT NULL REFERENCES teams(id),
+		number INTEGER NOT NULL,
+		title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+		description TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL CHECK (status IN ('triage', 'backlog', 'todo', 'agent_ready', 'in_progress', 'in_review', 'done', 'canceled')),
+		type TEXT CHECK (type IN ('spec', 'feature', 'bug', 'improvement', 'chore')),
+		project_id INTEGER REFERENCES projects(id),
+		parent_id INTEGER REFERENCES issues(id) CHECK (parent_id <> id),
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		UNIQUE (workspace_id, identifier)
+	);
+	INSERT INTO issues_new(id, workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
+	SELECT id, workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at FROM issues;
+	DELETE FROM sqlite_sequence WHERE name = 'issues_new';
+	INSERT INTO sqlite_sequence(name, seq) SELECT 'issues_new', seq FROM sqlite_sequence WHERE name = 'issues';
+	DROP TABLE issues;
+	ALTER TABLE issues_new RENAME TO issues;
+	CREATE UNIQUE INDEX issues_team_number_idx ON issues(team_id, number);
+	CREATE INDEX issues_status_updated_idx ON issues(status, updated_at DESC);
+	CREATE INDEX issues_parent_idx ON issues(parent_id);`,
+
+	// 5: Linear-compatible priority. Existing issues retain their data and
 	// receive no priority; adding a column does not rebuild references.
 	`ALTER TABLE issues ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4));`,
 }

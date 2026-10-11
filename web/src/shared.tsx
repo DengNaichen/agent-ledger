@@ -4,6 +4,7 @@ import * as Select from "@radix-ui/react-select";
 
 export const columns = [
   { status: "triage", label: "Triage", hint: "Worth keeping?" },
+  { status: "backlog", label: "Backlog", hint: "Not planned yet" },
   { status: "todo", label: "Todo", hint: "Planned work" },
   { status: "agent_ready", label: "Agent ready", hint: "Clear enough to start" },
   { status: "in_progress", label: "In progress", hint: "One active commitment" },
@@ -71,6 +72,18 @@ export type Project = { name: string; description: string; archived: boolean };
 
 export type Team = { key: string; name: string; next_number: number };
 
+export type Workspace = { slug: string; name: string };
+
+// Pages live under /<workspace slug>/ and the workspace's API under
+// /api/w/<workspace slug>/; the slug is the first segment of the page path.
+export function workspaceSlug() {
+  return window.location.pathname.split("/")[1];
+}
+
+export const pagePath = (path: string) => `/${workspaceSlug()}${path}`;
+
+export const apiPath = (path: string) => `/api/w/${workspaceSlug()}${path}`;
+
 export async function api<T>(path: string, method = "GET", body?: object): Promise<T> {
   const response = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
@@ -96,6 +109,7 @@ export function NavLink({ to, className, children }: { to: string; className?: s
 
 const statusColors: Record<Status, string> = {
   triage: "var(--status-triage)",
+  backlog: "var(--status-backlog)",
   todo: "var(--status-todo)",
   agent_ready: "var(--status-agent-ready)",
   in_progress: "var(--status-in-progress)",
@@ -104,12 +118,13 @@ const statusColors: Record<Status, string> = {
   canceled: "var(--status-canceled)",
 };
 
-// Open states are rings, progress fills a pie inside the ring, and closed
-// states are solid discs with a mark drawn in the panel color.
+// Backlog and planned states are rings; progress fills a pie inside the ring.
+// Triage and closed states use solid discs with a mark in the panel color.
 const ring = <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />;
 const disc = <circle cx="7" cy="7" r="7" fill="currentColor" />;
 const statusGlyphs: Record<Status, ReactNode> = {
-  triage: <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" pathLength="24" strokeDasharray="1.5 1.5" />,
+  triage: <>{disc}<path className="status-mark" d="M3.5 5h7M8.5 3l2 2-2 2M10.5 9h-7M5.5 7l-2 2 2 2" /></>,
+  backlog: <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" pathLength="24" strokeDasharray="1.5 1.5" />,
   todo: ring,
   agent_ready: <>{ring}<circle cx="7" cy="7" r="2" fill="currentColor" /></>,
   in_progress: <>{ring}<path d="M7 7V3.5a3.5 3.5 0 0 1 0 7z" fill="currentColor" /></>,

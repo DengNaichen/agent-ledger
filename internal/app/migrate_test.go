@@ -32,6 +32,7 @@ func TestMigrateRebuildsReferencedTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	service = inWorkspace(t, service, "default")
 	alTeam(t, service)
 	ctx := context.Background()
 	if _, err := service.CreateProject(ctx, "Core", ""); err != nil {
@@ -45,12 +46,14 @@ func TestMigrateRebuildsReferencedTable(t *testing.T) {
 	rebuild := `
 		CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL UNIQUE,
+			workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+			name TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
 			archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
-			color TEXT NOT NULL DEFAULT 'gray' CHECK (color IN ('gray', 'blue'))
+			color TEXT NOT NULL DEFAULT 'gray' CHECK (color IN ('gray', 'blue')),
+			UNIQUE (workspace_id, name)
 		);
-		INSERT INTO projects_new(id, name, description, archived) SELECT id, name, description, archived FROM projects;
+		INSERT INTO projects_new(id, workspace_id, name, description, archived) SELECT id, workspace_id, name, description, archived FROM projects;
 		DROP TABLE projects;
 		ALTER TABLE projects_new RENAME TO projects;`
 	backups := filepath.Join(dir, "backups")
@@ -87,6 +90,7 @@ func TestMigrateRollsBackForeignKeyViolations(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
+	service = inWorkspace(t, service, "default")
 	alTeam(t, service)
 	ctx := context.Background()
 	if _, err := service.CreateProject(ctx, "Core", ""); err != nil {
@@ -147,12 +151,16 @@ func TestMigrateBackfillsTeams(t *testing.T) {
 	}
 	db.Close()
 
-	service, err := Open(path)
+	root, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
+	defer root.Close()
 	ctx := context.Background()
+	service, err := root.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
 	teams, err := service.ListTeams(ctx)
 	if want := []Team{{Key: "AL", Name: "AL", NextNumber: 5}, {Key: "TOK", Name: "TOK", NextNumber: 4}}; err != nil || !slices.Equal(teams, want) {
 		t.Fatalf("teams = %#v, err = %v; want %#v", teams, err, want)
@@ -191,8 +199,8 @@ func TestMigrateBackfillsTeams(t *testing.T) {
 		WHERE list.name = 'issues_team_number_idx' AND list."unique"`).Scan(&columns); err != nil || columns != "team_id,number" {
 		t.Fatalf("unique index columns = %q, err = %v", columns, err)
 	}
-	if _, err := service.db.Exec(`INSERT INTO issues(identifier, team_id, number, title, status, created_at, updated_at)
-		VALUES ('AL-1-copy', (SELECT id FROM teams WHERE key = 'AL'), 1, 'Duplicate number', 'triage', 'now', 'now')`); err == nil {
+	if _, err := service.db.Exec(`INSERT INTO issues(workspace_id, identifier, team_id, number, title, status, created_at, updated_at)
+		VALUES (?, 'AL-1-copy', (SELECT id FROM teams WHERE key = 'AL'), 1, 'Duplicate number', 'triage', 'now', 'now')`, service.workspace); err == nil {
 		t.Fatal("database accepted a second AL 1")
 	}
 
@@ -262,12 +270,16 @@ func TestMigrateIssueReferencesToIDs(t *testing.T) {
 	tok1.BlockedBy = Summaries([]Issue{spec})
 	want := map[string]IssueDetails{"AL-1": al1, "AL-9": al9, "AL-10": al10, "TOK-1": tok1}
 
-	service, err := Open(path)
+	root, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
+	defer root.Close()
 	ctx := context.Background()
+	service, err := root.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
 	issues, err := service.List(ctx, ListIssues{Limit: new(-1)})
 	if err != nil || len(issues) != len(want) {
 		t.Fatalf("issues = %#v, err = %v", issues, err)
@@ -293,5 +305,163 @@ func TestMigrateIssueReferencesToIDs(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "backups", "before-migration-2.db")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMigrateWorkspaces(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "old.db")
+	old, err := os.ReadFile("testdata/schema-before-migration-3.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// AL-11 does not exist yet, but a pull request already names it.
+	if _, err := db.Exec(string(old) + `
+		PRAGMA user_version = 2;
+		INSERT INTO teams(id, key, name, next_number) VALUES (1, 'AL', 'InfTask', 11), (2, 'TOK', 'HarnessKit', 3);
+		INSERT INTO projects(id, name, description, archived) VALUES (1, 'Core', 'Core work', 0), (2, 'Legacy', '', 1);
+		INSERT INTO label_groups(id, name, name_key) VALUES (1, 'Priority', 'priority');
+		INSERT INTO labels(id, name, name_key, color, description, group_id, archived) VALUES
+			(1, 'High', 'high', '#d73a4a', '', 1, 0), (2, 'Risk', 'risk', '#5e6ad2', 'Watch it', NULL, 0), (3, 'Old', 'old', '#000000', '', NULL, 1);
+		INSERT INTO issues(id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at) VALUES
+			(1, 'AL-1', 1, 1, 'Spec', 'Spec body', 'todo', 'spec', 1, NULL, 'c1', 'u1'),
+			(2, 'AL-10', 1, 10, 'Child', '', 'in_review', 'feature', 2, 1, 'c2', 'u3'),
+			(3, 'TOK-2', 2, 2, 'Other team', 'Other body', 'done', NULL, NULL, NULL, 'c3', 'u2');
+		INSERT INTO relations(issue_id, kind, other_id) VALUES (1, 'blocks', 3), (2, 'related', 3);
+		INSERT INTO links(issue_id, title, url) VALUES (2, 'Design', 'https://example.com/design');
+		INSERT INTO comments(issue_id, body, created_at) VALUES (1, 'Keep comment', 'c4');
+		INSERT INTO events(issue_id, kind, detail, created_at) VALUES (1, 'created', 'todo', 'c1');
+		INSERT INTO issue_labels(issue_id, label_id) VALUES (1, 1), (1, 2), (3, 3);
+		INSERT INTO pull_requests(repo, number, title, url, head_ref, state, issue_identifier, updated_at, linkback_posted_at) VALUES
+			('owner/repo', 7, 'AL-10 Child', 'https://github.com/owner/repo/pull/7', 'al-10-child', 'open', 'AL-10', 'p1', 'l1'),
+			('owner/repo', 8, 'AL-11 Later', 'https://github.com/owner/repo/pull/8', 'al-11-later', 'draft', 'AL-11', 'p2', NULL);
+		INSERT INTO github_sync(repo, last_updated_at) VALUES ('owner/repo', 'p2');`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	// What every issue looked like before migration 3.
+	high := Label{ID: 1, Name: "High", Color: "#d73a4a", GroupID: 1}
+	risk := Label{ID: 2, Name: "Risk", Color: "#5e6ad2", Description: "Watch it"}
+	retired := Label{ID: 3, Name: "Old", Color: "#000000", Archived: true}
+	spec := Issue{Labels: []Label{high, risk}, Identifier: "AL-1", Title: "Spec", Status: StatusTodo, Type: new("spec"), Project: new("Core"), UpdatedAt: "u1", Description: "Spec body", CreatedAt: "c1"}
+	child := Issue{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), Parent: new("AL-1"), UpdatedAt: "u3", CreatedAt: "c2"}
+	tok := Issue{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2", Description: "Other body", CreatedAt: "c3"}
+	details := func(issue Issue) IssueDetails {
+		return IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
+			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}
+	}
+	al1, al10, tok2 := details(spec), details(child), details(tok)
+	al1.Comments, al1.Children, al1.Blocks = []Comment{{Body: "Keep comment", CreatedAt: "c4"}}, Summaries([]Issue{child}), Summaries([]Issue{tok})
+	al10.Links, al10.Related = []Link{{Title: "Design", URL: "https://example.com/design"}}, Summaries([]Issue{tok})
+	al10.PullRequests = []PullRequest{{Repo: "owner/repo", Number: 7, Title: "AL-10 Child", URL: "https://github.com/owner/repo/pull/7", State: "open", UpdatedAt: "p1"}}
+	tok2.BlockedBy, tok2.Related = Summaries([]Issue{spec}), Summaries([]Issue{child})
+	want := map[string]IssueDetails{"AL-1": al1, "AL-10": al10, "TOK-2": tok2}
+
+	service, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	ctx := context.Background()
+	def, err := service.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	issues, err := def.List(ctx, ListIssues{Limit: new(-1)})
+	if err != nil || len(issues) != len(want) {
+		t.Fatalf("issues = %#v, err = %v", issues, err)
+	}
+	for _, listed := range issues {
+		detail, err := def.Details(ctx, listed.Identifier)
+		if err != nil || !reflect.DeepEqual(detail, want[listed.Identifier]) {
+			t.Fatalf("Details(%s) = %#v, err = %v; want %#v", listed.Identifier, detail, err, want[listed.Identifier])
+		}
+	}
+	teams, err := def.ListTeams(ctx)
+	if wantTeams := []Team{{Key: "AL", Name: "InfTask", NextNumber: 11}, {Key: "TOK", Name: "HarnessKit", NextNumber: 3}}; err != nil || !slices.Equal(teams, wantTeams) {
+		t.Fatalf("teams = %#v, err = %v", teams, err)
+	}
+	projects, err := def.ListProjects(ctx, true)
+	if wantProjects := []Project{{Name: "Core", Description: "Core work"}, {Name: "Legacy", Archived: true}}; err != nil || !slices.Equal(projects, wantProjects) {
+		t.Fatalf("projects = %#v, err = %v", projects, err)
+	}
+	labels, err := def.ListLabels(ctx, true)
+	if err != nil || !slices.Equal(labels, []Label{high, retired, risk}) {
+		t.Fatalf("labels = %#v, err = %v", labels, err)
+	}
+	groups, err := def.ListLabelGroups(ctx)
+	if err != nil || !slices.Equal(groups, []LabelGroup{{ID: 1, Name: "Priority"}}) {
+		t.Fatalf("label groups = %#v, err = %v", groups, err)
+	}
+
+	// Everything moved into workspace default.
+	workspaces, err := service.ListWorkspaces(ctx)
+	if err != nil || !slices.Equal(workspaces, []Workspace{{Slug: "default", Name: "Default"}}) {
+		t.Fatalf("workspaces = %#v, err = %v", workspaces, err)
+	}
+	var placed string
+	if err := service.db.QueryRow(`SELECT group_concat(name || ' ' || rows, ', ') FROM (
+		SELECT 'teams' AS name, count(*) AS rows FROM teams JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'projects', count(*) FROM projects JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'issues', count(*) FROM issues JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'label_groups', count(*) FROM label_groups JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'labels', count(*) FROM labels JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'pull_requests', count(*) FROM pull_requests JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'github_sync', count(*) FROM github_sync JOIN workspaces w ON w.id = workspace_id WHERE slug = 'default'
+		UNION ALL SELECT 'relations', count(*) FROM relations UNION ALL SELECT 'links', count(*) FROM links
+		UNION ALL SELECT 'comments', count(*) FROM comments UNION ALL SELECT 'events', count(*) FROM events
+		UNION ALL SELECT 'issue_labels', count(*) FROM issue_labels)`).Scan(&placed); err != nil {
+		t.Fatal(err)
+	}
+	if placed != "teams 2, projects 2, issues 3, label_groups 1, labels 3, pull_requests 2, github_sync 1, relations 2, links 1, comments 1, events 1, issue_labels 3" {
+		t.Fatalf("rows in default = %q", placed)
+	}
+	var cursor string
+	if err := service.db.QueryRow(`SELECT last_updated_at FROM github_sync WHERE repo = 'owner/repo'`).Scan(&cursor); err != nil || cursor != "p2" {
+		t.Fatalf("cursor = %q, err = %v", cursor, err)
+	}
+	rows, err := service.db.Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	violated := rows.Next()
+	rows.Close()
+	if violated {
+		t.Fatal("foreign_key_check reports violations")
+	}
+	if version := userVersion(t, service.db); version != len(migrations) {
+		t.Fatalf("user_version = %d, want %d", version, len(migrations))
+	}
+	if _, err := os.Stat(filepath.Join(dir, "backups", "before-migration-3.db")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Numbering continues in default, the pull request recorded for AL-11
+	// shows once AL-11 exists, and another workspace can use the same key.
+	for team, wantIdentifier := range map[string]string{"AL": "AL-11", "TOK": "TOK-3"} {
+		if issue, err := def.Create(ctx, CreateIssue{Team: team, Title: "After upgrade"}); err != nil || issue.Identifier != wantIdentifier {
+			t.Fatalf("issue = %#v, err = %v; want %s", issue, err, wantIdentifier)
+		}
+	}
+	if detail, err := def.Details(ctx, "AL-11"); err != nil || len(detail.PullRequests) != 1 || detail.PullRequests[0].Number != 8 {
+		t.Fatalf("AL-11 = %#v, err = %v", detail, err)
+	}
+	acme := inWorkspace(t, service, "acme")
+	if _, err := acme.CreateTeam(ctx, CreateTeam{Key: "AL", Name: "Acme"}); err != nil {
+		t.Fatal(err)
+	}
+	if issue, err := acme.Create(ctx, CreateIssue{Team: "AL", Title: "Acme first"}); err != nil || issue.Identifier != "AL-1" {
+		t.Fatalf("acme issue = %#v, err = %v", issue, err)
+	}
+	if detail, err := acme.Details(ctx, "AL-1"); err != nil || detail.Title != "Acme first" || len(detail.Children) != 0 || len(detail.Labels) != 0 {
+		t.Fatalf("acme AL-1 = %#v, err = %v", detail, err)
+	}
+	if detail, err := def.Details(ctx, "AL-1"); err != nil || !reflect.DeepEqual(detail, al1) {
+		t.Fatalf("default AL-1 = %#v, err = %v", detail, err)
 	}
 }

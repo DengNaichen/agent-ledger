@@ -1,3 +1,5 @@
+-- schema.sql as of 62e810f: the shape of every database before migration 3
+-- (workspaces). Frozen for migration tests; never edit.
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS projects (

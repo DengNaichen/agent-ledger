@@ -18,6 +18,7 @@ func TestIssuePriority(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { s.Close() }()
+	s = inWorkspace(t, s, "default")
 	alTeam(t, s)
 	ctx := context.Background()
 	var ids []string
@@ -102,6 +103,11 @@ func TestIssuePriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	scoped, err := s.InWorkspace(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = scoped
 	if got, err := s.Get(ctx, ids[0]); err != nil || got.Priority != 2 {
 		t.Fatalf("reopen: %#v, %v", got, err)
 	}
@@ -114,28 +120,33 @@ func TestMigrateIssuePriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Start from the delivered version-2 schema, before priority existed.
-	old, err := os.ReadFile("testdata/schema-before-migration-3.sql")
+	// Start from the delivered version-4 schema, before priority existed.
+	old, err := os.ReadFile("testdata/schema-before-migration-5.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(string(old) + `PRAGMA user_version = 2;
- INSERT INTO teams(key, name, next_number) VALUES ('AL', 'InfTask', 3);
- INSERT INTO projects(name, description) VALUES ('Core', 'Keep');
- INSERT INTO issues(identifier, team_id, number, title, description, status, project_id, parent_id, created_at, updated_at)
- VALUES ('AL-1', 1, 1, 'Parent', 'Body', 'todo', 1, NULL, 'c1', 'u1'), ('AL-2', 1, 2, 'Child', '', 'agent_ready', 1, 1, 'c2', 'u2');
+	if _, err := db.Exec(string(old) + `PRAGMA user_version = 4;
+ INSERT INTO workspaces(slug, name) VALUES ('default', 'Default');
+ INSERT INTO teams(workspace_id, key, name, next_number) VALUES (1, 'AL', 'InfTask', 3);
+ INSERT INTO projects(workspace_id, name, description) VALUES (1, 'Core', 'Keep');
+ INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, project_id, parent_id, created_at, updated_at)
+ VALUES (1, 'AL-1', 1, 1, 'Parent', 'Body', 'todo', 1, NULL, 'c1', 'u1'), (1, 'AL-2', 1, 2, 'Child', '', 'agent_ready', 1, 1, 'c2', 'u2');
  INSERT INTO relations VALUES (1, 'blocks', 2);
  INSERT INTO comments(issue_id, body, created_at) VALUES (2, 'Comment', 'c3');
- INSERT INTO labels(name, name_key, color) VALUES ('Keep', 'keep', '#ffffff');
+ INSERT INTO labels(workspace_id, name, name_key, color) VALUES (1, 'Keep', 'keep', '#ffffff');
  INSERT INTO issue_labels VALUES (2, 1);`); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
-	s, err := Open(path)
+	root, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer root.Close()
+	s, err := root.InWorkspace(context.Background(), "default")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.db.Exec(`UPDATE issues SET priority = 5`); err == nil {
 		t.Fatal("upgraded database accepted invalid priority")
 	}
@@ -143,7 +154,7 @@ func TestMigrateIssuePriority(t *testing.T) {
 	if err != nil || details.Priority != 0 || len(details.BlockedBy) != 1 || len(details.Comments) != 1 || len(details.Labels) != 1 || *details.Parent != "AL-1" || *details.Project != "Core" {
 		t.Fatalf("migration lost data: %#v, %v", details, err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "backups", "before-migration-3.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "backups", "before-migration-5.db")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Update(context.Background(), UpdateIssue{Identifier: "AL-2", Priority: new(1)}); err != nil {
