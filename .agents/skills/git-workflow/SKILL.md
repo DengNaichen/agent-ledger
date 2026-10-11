@@ -12,7 +12,8 @@ description: "Branches, worktrees, commits, pull requests, merging, and cleanup 
 
 ## Branches and worktrees
 
-- One ticket, one branch, created from the latest `origin/main`: `al-<number>-<short-name>`, lowercase and hyphenated. Work without a ticket uses a short descriptive name.
+- One ticket, one branch, created from the latest `origin/main`: `al-<number>-<short-name>`, lowercase and hyphenated. Only maintenance explicitly allowed without a ticket by [AGENTS.md](../../../AGENTS.md#工作策略) uses a short descriptive branch name; work that requires a ticket first follows the [ticket creation workflow](../ticket/SKILL.md#new-work-without-an-existing-ticket).
+- Schema branches must not include a migration number; ticket numbers in `al-<number>` remain ticket identifiers. Tickets and plans say “追加一个迁移”; the migration's position in `internal/app/migrate.go`'s `migrations` at merge time determines its number.
 - Work in a dedicated worktree beside the main checkout, such as `../inftask-al-<number>`. Keep the main checkout on `main`; the instance is built from it.
 - In a new worktree, run `npm --prefix web ci` first. `make build` and `make test` build the frontend and need these dependencies.
 - When a ticket depends on another unmerged ticket, branch from that ticket's branch as `al-<number>-<short-name>-on-<base number>`, and retarget the pull request to `main` after the base merges.
@@ -24,11 +25,12 @@ description: "Branches, worktrees, commits, pull requests, merging, and cleanup 
 
 ## Commits and pull requests
 
-- Commit messages are `AL-<number> <imperative sentence>`, with a first line of at most 72 characters. Stage files by name; do not use `git add -A` or `git add .`.
+- Commit messages are `AL-<number> <imperative sentence>`, with a first line of at most 72 characters. Explicitly allowed no-ticket maintenance uses a short imperative message. Stage files by name; do not use `git add -A` or `git add .`.
 - Run `go vet ./...` and `make test` before pushing. When every file listed by `git diff --name-only origin/main...HEAD` ends in `.md`, skip both and run the documentation checks instead: relative links and paths exist, and commands match the Makefile, package manifest, and source. When you changed a skill under `.agents/skills/`, also run the skill validation. Both are described in [validation](../../../docs/VALIDATION.md).
 - Push a new branch with `git push -u origin <branch>`. A branch created from `origin/main` tracks `origin/main`; `-u` makes it track its own remote branch.
-- The pull request title is `AL-<number> <Chinese title>` and its base is `main`. The body states what was delivered, risks, and the verification actually run with exit codes. Do not paste the whole ticket or raw logs.
+- The pull request title is `AL-<number> <Chinese title>` and its base is `main`; explicitly allowed no-ticket maintenance uses a concise Chinese title and states the exception in its body. The body states what was delivered, risks, and the verification actually run with exit codes. Do not paste the whole ticket or raw logs.
 - Merge with `gh pr merge --merge`, never squash or rebase, and only when the user authorized the merge and checks pass.
+- Before merging a ticket that changes `internal/app/schema.sql` or `internal/app/migrate.go`, fetch and rebase the branch onto the latest `origin/main`. If main added migrations, move the ticket's unshipped migration to the end of `migrations` and rewrite its table creation and rebuild SQL against the resulting current `schema.sql`, preserving the columns and data added by other tickets. Never edit shipped migrations. Rerun migration checks and required push checks after these changes; see [schema queue and merge rules](../../../docs/rules/RELIABILITY.md#schema-票的排队与合并). This branch rebase does not change the required merge-commit method.
 
 ## GitHub sync
 
