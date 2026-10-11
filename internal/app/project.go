@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 	"slices"
+	"strings"
 )
 
 type Project struct {
@@ -22,8 +25,9 @@ type ProjectRef struct {
 }
 
 type UpdateProject struct {
+	NewName     *string   `json:"new_name,omitempty" jsonschema:"new Project name; trimmed, nonempty, and unique in this workspace; omitted leaves unchanged"`
 	ID          int64     `json:"id,omitempty" jsonschema:"stable Project id; provide id or name; both must match"`
-	Name        string    `json:"name,omitempty" jsonschema:"existing Project name; cannot be renamed"`
+	Name        string    `json:"name,omitempty" jsonschema:"current Project name used for lookup; use new_name to rename"`
 	Teams       *[]string `json:"teams,omitempty" jsonschema:"replace associated Team keys; at least one; omitted leaves unchanged"`
 	Emoji       *string   `json:"emoji,omitempty" jsonschema:"Unicode emoji icon; omitted leaves unchanged, empty clears"`
 	Description *string   `json:"description,omitempty" jsonschema:"new Project outcome; omitted leaves unchanged"`
@@ -171,6 +175,13 @@ func (s *Service) CreateProject(ctx context.Context, name, description string, t
 }
 
 func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Project, error) {
+	if input.NewName != nil {
+		name := strings.TrimSpace(*input.NewName)
+		if name == "" {
+			return Project{}, ErrInvalidName
+		}
+		input.NewName = &name
+	}
 	if input.Emoji != nil && !validEmoji(*input.Emoji) {
 		return Project{}, ErrInvalidEmoji
 	}
@@ -178,11 +189,11 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 	if err != nil {
 		return Project{}, err
 	}
-	query := `UPDATE projects SET description=COALESCE(?,description),archived=COALESCE(?,archived),emoji=COALESCE(?,emoji) WHERE id=? AND workspace_id=?`
-	args := []any{input.Description, input.Archived, input.Emoji, p.ID, s.workspace}
+	query := `UPDATE projects SET name=COALESCE(?,name),description=COALESCE(?,description),archived=COALESCE(?,archived),emoji=COALESCE(?,emoji) WHERE id=? AND workspace_id=?`
+	args := []any{input.NewName, input.Description, input.Archived, input.Emoji, p.ID, s.workspace}
 	if input.Teams == nil {
 		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
-			return Project{}, err
+			return Project{}, projectWriteError(err)
 		}
 		return s.GetProject(ctx, ProjectRef{ID: p.ID})
 	}
@@ -196,7 +207,7 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 	}
 	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		return Project{}, err
+		return Project{}, projectWriteError(err)
 	}
 	if err = tx.Commit(); err != nil {
 		return Project{}, err
@@ -249,4 +260,12 @@ func (s *Service) validateIssueProject(ctx context.Context, tx *sql.Tx, project 
 		return ErrProjectArchived
 	}
 	return nil
+}
+
+func projectWriteError(err error) error {
+	var constraint *sqlite.Error
+	if errors.As(err, &constraint) && constraint.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+		return ErrProjectExists
+	}
+	return err
 }

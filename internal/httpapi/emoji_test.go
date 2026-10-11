@@ -51,7 +51,7 @@ func TestEntityEmojiHTTP(t *testing.T) {
 		}{
 			{"default", `{"emoji":"hello"}`, 400},
 			{"default", `{"emoji":"🚀🚀"}`, 400},
-			{"default", `{"emoji":"🚀","name":"Renamed"}`, 400},
+			{"default", `{"emoji":"🚀","unknown_field":"Renamed"}`, 400},
 			{"other", `{"emoji":"🚀"}`, 404},
 		} {
 			rec := httptest.NewRecorder()

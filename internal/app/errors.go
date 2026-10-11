@@ -41,6 +41,8 @@ func KindOf(err error) Kind {
 
 var (
 	ErrNotFound             = newError(KindNotFound, "issue not found")
+	ErrInvalidName          = newError(KindInvalid, "name is required")
+	ErrProjectExists        = newError(KindConflict, "a project with this name already exists")
 	ErrProjectTeamsRequired = newError(KindInvalid, "teams is required and must contain at least one Team key")
 	ErrProjectReference     = newError(KindInvalid, "project id and name must identify the same Project")
 	ErrProjectTeam          = newError(KindConflict, "project is not associated with the issue Team")

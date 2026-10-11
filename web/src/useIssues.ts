@@ -66,6 +66,12 @@ export function useIssues(path: string, { team, project, type, query, priority, 
     setProjects((current) => current.map((project) => project.name === item.name ? updated : project));
   }
 
+  function replaceTeam(updated: Team) {
+    setTeams((current) => current.map((team) => team.key === updated.key ? updated : team));
+    // A read started before the rename must not restore the old name.
+    void loadIssues();
+  }
+
   async function changeTeamEmoji(item: Team, emoji: string) {
     const updated = await api<Team>(apiPath(`/teams/${encodeURIComponent(item.key)}`), "PATCH", { emoji });
     setTeams((current) => current.map((team) => team.key === item.key ? updated : team));
@@ -98,5 +104,5 @@ export function useIssues(path: string, { team, project, type, query, priority, 
     }
   }
 
-  return { issues, projects, teams, loading, savingPriorities, loadIssues, insertIssue, insertTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority };
+  return { issues, projects, teams, loading, savingPriorities, loadIssues, insertIssue, insertTeam, replaceTeam, changeProjectEmoji, changeTeamEmoji, moveIssue, changePriority };
 }
