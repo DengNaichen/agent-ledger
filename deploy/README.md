@@ -95,7 +95,7 @@ deploy/release.sh <ssh-host>
 
 ## 回滚
 
-脚本从不自动回滚。新版本启动时会先执行未完成的迁移，之后可能已经在新 schema 上接受了写入。按 [可靠性](../docs/rules/RELIABILITY.md#schema-的两条路径)，迁移 1～4 之后旧版二进制不能正常读写，只能恢复迁移前备份，此后的写入会丢失；迁移 5～7 之后旧版可以忽略新增列继续运行。所以回不回滚、能不能接受丢失写入，要由维护者针对具体迁移判断。另外，验证失败也可能来自代理、DNS 或 UC，不一定是新版本的问题，自动切回反而可能引入第二次变更。
+脚本从不自动回滚。新版本启动时会先执行未完成的迁移，之后可能已经在新 schema 上接受了写入。按 [可靠性](../docs/rules/RELIABILITY.md#schema-的两条路径)，迁移 1～4 之后旧版二进制不能正常读写，只能恢复迁移前备份，此后的写入会丢失；迁移 5～7 之后旧版可以忽略新增列继续运行。迁移 8 新增 Project–Team 关联，旧版虽能读取，却不维护 `project_teams`；恢复旧版业务写入前必须停服务并恢复升级前备份，此后的写入会丢失。所以回不回滚、能不能接受丢失写入，要由维护者针对具体迁移判断。另外，验证失败也可能来自代理、DNS 或 UC，不一定是新版本的问题，自动切回反而可能引入第二次变更。
 
 确定要回滚时：
 
@@ -106,7 +106,7 @@ deploy/release.sh <ssh-host>
    python3 -c 'import sqlite3, sys; print([sqlite3.connect("file:" + p + "?mode=ro", uri=True).execute("PRAGMA user_version").fetchone()[0] for p in sys.argv[1:]])' <备份目录>/before-update.db /opt/inftask/data/inftask.db
    ```
 
-   不要用可写连接以 root 打开正式库，否则可能留下 app 无法写入的 `-wal`、`-shm`。两个值相同说明没有执行迁移，保留当前库。不同时，查可靠性文档中这些迁移的说明。只有旧版二进制读不了升级后的库时，才按 `RUNBOOK.txt` 的 Restore 一节恢复 `before-update.db`：停 app，保留当前 `inftask.db` 及其 `-wal`、`-shm` 供调查，把备份放成 `inftask.db`，移走旧的 `-wal`、`-shm`，属主改回 `10001:10001`。备份之后的写入会丢失。`inftask.db.sessions` 保持原样。
+   不要用可写连接以 root 打开正式库，否则可能留下 app 无法写入的 `-wal`、`-shm`。两个值相同说明没有执行迁移，保留当前库。不同时，查可靠性文档中这些迁移的说明。当可靠性文档明确旧版不能安全读写升级后的库（包括不能维护新增数据约束）时，按 `RUNBOOK.txt` 的 Restore 一节恢复 `before-update.db`：停 app，保留当前 `inftask.db` 及其 `-wal`、`-shm` 供调查，把备份放成 `inftask.db`，移走旧的 `-wal`、`-shm`，属主改回 `10001:10001`。备份之后的写入会丢失。`inftask.db.sessions` 保持原样。
 3. 换回发布前的 Compose 文件，再只对 app 执行 `up -d --no-deps`，脚本输出里有完整命令：
 
    ```sh
