@@ -169,12 +169,8 @@ func issueTool[In any](tool *mcp.Tool, statusList, typeList string) *mcp.Tool {
 	if err != nil {
 		panic(err)
 	}
-	if property := schema.Properties["status"]; property != nil {
-		property.Description += ". Statuses: " + statusList
-	}
-	if property := schema.Properties["type"]; property != nil {
-		property.Description += ". Types: " + typeList
-	}
+	schema.Properties["status"].Description += ". Statuses: " + statusList
+	schema.Properties["type"].Description += ". Types: " + typeList
 	tool.InputSchema = schema
 	return tool
 }
