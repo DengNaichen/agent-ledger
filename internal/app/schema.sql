@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
+    emoji TEXT NOT NULL DEFAULT '',
     UNIQUE (workspace_id, name)
 );
 
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS teams (
     key TEXT NOT NULL,
     name TEXT NOT NULL,
     next_number INTEGER NOT NULL,
+    emoji TEXT NOT NULL DEFAULT '',
     UNIQUE (workspace_id, key)
 );
 

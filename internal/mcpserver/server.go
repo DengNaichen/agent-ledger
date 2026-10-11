@@ -129,6 +129,11 @@ func New(service *app.Service) *mcp.Server {
 			team, err := service.CreateTeam(ctx, input)
 			return nil, team, err
 		})
+	mcp.AddTool(server, &mcp.Tool{Name: "update_team", Description: "Update a team emoji icon by key; omitted emoji is unchanged and empty clears it. Key, name, and numbering cannot be changed."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateTeam) (*mcp.CallToolResult, app.Team, error) {
+			team, err := service.UpdateTeam(ctx, input)
+			return nil, team, err
+		})
 	mcp.AddTool(server, &mcp.Tool{Name: "list_projects", Description: "List Projects alphabetically; archived Projects are excluded unless include_archived is true."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input listProjectsInput) (*mcp.CallToolResult, projectsOutput, error) {
 			projects, err := service.ListProjects(ctx, input.IncludeArchived)
@@ -139,7 +144,7 @@ func New(service *app.Service) *mcp.Server {
 			project, err := service.CreateProject(ctx, input.Name, input.Description)
 			return nil, project, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "update_project", Description: "Find a Project by name and update only supplied description or archived fields. Renaming is not supported."},
+	mcp.AddTool(server, &mcp.Tool{Name: "update_project", Description: "Find a Project by name and update only supplied description, archived, or emoji fields. Empty emoji restores the default icon. Renaming is not supported."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateProject) (*mcp.CallToolResult, app.Project, error) {
 			project, err := service.UpdateProject(ctx, input)
 			return nil, project, err

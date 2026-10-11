@@ -88,9 +88,10 @@ func TestMigrateBacklog(t *testing.T) {
 	}
 	defer service.Close()
 	// Migration 5 then appends priority, 0 for every existing issue, and
-	// migration 6 appends author, empty for every existing comment.
+	// migration 6 appends author, and the entity icon migration appends
+	// emoji to teams and projects, empty for every existing record.
 	after := snapshot(service.db)
-	for table, added := range map[string]any{"issues": int64(0), "comments": ""} {
+	for table, added := range map[string]any{"issues": int64(0), "comments": "", "teams": "", "projects": ""} {
 		for i, row := range after[table] {
 			if row[len(row)-1] != added {
 				t.Fatalf("migrated %s = %#v", table, row)
