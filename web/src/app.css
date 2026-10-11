@@ -593,3 +593,9 @@ a:focus-visible, button:focus-visible { outline: var(--focus-width) solid var(--
   .view-count { display: inline; }
   .scope-description, .scope-message, .project-list { padding: var(--space-12) var(--space-16); }
 }
+
+.project-teams { border: var(--border-width) solid var(--border); border-radius: var(--radius); display: grid; gap: var(--space-8); }
+.project-teams label { display: flex; align-items: center; gap: var(--space-8); }
+.project-teams input { width: auto; }
+.project-actions { display: flex; gap: var(--space-8); flex-wrap: wrap; }
+.project-list-toolbar { padding: var(--space-16); }

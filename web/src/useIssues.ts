@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { LabelFilterValue } from "./Labels";
 import { api, apiPath, Issue, IssueSummary, Priority, Project, Status, Team, WorkspaceRoute } from "./shared";
 
-export type IssueQuery = { team: string; type: string; query: string; priority: Priority | ""; labelFilter: LabelFilterValue };
+export type IssueQuery = { archivedProjects: boolean; team: string; type: string; query: string; priority: Priority | ""; labelFilter: LabelFilterValue };
 
 // A ScopeView owns this hook and unmounts on navigation. Reads and writes also
 // track the local query so an earlier filter cannot restore its issue snapshot.
-export function useIssues(route: WorkspaceRoute, { team, type, query, priority, labelFilter }: IssueQuery, setError: (message: string) => void) {
+export function useIssues(route: WorkspaceRoute, { archivedProjects, team, type, query, priority, labelFilter }: IssueQuery, setError: (message: string) => void) {
   const [issues, setIssues] = useState<IssueSummary[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
@@ -16,7 +16,7 @@ export function useIssues(route: WorkspaceRoute, { team, type, query, priority, 
   const [savingPriorities, setSavingPriorities] = useState<string[]>([]);
   const loadVersion = useRef(0);
   const mounted = useRef(true);
-  const queryKey = JSON.stringify({ team, type, query, priority, labelFilter });
+  const queryKey = JSON.stringify({ archivedProjects, team, type, query, priority, labelFilter });
   const currentQuery = useRef(queryKey);
   currentQuery.current = queryKey;
   const current = () => mounted.current && currentQuery.current === queryKey;
@@ -30,7 +30,7 @@ export function useIssues(route: WorkspaceRoute, { team, type, query, priority, 
     load();
     window.addEventListener("focus", load);
     return () => { window.removeEventListener("focus", load); ++loadVersion.current; };
-  }, [team, type, query, labelFilter, priority]);
+  }, [archivedProjects, team, type, query, labelFilter, priority]);
 
   async function loadIssues() {
     if (!current()) return;
@@ -48,7 +48,7 @@ export function useIssues(route: WorkspaceRoute, { team, type, query, priority, 
     const latest = () => current() && version === loadVersion.current;
     try {
       const [projectData, teamData] = await Promise.all([
-        api<{ projects: Project[] }>(apiPath("/projects")),
+        api<{ projects: Project[] }>(apiPath(archivedProjects ? "/projects?include_archived=true" : "/projects")),
         api<{ teams: Team[] }>(apiPath("/teams")),
       ]);
       if (!latest()) return;

@@ -208,7 +208,7 @@ func TestValidationOverHTTP(t *testing.T) {
 		{"kind", "add_relation", map[string]any{"identifier": "AL-1", "kind": "duplicate", "other": "AL-2"}, app.ErrInvalidKind.Error()},
 		{"self parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-1"}, "CHECK constraint failed"},
 		{"self relation", "add_relation", map[string]any{"identifier": "AL-1", "kind": "related", "other": "AL-1"}, "CHECK constraint failed"},
-		{"duplicate project", "create_project", map[string]any{"teams": []string{"AL"}, "name": "Existing"}, "UNIQUE constraint failed"},
+		{"duplicate project", "create_project", map[string]any{"teams": []string{"AL"}, "name": "Existing"}, "a project with this name already exists"},
 		{"missing project", "create_issue", map[string]any{"team": "AL", "title": "New issue", "project": "Missing"}, app.ErrProjectNotFound.Error()},
 		{"missing parent", "create_issue", map[string]any{"team": "AL", "title": "New issue", "parent": "AL-99"}, app.ErrNotFound.Error()},
 		{"missing team", "create_issue", map[string]any{"title": "No team"}, `missing properties: [\"team\"]`},
