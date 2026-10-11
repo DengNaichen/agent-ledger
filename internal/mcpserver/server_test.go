@@ -288,3 +288,42 @@ func TestTeamsOverHTTP(t *testing.T) {
 		t.Fatalf("identifier = %v, want OPS-1227", created["identifier"])
 	}
 }
+
+// TestIssueFieldsListEveryValue guards the status and type field descriptions
+// against drifting from the value lists in package app.
+func TestIssueFieldsListEveryValue(t *testing.T) {
+	session := connect(t)
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools.Tools {
+		raw, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			t.Fatal(err)
+		}
+		values := map[string][]string{"status": nil, "type": app.Types}
+		for _, status := range app.Statuses {
+			values["status"] = append(values["status"], string(status))
+		}
+		for name, want := range values {
+			property, ok := schema.Properties[name]
+			if !ok {
+				continue
+			}
+			for _, value := range want {
+				if !strings.Contains(property.Description, value) {
+					t.Errorf("%s: %s description %q misses %q", tool.Name, name, property.Description, value)
+				}
+			}
+		}
+	}
+}

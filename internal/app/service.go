@@ -32,10 +32,10 @@ var (
 	ErrNotFound        = errors.New("issue not found")
 	ErrProjectNotFound = errors.New("project not found")
 	ErrInvalidTitle    = errors.New("title is required")
-	ErrInvalidStatus   = errors.New("invalid status: use triage, backlog, todo, agent_ready, in_progress, in_review, done, or canceled")
+	ErrInvalidStatus   = errors.New("invalid status: use " + joinOr(statusNames()))
 	ErrInvalidPriority = errors.New("invalid priority: use 0 (no priority), 1 (urgent), 2 (high), 3 (medium), or 4 (low)")
 	ErrInvalidSort     = errors.New("invalid sort: use priority or updated")
-	ErrInvalidType     = errors.New("invalid type: use spec, feature, bug, improvement, chore, or an empty string")
+	ErrInvalidType     = errors.New("invalid type: use " + joinOr(append(slices.Clone(Types), "an empty string")))
 	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
 	ErrTeamRequired    = errors.New("team is required")
 	ErrTeamNotFound    = errors.New("team not found")
@@ -57,6 +57,23 @@ var (
 )
 
 var Statuses = []Status{StatusTriage, StatusBacklog, StatusTodo, StatusAgentReady, StatusInProgress, StatusInReview, StatusDone, StatusCanceled}
+
+// Types lists the issue types; an empty string means no type.
+var Types = []string{"spec", "feature", "bug", "improvement", "chore"}
+
+func statusNames() []string {
+	names := make([]string, len(Statuses))
+	for i, status := range Statuses {
+		names[i] = string(status)
+	}
+	return names
+}
+
+// joinOr renders "a, b, or c".
+func joinOr(items []string) string {
+	last := len(items) - 1
+	return strings.Join(items[:last], ", ") + ", or " + items[last]
+}
 
 //go:embed schema.sql
 var schema string
@@ -104,8 +121,8 @@ type ListIssues struct {
 	LabelIDs      []int64 `json:"label_ids,omitempty" jsonschema:"selected label IDs, including archived labels"`
 	LabelGroupIDs []int64 `json:"label_group_ids,omitempty" jsonschema:"selected groups; each matches any child label"`
 	LabelMode     string  `json:"label_mode,omitempty" jsonschema:"any (default), all, none, or unlabeled; unlabeled requires empty selections"`
-	Status        *Status `json:"status,omitempty" jsonschema:"filter by status: triage, todo, agent_ready, in_progress, in_review, done, or canceled"`
-	Type          *string `json:"type,omitempty" jsonschema:"filter by type: spec, feature, bug, improvement, chore; empty string matches untyped issues"`
+	Status        *Status `json:"status,omitempty" jsonschema:"filter by status"`
+	Type          *string `json:"type,omitempty" jsonschema:"filter by type; empty string matches untyped issues"`
 	Team          string  `json:"team,omitempty" jsonschema:"filter by exact team key, such as AL"`
 	Project       string  `json:"project,omitempty" jsonschema:"filter by exact Project name"`
 	Parent        string  `json:"parent,omitempty" jsonschema:"filter by parent issue identifier, such as AL-1"`
@@ -118,8 +135,8 @@ type CreateIssue struct {
 	Team        string  `json:"team" jsonschema:"required key of an existing team, such as AL; the issue is numbered <key>-<n> in that team's sequence"`
 	Title       string  `json:"title" jsonschema:"required nonempty issue title"`
 	Description string  `json:"description,omitempty" jsonschema:"self-contained issue description"`
-	Status      *Status `json:"status,omitempty" jsonschema:"initial status: triage (default), todo, agent_ready, in_progress, in_review, done, or canceled"`
-	Type        string  `json:"type,omitempty" jsonschema:"optional type: spec, feature, bug, improvement, or chore; empty string means no type"`
+	Status      *Status `json:"status,omitempty" jsonschema:"initial status; triage (default)"`
+	Type        string  `json:"type,omitempty" jsonschema:"optional type; empty string means no type"`
 	Project     string  `json:"project,omitempty" jsonschema:"existing Project name; empty string means no Project"`
 	Parent      string  `json:"parent,omitempty" jsonschema:"existing parent issue identifier; empty string means no parent"`
 }
@@ -129,8 +146,8 @@ type UpdateIssue struct {
 	Identifier  string  `json:"identifier" jsonschema:"issue identifier, such as AL-1"`
 	Title       *string `json:"title,omitempty" jsonschema:"new nonempty title; omitted leaves unchanged"`
 	Description *string `json:"description,omitempty" jsonschema:"new description; omitted leaves unchanged"`
-	Status      *Status `json:"status,omitempty" jsonschema:"new status: triage, todo, agent_ready, in_progress, in_review, done, or canceled; omitted leaves unchanged"`
-	Type        *string `json:"type,omitempty" jsonschema:"new type: spec, feature, bug, improvement, or chore; empty string clears; omitted leaves unchanged"`
+	Status      *Status `json:"status,omitempty" jsonschema:"new status; omitted leaves unchanged"`
+	Type        *string `json:"type,omitempty" jsonschema:"new type; empty string clears; omitted leaves unchanged"`
 	Project     *string `json:"project,omitempty" jsonschema:"existing Project name; empty string clears; omitted leaves unchanged"`
 	Parent      *string `json:"parent,omitempty" jsonschema:"existing parent issue identifier; empty string clears; omitted leaves unchanged; cannot be self"`
 }
@@ -314,9 +331,7 @@ func validateFields(title *string, status *Status, issueType *string) error {
 		return ErrInvalidStatus
 	}
 	if issueType != nil {
-		switch *issueType {
-		case "", "spec", "feature", "bug", "improvement", "chore":
-		default:
+		if *issueType != "" && !slices.Contains(Types, *issueType) {
 			return ErrInvalidType
 		}
 	}
