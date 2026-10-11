@@ -5,21 +5,60 @@ import (
 	"slices"
 )
 
-var (
-	ErrNotFound        = errors.New("issue not found")
-	ErrProjectNotFound = errors.New("project not found")
-	ErrInvalidTitle    = errors.New("title is required")
-	ErrInvalidStatus   = errors.New("invalid status: use " + joinOr(statusNames()))
-	ErrInvalidPriority = errors.New("invalid priority: use 0 (no priority), 1 (urgent), 2 (high), 3 (medium), or 4 (low)")
-	ErrInvalidSort     = errors.New("invalid sort: use priority or updated")
-	ErrInvalidType     = errors.New("invalid type: use " + joinOr(append(slices.Clone(Types), "an empty string")))
-	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
-	ErrTeamRequired    = errors.New("team is required")
-	ErrTeamNotFound    = errors.New("team not found")
-	ErrInvalidTeam     = errors.New("invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, name is required, and start_number must be at least 1")
-	ErrTeamExists      = errors.New("a team with this key already exists")
+// Kind says why an operation rejected a request, so transports can choose a
+// status code without listing every error.
+type Kind int
 
-	ErrWorkspaceNotFound = errors.New("workspace not found")
-	ErrInvalidWorkspace  = errors.New("invalid workspace: slug must be 2 to 32 lowercase letters, digits, or hyphens starting with a letter and cannot be api, assets, auth, mcp, w, or webhooks; name is required")
-	ErrWorkspaceExists   = errors.New("a workspace with this slug already exists")
+const (
+	// KindInternal is the kind of every error that is not one of the Err
+	// variables, such as a database failure.
+	KindInternal Kind = iota
+	KindNotFound
+	KindInvalid
+	KindConflict
+)
+
+// kindError is an error of a Kind. Each Err variable is a distinct pointer, so
+// errors.Is still matches it only by identity.
+type kindError struct {
+	kind    Kind
+	message string
+}
+
+func (e *kindError) Error() string { return e.message }
+
+func newError(kind Kind, message string) error { return &kindError{kind, message} }
+
+// KindOf returns the Kind of the first Err variable in err's chain, including
+// one wrapped with %w, or KindInternal when there is none.
+func KindOf(err error) Kind {
+	var classified *kindError
+	if errors.As(err, &classified) {
+		return classified.kind
+	}
+	return KindInternal
+}
+
+var (
+	ErrNotFound        = newError(KindNotFound, "issue not found")
+	ErrProjectNotFound = newError(KindNotFound, "project not found")
+	ErrInvalidTitle    = newError(KindInvalid, "title is required")
+	ErrInvalidStatus   = newError(KindInvalid, "invalid status: use "+joinOr(statusNames()))
+	ErrInvalidPriority = newError(KindInvalid, "invalid priority: use 0 (no priority), 1 (urgent), 2 (high), 3 (medium), or 4 (low)")
+	ErrInvalidSort     = newError(KindInvalid, "invalid sort: use priority or updated")
+	ErrInvalidType     = newError(KindInvalid, "invalid type: use "+joinOr(append(slices.Clone(Types), "an empty string")))
+	ErrInvalidKind     = newError(KindInvalid, "invalid relation kind: use blocks, blocked_by, or related")
+	ErrTeamRequired    = newError(KindInvalid, "team is required")
+	ErrTeamNotFound    = newError(KindNotFound, "team not found")
+	ErrInvalidTeam     = newError(KindInvalid, "invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, name is required, and start_number must be at least 1")
+	ErrTeamExists      = newError(KindConflict, "a team with this key already exists")
+
+	ErrWorkspaceNotFound = newError(KindNotFound, "workspace not found")
+	ErrInvalidWorkspace  = newError(KindInvalid, "invalid workspace: slug must be 2 to 32 lowercase letters, digits, or hyphens starting with a letter and cannot be api, assets, auth, mcp, w, or webhooks; name is required")
+	ErrWorkspaceExists   = newError(KindConflict, "a workspace with this slug already exists")
+
+	ErrInvalidEmoji = newError(KindInvalid, "invalid emoji: choose a Unicode emoji or use an empty string to clear")
+
+	ErrInvalidLabel  = newError(KindInvalid, "invalid label operation")
+	ErrLabelNotFound = newError(KindNotFound, "label or label group not found")
 )

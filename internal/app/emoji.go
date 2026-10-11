@@ -3,7 +3,6 @@ package app
 import (
 	_ "embed"
 	"encoding/json"
-	"errors"
 )
 
 // Unicode 16.0 fully-qualified sequences, shared with the web picker.
@@ -12,8 +11,6 @@ import (
 //
 //go:embed emojidata/emoji.json
 var emojiData []byte
-
-var ErrInvalidEmoji = errors.New("invalid emoji: choose a Unicode emoji or use an empty string to clear")
 
 var emojiValues = func() map[string]bool {
 	var entries []struct {

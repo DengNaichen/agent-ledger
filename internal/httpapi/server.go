@@ -247,12 +247,12 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 
 func writeError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
-	switch {
-	case errors.Is(err, app.ErrLabelNotFound), errors.Is(err, app.ErrNotFound), errors.Is(err, app.ErrProjectNotFound), errors.Is(err, app.ErrTeamNotFound), errors.Is(err, app.ErrWorkspaceNotFound):
+	switch app.KindOf(err) {
+	case app.KindNotFound:
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidEmoji), errors.Is(err, app.ErrInvalidPriority), errors.Is(err, app.ErrInvalidSort), errors.Is(err, app.ErrInvalidLabel), errors.Is(err, app.ErrInvalidTitle), errors.Is(err, app.ErrInvalidStatus), errors.Is(err, app.ErrInvalidType), errors.Is(err, app.ErrTeamRequired), errors.Is(err, app.ErrInvalidTeam), errors.Is(err, app.ErrInvalidWorkspace):
+	case app.KindInvalid:
 		status = http.StatusBadRequest
-	case errors.Is(err, app.ErrTeamExists), errors.Is(err, app.ErrWorkspaceExists):
+	case app.KindConflict:
 		status = http.StatusConflict
 	default:
 		if _, ok := err.(*json.SyntaxError); ok {
