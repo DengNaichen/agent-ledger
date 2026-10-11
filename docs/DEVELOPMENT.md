@@ -113,7 +113,11 @@ Caddy 自动申请证书并反向代理到容器内部 8787；app 不向宿主�
 
 更新前先保留卷和可恢复的日期备份，再重新构建并 `up -d`；不得运行删除卷的命令。恢复步骤：停止 app，保留现有数据库和 WAL/SHM 供调查，将选定一致性备份恢复为 `/data/inftask.db`，清理该库对应的旧 WAL/SHM，确保 UID 10001 可读写，再启动。备份恢复遵循 [可靠性](rules/RELIABILITY.md)。旧版程序回滚前需核对 schema 兼容性，不直接对已升级数据库运行旧二进制。
 
-网页登录会话有效期 8 小时；注销立即撤销本地会话。重启会清空会话、待完成登录和 MCP 授权码，用户需重登；已经发给 MCP 的 UC token 仍按自身有效期使用。此设计只支持单实例。UC 禁用账号不会立即撤销既有本地会话或离线验证的 access token；下一次登录/refresh 由 UC 决定是否允许。
+网页登录会话最长 30 天，浏览器只持有随机 HttpOnly cookie。服务端按 UC access token 的签名 `exp` 判断何时需要刷新；过期后的下一次请求用 refresh token 向 UC 续期，轮换后的 refresh token 写回服务端，身份必须保持同一 subject。UC 拒绝续期时撤销会话并要求重新登录；网络故障、限流和 UC 5xx 返回 503，保留会话供后续请求恢复，不在后台循环保活。
+
+网页会话加密保存在 `-data` 路径加 `.sessions` 的旁路文件中（默认 `/data/inftask.db.sessions`），权限 `0600`，原子替换。密钥由 UC client secret、client ID 和外部 URL 作专用派生；正常部署重启保留登录，注销持久撤销。更换上述配置或文件损坏会使加载失败；维护者需在停服时保留旧文件后移走，启动后重新登录，不能静默忽略损坏。升级前的纯内存会话需重新登录一次。该文件不是 SQLite 业务备份，不应把旧会话文件随旧业务库回滚，否则可能恢复已注销的会话。保持单进程单实例，不能让两个服务同时写同一文件。
+
+待完成登录和 MCP 授权码仍只在内存里，重启需重走未完成的登录。已发给 MCP 的 UC token 按自身有效期使用，由宿主刷新。UC 禁用账号不会立即撤销尚未到期的离线 access token；下一次刷新由 UC 决定是否允许。
 
 ### 远程 MCP
 
@@ -127,7 +131,7 @@ MCP host 配置服务 URL `https://<域名>/w/<slug>/mcp`、public client ID `in
 - Codex：`codex mcp add <名称> --url https://<域名>/w/<slug>/mcp --oauth-client-id inftask`，再 `codex mcp login <名称>`。不要加 `--oauth-resource`：Codex 会自动带上 `resource`，再配一次会让授权请求出现两个 `resource`，后端按重复字段返回 `{"error":"invalid_request"}`。
 - 也可以安装仓库自带的 agent 插件，它带好了同样的 MCP 配置，见 [README 的 Agent plugin 一节](../README.md#agent-plugin)。
 
-后端的 `/mcp/oauth/token` 接受 form-urlencoded：code grant 必须有 `grant_type`、`client_id`、`resource`、`code`、`redirect_uri`、`code_verifier`；refresh grant 必须有 `grant_type`、`client_id`、`resource`、`refresh_token`。重复、额外或空字段被拒绝。后端只在短期内存 grant 中保存 UC token，完成 PKCE 校验后将 access/refresh token 交给 host；secret 不交给 host。直接持有合法 access token 的客户端也可用 `Authorization: Bearer ...` 访问 REST/MCP。
+后端的 `/mcp/oauth/token` 接受 form-urlencoded：code grant 必须有 `grant_type`、`client_id`、`resource`、`code`、`redirect_uri`、`code_verifier`；refresh grant 必须有 `grant_type`、`client_id`、`resource`、`refresh_token`。重复、额外或空字段被拒绝。MCP 后端只在短期内存 grant 中保存 UC token，完成 PKCE 校验后将 access/refresh token 交给 host；secret 不交给 host。返回的 `expires_in` 取已验签 access token 的实际剩余时间，避免授权码等待期间的寿命偏差。上游网络故障、429/5xx 返回 `503 temporarily_unavailable`，不会误报成必须重新登录的 `invalid_grant`；UC 永久拒绝刷新仍返回 `invalid_grant`。失效 bearer 的 401 challenge 带 `error="invalid_token"`，供宿主识别刷新。直接持有合法 access token 的客户端也可用 `Authorization: Bearer ...` 访问 REST/MCP。
 
 ### 验证边界
 

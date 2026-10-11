@@ -77,34 +77,37 @@ func newVerificationKey(publicKey any) (verificationKey, error) {
 }
 
 func (v *InfOneVerifier) VerifyToken(token string) (Identity, error) {
+	claims, err := v.verifiedClaims(token)
+	if err != nil {
+		return Identity{}, err
+	}
+	return Identity{Subject: claims.Subject, Name: firstNonEmpty(claims.PreferredUsername, claims.Username, claims.Name), Email: claims.Email}, nil
+}
+func (v *InfOneVerifier) verifiedClaims(token string) (jwtClaims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return Identity{}, ErrInvalidToken
+		return jwtClaims{}, ErrInvalidToken
 	}
 
 	headerBytes, err := decodeJWTPart(parts[0])
 	if err != nil {
-		return Identity{}, ErrInvalidToken
+		return jwtClaims{}, ErrInvalidToken
 	}
 	var header jwtHeader
 	if err := json.Unmarshal(headerBytes, &header); err != nil || !v.key.verify(header.Alg, parts[0]+"."+parts[1], parts[2]) {
-		return Identity{}, ErrInvalidToken
+		return jwtClaims{}, ErrInvalidToken
 	}
 
 	payloadBytes, err := decodeJWTPart(parts[1])
 	if err != nil {
-		return Identity{}, ErrInvalidToken
+		return jwtClaims{}, ErrInvalidToken
 	}
 	var claims jwtClaims
 	if err := json.Unmarshal(payloadBytes, &claims); err != nil || v.validateClaims(claims) != nil {
-		return Identity{}, ErrInvalidToken
+		return jwtClaims{}, ErrInvalidToken
 	}
 
-	return Identity{
-		Subject: claims.Subject,
-		Name:    firstNonEmpty(claims.PreferredUsername, claims.Username, claims.Name),
-		Email:   claims.Email,
-	}, nil
+	return claims, nil
 }
 
 func (v *InfOneVerifier) validateClaims(claims jwtClaims) error {

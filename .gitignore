@@ -5,3 +5,7 @@ internal/web/dist/*
 !internal/web/dist/.gitkeep
 
 /backups/
+
+# Encrypted browser credentials and atomic-write temporary files.
+*.sessions
+.sessions-*

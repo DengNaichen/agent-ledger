@@ -89,3 +89,11 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
 ## 报告
 
 记录实际命令、退出码、失败或跳过原因。定向测试通过只证明其执行范围；需要推送时仍完成全量要求。没有运行的浏览器检查明确写未运行，不能用构建输出代替。所有开发写入与测试均须隔离维护者数据。
+
+## OAuth 自动刷新与网页登录
+
+`go test -race ./internal/ucauth ./cmd/inftask` 覆盖 `TestMCPRefreshTemporaryFailure`、`TestMCPReportsRemainingSignedLifetime`、`TestExpiredBearerChallenge`，以及 `TestWebSessionSurvivesRestart`、`TestWebSessionRefreshesAfterAccessExpiry`、`TestWebSessionRotationAndFailure`、`TestWebSessionStoreEncryptedAndBound`、`TestWebSessionLogoutDuringRefresh`。测试证明受控时钟下续期、轮换、临时失败恢复、撤销和重启保留；不能替代真实 UC/宿主验收。
+
+真实验收分别在 Claude Code、Codex 登录一次，跨越两次 access token 到期后调用 `list_teams`，记录自动刷新成功和无人工登录的证据。浏览器登录后跨越 access 到期访问页面及 REST，应用重启后再次访问仍已登录；退出后重启也不得恢复该会话。不要缩短共享生产 UC token 生命周期来加速验收，不记录 token、cookie 或上游敏感响应。
+
+`python3 scripts/auth/probe_codex_refresh.py` 需要 PATH 上的 Codex，使用临时配置与虚构 token，先模拟 503，再跨过短 token 有效期，验证凭据保留、连续轮换和进程重启后的 `list_teams` 工具发现。每次 RPC 最多等待 20 秒，中间等待 36 秒；不运行模型，不使用真实 UC 凭据。此脚本验证宿主行为，不替代 InfTask 服务端测试或真实 UC 验收。
