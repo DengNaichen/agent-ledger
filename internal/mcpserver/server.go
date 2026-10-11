@@ -37,7 +37,8 @@ type linkInput struct {
 }
 
 type listProjectsInput struct {
-	IncludeArchived bool `json:"include_archived,omitempty" jsonschema:"include archived Projects; defaults to false"`
+	Team            string `json:"team,omitempty" jsonschema:"filter by associated Team key; empty lists the workspace"`
+	IncludeArchived bool   `json:"include_archived,omitempty" jsonschema:"include archived Projects; defaults to false"`
 }
 
 type projectsOutput struct {
@@ -49,8 +50,9 @@ type teamsOutput struct {
 }
 
 type createProjectInput struct {
-	Name        string `json:"name" jsonschema:"unique Project name"`
-	Description string `json:"description,omitempty" jsonschema:"the outcome this Project should deliver"`
+	Teams       []string `json:"teams" jsonschema:"required nonempty list of existing Team keys in this workspace"`
+	Name        string   `json:"name" jsonschema:"unique Project name"`
+	Description string   `json:"description,omitempty" jsonschema:"the outcome this Project should deliver"`
 }
 
 // Handler serves the tools over streamable HTTP at /w/{workspace}/mcp. Each
@@ -144,15 +146,20 @@ func New(service *app.Service) *mcp.Server {
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "list_projects", Description: "List Projects alphabetically; archived Projects are excluded unless include_archived is true."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input listProjectsInput) (*mcp.CallToolResult, projectsOutput, error) {
-			projects, err := service.ListProjects(ctx, input.IncludeArchived)
+			projects, err := service.ListProjects(ctx, input.IncludeArchived, input.Team)
 			return nil, projectsOutput{Projects: projects}, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "create_project", Description: "Create a Project with a unique name and an optional outcome description. New Projects are unarchived."},
+	mcp.AddTool(server, &mcp.Tool{Name: "create_project", Description: "Create a Project with a unique name, at least one Team key in teams, and an optional outcome description. New Projects are unarchived."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input createProjectInput) (*mcp.CallToolResult, app.Project, error) {
-			project, err := service.CreateProject(ctx, input.Name, input.Description)
+			project, err := service.CreateProject(ctx, input.Name, input.Description, input.Teams...)
 			return nil, project, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "update_project", Description: "Find a Project by name and update only supplied description, archived, or emoji fields. Empty emoji restores the default icon. Renaming is not supported."},
+	mcp.AddTool(server, &mcp.Tool{Name: "get_project", Description: "Get a Project by stable id or current name; both must match when supplied."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ProjectRef) (*mcp.CallToolResult, app.Project, error) {
+			p, err := service.GetProject(ctx, input)
+			return nil, p, err
+		})
+	mcp.AddTool(server, &mcp.Tool{Name: "update_project", Description: "Find a Project by stable id or current name and update only supplied teams, description, archived, or emoji fields. Empty emoji restores the default icon. Renaming is not supported."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateProject) (*mcp.CallToolResult, app.Project, error) {
 			project, err := service.UpdateProject(ctx, input)
 			return nil, project, err

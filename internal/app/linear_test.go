@@ -21,7 +21,7 @@ func importedRows(t *testing.T, s *Service) string {
 		(SELECT group_concat(name || ' ' || description || ' ' || archived, ', ') FROM projects) || ' | ' ||
 		(SELECT count(*) FROM issues) || ' issues, ' || (SELECT count(*) FROM comments) || ' comments, ' ||
 		(SELECT count(*) FROM relations) || ' relations, ' || (SELECT count(*) FROM links) || ' links, ' ||
-		(SELECT count(*) FROM events) || ' events'`).Scan(&rows); err != nil {
+		(SELECT count(*) FROM events) || ' events, ' || (SELECT count(*) FROM project_teams) || ' project teams'`).Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
 	return rows
@@ -38,7 +38,7 @@ func TestImportLinear(t *testing.T) {
 	if _, err := s.CreateTeam(ctx, CreateTeam{Key: "LIN", Name: "Linear", StartNumber: new(20)}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateProject(ctx, "Delta", "Local Delta"); err != nil {
+	if _, err := s.CreateProject(ctx, "Delta", "Local Delta", "LIN"); err != nil {
 		t.Fatal(err)
 	}
 	const fixture = "testdata/linear"
@@ -148,12 +148,12 @@ func TestImportLinear(t *testing.T) {
 	// content follows the description after a blank line.
 	listed, err := s.ListProjects(ctx, true)
 	if wantProjects := []Project{
-		{Name: "Alpha", Description: "Import the tracker.\n\n## Plan\n\nMove everything."},
-		{Name: "Beta", Description: "Make it fast.", Archived: true},
-		{Name: "Delta", Description: "Local Delta"},
-		{Name: "Epsilon", Description: "Nothing in it yet."},
-		{Name: "Gamma", Description: "Only notes.", Archived: true},
-	}; err != nil || !slices.Equal(listed, wantProjects) {
+		{ID: 2, Teams: []string{"LIN"}, Name: "Alpha", Description: "Import the tracker.\n\n## Plan\n\nMove everything."},
+		{ID: 3, Teams: []string{"LIN"}, Name: "Beta", Description: "Make it fast.", Archived: true},
+		{ID: 1, Teams: []string{"LIN"}, Name: "Delta", Description: "Local Delta"},
+		{ID: 6, Teams: []string{}, Name: "Epsilon", Description: "Nothing in it yet."},
+		{ID: 4, Teams: []string{"LIN"}, Name: "Gamma", Description: "Only notes.", Archived: true},
+	}; err != nil || !reflect.DeepEqual(listed, wantProjects) {
 		t.Fatalf("projects = %#v, err = %v", listed, err)
 	}
 

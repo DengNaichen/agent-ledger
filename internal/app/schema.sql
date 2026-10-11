@@ -147,3 +147,13 @@ WHEN EXISTS (
     WHERE il.issue_id = NEW.issue_id AND old.group_id = incoming.group_id AND old.id <> incoming.id
 )
 BEGIN SELECT RAISE(ABORT, 'label group is single-select'); END;
+
+CREATE TABLE IF NOT EXISTS project_teams (
+    project_id INTEGER NOT NULL REFERENCES projects(id),
+    team_id INTEGER NOT NULL REFERENCES teams(id),
+    PRIMARY KEY (project_id, team_id)
+);
+CREATE INDEX IF NOT EXISTS project_teams_team_idx ON project_teams(team_id, project_id);
+CREATE TRIGGER IF NOT EXISTS project_teams_workspace BEFORE INSERT ON project_teams
+WHEN (SELECT workspace_id FROM projects WHERE id=NEW.project_id) <> (SELECT workspace_id FROM teams WHERE id=NEW.team_id)
+BEGIN SELECT RAISE(ABORT, 'project and team must belong to the same workspace'); END;

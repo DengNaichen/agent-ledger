@@ -66,7 +66,7 @@ func call(t *testing.T, session *mcp.ClientSession, name string, args map[string
 func TestIssueWorkflowOverHTTP(t *testing.T) {
 	session := connect(t)
 	var project app.Project
-	call(t, session, "create_project", map[string]any{"name": "Delivery", "description": "Ship the issue model"}, &project)
+	call(t, session, "create_project", map[string]any{"teams": []string{"AL"}, "name": "Delivery", "description": "Ship the issue model"}, &project)
 	if project.Name != "Delivery" || project.Description != "Ship the issue model" || project.Archived {
 		t.Fatalf("unexpected Project: %#v", project)
 	}
@@ -195,7 +195,7 @@ func TestValidationOverHTTP(t *testing.T) {
 	var created app.Issue
 	call(t, session, "create_issue", map[string]any{"team": "AL", "title": "Existing issue"}, &created)
 	var project app.Project
-	call(t, session, "create_project", map[string]any{"name": "Existing"}, &project)
+	call(t, session, "create_project", map[string]any{"teams": []string{"AL"}, "name": "Existing"}, &project)
 	for _, tc := range []struct {
 		name string
 		tool string
@@ -208,7 +208,7 @@ func TestValidationOverHTTP(t *testing.T) {
 		{"kind", "add_relation", map[string]any{"identifier": "AL-1", "kind": "duplicate", "other": "AL-2"}, app.ErrInvalidKind.Error()},
 		{"self parent", "update_issue", map[string]any{"identifier": "AL-1", "parent": "AL-1"}, "CHECK constraint failed"},
 		{"self relation", "add_relation", map[string]any{"identifier": "AL-1", "kind": "related", "other": "AL-1"}, "CHECK constraint failed"},
-		{"duplicate project", "create_project", map[string]any{"name": "Existing"}, "UNIQUE constraint failed"},
+		{"duplicate project", "create_project", map[string]any{"teams": []string{"AL"}, "name": "Existing"}, "UNIQUE constraint failed"},
 		{"missing project", "create_issue", map[string]any{"team": "AL", "title": "New issue", "project": "Missing"}, app.ErrProjectNotFound.Error()},
 		{"missing parent", "create_issue", map[string]any{"team": "AL", "title": "New issue", "parent": "AL-99"}, app.ErrNotFound.Error()},
 		{"missing team", "create_issue", map[string]any{"title": "No team"}, `missing properties: [\"team\"]`},

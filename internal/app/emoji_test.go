@@ -23,7 +23,7 @@ func TestEntityEmojiLifecycle(t *testing.T) {
 	ctx := context.Background()
 	for _, s := range []*Service{def, other} {
 		alTeam(t, s)
-		if _, err := s.CreateProject(ctx, "Core", "Outcome"); err != nil {
+		if _, err := s.CreateProject(ctx, "Core", "Outcome", "AL"); err != nil {
 			t.Fatal(err)
 		}
 	}

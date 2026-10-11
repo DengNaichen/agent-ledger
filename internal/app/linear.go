@@ -222,6 +222,9 @@ func (s *Service) ImportLinear(ctx context.Context, team, dir string) (LinearImp
 				return LinearImport{}, err
 			}
 			projectID.Valid = true
+			if _, err = tx.ExecContext(ctx, `INSERT INTO project_teams(project_id,team_id) VALUES (?,?) ON CONFLICT DO NOTHING`, projectID.Int64, teamID); err != nil {
+				return LinearImport{}, err
+			}
 		}
 		inserted, err := tx.ExecContext(ctx, `INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, created_at, updated_at, priority)
 			VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?)`,
