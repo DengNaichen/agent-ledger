@@ -164,7 +164,7 @@
   --sidebar-section-gap: var(--space-8);
   --sidebar-label-space: var(--space-16);
   --sidebar-label-gap: var(--space-4);
-  --sidebar-child-inset: calc(var(--sidebar-inset) + var(--sidebar-icon-size) + var(--sidebar-content-gap));
+  --sidebar-child-inset: calc(var(--sidebar-inset) + (var(--sidebar-icon-size) + var(--sidebar-content-gap)) / 2);
   --sidebar-radius: var(--radius);
   --sidebar-color: var(--text-3);
   --sidebar-hover-color: var(--text-2);
