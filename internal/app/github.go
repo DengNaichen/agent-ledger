@@ -222,11 +222,7 @@ func (s *Service) advance(ctx context.Context, issue Issue, state, source string
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at) SELECT id, 'status_changed', ?, ? FROM issues WHERE workspace_id = ? AND identifier = ?`,
-		fmt.Sprintf("%s -> %s via %s", issue.Status, target, source), now, s.workspace, issue.Identifier); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE issues SET status = ?, updated_at = ? WHERE workspace_id = ? AND identifier = ?`, target, now, s.workspace, issue.Identifier); err != nil {
+	if err := s.changeStatus(ctx, tx, issue.Identifier, target, " via "+source, now); err != nil {
 		return err
 	}
 	return tx.Commit()

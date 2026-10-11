@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"maps"
 	"path/filepath"
 	"reflect"
@@ -346,6 +348,32 @@ func TestCreateTeamOverREST(t *testing.T) {
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/w/default/teams", strings.NewReader(tc.body)))
 		if rec.Code != tc.want || strings.TrimSpace(rec.Body.String()) != tc.check {
 			t.Fatalf("POST %s: status %d %s, want %d %s", tc.body, rec.Code, rec.Body.String(), tc.want, tc.check)
+		}
+	}
+}
+
+func TestWriteErrorUsesErrorKinds(t *testing.T) {
+	for _, tc := range []struct {
+		err     error
+		status  int
+		message string
+	}{
+		{app.ErrInvalidKind, http.StatusBadRequest, app.ErrInvalidKind.Error()},
+		{app.ErrNotFound, http.StatusNotFound, app.ErrNotFound.Error()},
+		{app.ErrTeamExists, http.StatusConflict, app.ErrTeamExists.Error()},
+		{fmt.Errorf("%w: x", app.ErrInvalidLabel), http.StatusBadRequest, app.ErrInvalidLabel.Error() + ": x"},
+		{errors.New("boom"), http.StatusInternalServerError, "internal server error"},
+	} {
+		rec := httptest.NewRecorder()
+		writeError(rec, tc.err)
+		var body struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != tc.status || body.Error != tc.message {
+			t.Errorf("%q: status %d, error %q; want %d, %q", tc.err, rec.Code, body.Error, tc.status, tc.message)
 		}
 	}
 }

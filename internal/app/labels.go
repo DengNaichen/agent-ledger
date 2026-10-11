@@ -12,8 +12,6 @@ import (
 	"modernc.org/sqlite"
 )
 
-var ErrInvalidLabel = errors.New("invalid label operation")
-var ErrLabelNotFound = errors.New("label or label group not found")
 var labelColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 type LabelGroup struct {

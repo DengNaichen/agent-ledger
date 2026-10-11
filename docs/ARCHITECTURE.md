@@ -6,7 +6,7 @@
 
 workspace 只做分组：team、Project、标签和 PR 记录各属于一个 workspace，没有成员和权限。`/api/workspaces` 列出、新建和改名 workspace；其余 REST 路由在 `/api/w/<slug>/` 下，`httpapi` 先用 `Service.InWorkspace` 按路径里的 slug 取得只读写该 workspace 的 Service，slug 不存在时返回 404。MCP 每个请求同样按路径绑定 workspace，工具参数不含 workspace。`Service` 的查询都带 `workspace_id`，parent、关系、Project 和标签只能指向同一 workspace 的记录，别的 workspace 的记录按不存在处理；标签与所属组的 workspace 一致由复合外键保证。
 
-`internal/app/service.go` 持有单连接 SQLite 访问、模型、输入校验和业务操作；建票在同一事务里把 team 的 `next_number` 加一并插入 issue。它直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
+`internal/app/service.go` 只持有 `Service` 及其单连接 SQLite 的打开和关闭；模型、输入校验和业务操作按领域放在 `workspace.go`、`issue.go`、`project.go`、`team.go`，导出的错误集中在 `errors.go` 并各带类别（找不到、输入非法、冲突），HTTP 按类别选状态码。建票在同一事务里把 team 的 `next_number` 加一并插入 issue。Service 直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 
 `web/src/App.tsx` 按路径第一段选 workspace（`/` 跳到按 slug 排序的第一个，没有 workspace 时显示创建提示），其中 `WorkspaceView` 持有筛选、视图、批量选择和弹窗状态，管路径切换并组装页面：`useIssues.ts` 按筛选加载 issue、Project 和 team 并写回状态、优先级、新建结果，`Sidebar.tsx` 是侧边栏，`IssueFilters.tsx` 是筛选栏，`IssueViews.tsx` 是看板与列表，`Dialogs.tsx` 是新建 issue 和 team 的弹窗；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper（`apiPath`、`pagePath` 给路径加上当前 workspace）、导航、状态和优先级控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
 
@@ -16,7 +16,7 @@ workspace 只做分组：team、Project、标签和 PR 记录各属于一个 wor
 
 增加 issue 字段时，先核对 `CreateIssue`、`UpdateIssue`、查询列和扫描，再判断是否需要 schema/迁移、MCP schema、HTTP 测试和前端类型/编辑器一起变更。REST 并未暴露 MCP 的全部能力，不因工具存在就假设有对应 HTTP endpoint。
 
-增加状态时，核对后端 `Statuses`、schema 的 CHECK、MCP 描述、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
+增加状态时，核对后端 `Statuses`、schema 的 CHECK、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。
 
 ## 标签
 
