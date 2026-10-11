@@ -449,11 +449,7 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		sets = append(sets, `priority = ?`)
 		args = append(args, *input.Priority)
 	}
-	if input.Status != nil {
-		sets = append(sets, `status = ?`)
-		args = append(args, *input.Status)
-	}
-	if len(sets) == 0 {
+	if len(sets) == 0 && input.Status == nil {
 		return s.Get(ctx, input.Identifier)
 	}
 	now := s.now().UTC().Format(time.RFC3339Nano)
@@ -470,9 +466,7 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 			return Issue{}, err
 		}
 		defer tx.Rollback()
-		if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at)
-			SELECT id, 'status_changed', status || ' -> ' || ?, ? FROM issues WHERE workspace_id = ? AND identifier = ? AND status <> ?`,
-			*input.Status, now, s.workspace, input.Identifier, *input.Status); err != nil {
+		if err := s.changeStatus(ctx, tx, input.Identifier, *input.Status, "", now); err != nil {
 			return Issue{}, err
 		}
 		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
@@ -483,6 +477,19 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		}
 	}
 	return s.Get(ctx, input.Identifier)
+}
+
+// changeStatus sets an issue's status and updated_at in tx. When the status
+// changes, it also records a status_changed event "<old> -> <new>" followed by
+// note.
+func (s *Service) changeStatus(ctx context.Context, tx *sql.Tx, identifier string, status Status, note, now string) error {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at)
+		SELECT id, 'status_changed', status || ' -> ' || ?, ? FROM issues WHERE workspace_id = ? AND identifier = ? AND status <> ?`,
+		string(status)+note, now, s.workspace, identifier, status); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE issues SET status = ?, updated_at = ? WHERE workspace_id = ? AND identifier = ?`, status, now, s.workspace, identifier)
+	return err
 }
 
 func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails, error) {
