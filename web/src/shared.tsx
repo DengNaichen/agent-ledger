@@ -95,13 +95,13 @@ export function NavLink({ to, className, children }: { to: string; className?: s
 }
 
 const statusColors: Record<Status, string> = {
-  triage: "#bec2c8",
-  todo: "#e2e2e2",
-  agent_ready: "#b49bdd",
-  in_progress: "#f2c94c",
-  in_review: "#4cb782",
-  done: "#5e6ad2",
-  canceled: "#95a2b3",
+  triage: "var(--status-triage)",
+  todo: "var(--status-todo)",
+  agent_ready: "var(--status-agent-ready)",
+  in_progress: "var(--status-in-progress)",
+  in_review: "var(--status-in-review)",
+  done: "var(--status-done)",
+  canceled: "var(--status-canceled)",
 };
 
 // Open states are rings, progress fills a pie inside the ring, and closed
@@ -164,7 +164,7 @@ export function RequestError({ message }: { message: string }) {
 // The three bars retain their silhouette at every level; inactive bars are dimmed.
 export function PriorityIcon({ priority }: { priority: Priority }) {
   return <svg className={`priority-icon priority-${priority}`} width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-    {priority === 0 ? <path d="M2 8h2M7 8h2M12 8h2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : priority === 1 ? <><rect x="1" y="1" width="14" height="14" rx="3" fill="currentColor" /><path d="M8 4v5" className="priority-mark" /><circle cx="8" cy="11.5" r=".8" className="priority-mark-dot" /></> : [0, 1, 2].map((bar) => <rect key={bar} x={2 + bar * 4.5} y={9 - bar * 3} width="3" height={5 + bar * 3} rx="1" fill="currentColor" opacity={bar < 5 - priority ? 1 : .25} />)}
+    {priority === 0 ? <path d="M2 8h2M7 8h2M12 8h2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : priority === 1 ? <><rect x="1" y="1" width="14" height="14" rx="3" fill="currentColor" /><path d="M8 4v5" className="priority-mark" /><circle cx="8" cy="11.5" r=".8" className="priority-mark-dot" /></> : [0, 1, 2].map((bar) => <rect key={bar} x={2 + bar * 4.5} y={9 - bar * 3} width="3" height={5 + bar * 3} rx="1" fill="currentColor" className={bar < 5 - priority ? undefined : "priority-bar-muted"} />)}
   </svg>;
 }
 

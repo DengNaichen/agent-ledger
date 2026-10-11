@@ -6,7 +6,7 @@
 
 `internal/app/service.go` 持有单连接 SQLite 访问、模型、输入校验和业务操作；建票在同一事务里把 team 的 `next_number` 加一并插入 issue。它直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 
-`web/src/App.tsx` 管列表、看板、筛选、新建和路径切换；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper、导航和状态控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
+`web/src/App.tsx` 管列表、看板、筛选、新建和路径切换；`IssueDetail.tsx` 管详情、评论和编辑。`shared.tsx` 共享类型、状态列、API helper、导航、状态和优先级控件。`web/vite.config.ts` 将构建输出写到 `internal/web/dist/app`，`internal/web/web.go` 嵌入 `internal/web/dist`、从 `app` 提供页面，并为前端路由回退到 index 页面。`dist/.gitkeep` 受 Git 跟踪，没构建前端时 embed 也有匹配。
 
 ## 从用户动作到写入
 

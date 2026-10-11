@@ -14,6 +14,10 @@ priority 独立于 status/type/标签。列表、看板及详情的选择器逐�
 
 优先级筛选参与 API 查询，包含显式 No priority。切换筛选清除批量选择；修改后的票不再匹配当前优先级筛选时重读列表。默认排序仅在 Agent ready 分组按 Urgent→High→Medium→Low→No priority，其他状态按最近更新；可全局切换 Last updated 或 Priority，同级按最近更新。筛选和排序只保存在组件内存中，刷新后重置。MCP/REST 的 `status=agent_ready` 默认优先级排序，显式 `sort=updated` 覆盖；其他查询默认更新时间倒序。服务端在 limit 之前排序，同时间按内部 id 倒序。未实现 Linear 的同档手动顺序、全局 P 快捷键和 Urgent 通知。
 
+## 自动明暗主题
+
+页面默认跟随系统的 `prefers-color-scheme`，没有深色偏好时使用 light。首次加载、刷新和详情直达使用同一套 CSS 媒体查询；打开页面后系统偏好改变无需刷新。没有手动覆盖或 localStorage 主题状态。主题变化只改变样式，不卸载组件，不关闭 dialog 或清空编辑草稿。原生表单控件通过 `color-scheme` 跟随主题，浏览器 UI 的 `theme-color` 通过两条带 media 的 meta 跟随。token 分类与字面量边界见 [设计系统](DESIGN_SYSTEM.md)。
+
 ## 写入完成点
 
 列表/看板移动状态先乐观更新，失败恢复此前整个 issues 快照并展示错误；详情状态等待响应后更新。两处都不能把发出请求当作持久化完成。当前整列表回滚和未取消的异步加载可能受交错请求影响，不能宣称已解决旧响应覆盖新状态。
