@@ -153,8 +153,8 @@ func (s *Service) labels(ctx context.Context, where string, args ...any) ([]Labe
 func (s *Service) ListLabels(ctx context.Context, includeArchived bool) ([]Label, error) {
 	return s.labels(ctx, `? OR NOT archived`, includeArchived)
 }
-func (s *Service) issueLabels(ctx context.Context, identifier string) ([]Label, error) {
-	return s.labels(ctx, `id IN (SELECT label_id FROM issue_labels WHERE issue = ?)`, identifier)
+func (s *Service) issueLabels(ctx context.Context, issueID int64) ([]Label, error) {
+	return s.labels(ctx, `id IN (SELECT label_id FROM issue_labels WHERE issue_id = ?)`, issueID)
 }
 func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels) error {
 	if len(input.Identifiers) == 0 {
@@ -195,15 +195,15 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 		}
 	}
 	for _, identifier := range input.Identifiers {
-		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT 1 FROM issues WHERE identifier = ?`, identifier).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+		var issueID int64
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM issues WHERE identifier = ?`, identifier).Scan(&issueID); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
 		}
 		changed := int64(0)
 		for _, id := range input.Remove {
-			result, err := tx.ExecContext(ctx, `DELETE FROM issue_labels WHERE issue = ? AND label_id = ?`, identifier, id)
+			result, err := tx.ExecContext(ctx, `DELETE FROM issue_labels WHERE issue_id = ? AND label_id = ?`, issueID, id)
 			if err != nil {
 				return err
 			}
@@ -211,7 +211,8 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 			changed += n
 		}
 		for _, l := range added {
-			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issue_labels WHERE issue = ? AND label_id = ?`, identifier, l.ID).Scan(&exists); err != nil {
+			var exists int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issue_labels WHERE issue_id = ? AND label_id = ?`, issueID, l.ID).Scan(&exists); err != nil {
 				return err
 			}
 			if exists > 0 {
@@ -221,17 +222,17 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 				return fmt.Errorf("%w: archived labels cannot be applied", ErrInvalidLabel)
 			}
 			if l.GroupID != 0 {
-				if _, err := tx.ExecContext(ctx, `DELETE FROM issue_labels WHERE issue = ? AND label_id IN (SELECT id FROM labels WHERE group_id = ?)`, identifier, l.GroupID); err != nil {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM issue_labels WHERE issue_id = ? AND label_id IN (SELECT id FROM labels WHERE group_id = ?)`, issueID, l.GroupID); err != nil {
 					return err
 				}
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO issue_labels(issue, label_id) VALUES (?, ?)`, identifier, l.ID); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO issue_labels(issue_id, label_id) VALUES (?, ?)`, issueID, l.ID); err != nil {
 				return err
 			}
 			changed++
 		}
 		if changed > 0 {
-			if _, err := tx.ExecContext(ctx, `UPDATE issues SET updated_at = ? WHERE identifier = ?`, s.now().UTC().Format(time.RFC3339Nano), identifier); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE issues SET updated_at = ? WHERE id = ?`, s.now().UTC().Format(time.RFC3339Nano), issueID); err != nil {
 				return err
 			}
 		}
@@ -259,18 +260,18 @@ func (s *Service) MergeLabels(ctx context.Context, input MergeLabels) error {
 		return fmt.Errorf("%w: target must be active and in the same group", ErrInvalidLabel)
 	}
 	// Remove the source associations before inserting the replacement to respect exclusivity.
-	rows, err := tx.QueryContext(ctx, `SELECT issue FROM issue_labels WHERE label_id = ?`, source.ID)
+	rows, err := tx.QueryContext(ctx, `SELECT issue_id FROM issue_labels WHERE label_id = ?`, source.ID)
 	if err != nil {
 		return err
 	}
-	identifiers := []string{}
+	issueIDs := []int64{}
 	for rows.Next() {
-		var id string
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
 			return err
 		}
-		identifiers = append(identifiers, id)
+		issueIDs = append(issueIDs, id)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -280,11 +281,11 @@ func (s *Service) MergeLabels(ctx context.Context, input MergeLabels) error {
 	if _, err = tx.ExecContext(ctx, `DELETE FROM issue_labels WHERE label_id = ?`, source.ID); err != nil {
 		return err
 	}
-	for _, id := range identifiers {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO issue_labels(issue,label_id) VALUES (?,?) ON CONFLICT DO NOTHING`, id, target.ID); err != nil {
+	for _, id := range issueIDs {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO issue_labels(issue_id,label_id) VALUES (?,?) ON CONFLICT DO NOTHING`, id, target.ID); err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, `UPDATE issues SET updated_at = ? WHERE identifier = ?`, s.now().UTC().Format(time.RFC3339Nano), id); err != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE issues SET updated_at = ? WHERE id = ?`, s.now().UTC().Format(time.RFC3339Nano), id); err != nil {
 			return err
 		}
 	}
@@ -308,7 +309,7 @@ func (s *Service) labelFilter(ctx context.Context, input ListIssues) (string, []
 		if len(input.LabelIDs)+len(input.LabelGroupIDs) > 0 {
 			return "", nil, fmt.Errorf("%w: unlabeled cannot include label selections", ErrInvalidLabel)
 		}
-		return ` AND NOT EXISTS (SELECT 1 FROM issue_labels WHERE issue = issues.identifier)`, nil, nil
+		return ` AND NOT EXISTS (SELECT 1 FROM issue_labels WHERE issue_id = issues.id)`, nil, nil
 	}
 	predicates := []string{}
 	args := []any{}
@@ -321,7 +322,7 @@ func (s *Service) labelFilter(ctx context.Context, input ListIssues) (string, []
 			if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM `+selection.table+` WHERE id = ?`, id).Scan(&found); err != nil {
 				return "", nil, labelError(err)
 			}
-			predicates = append(predicates, `EXISTS (SELECT 1 FROM issue_labels il JOIN labels l ON l.id = il.label_id WHERE il.issue = issues.identifier AND `+selection.condition+`)`)
+			predicates = append(predicates, `EXISTS (SELECT 1 FROM issue_labels il JOIN labels l ON l.id = il.label_id WHERE il.issue_id = issues.id AND `+selection.condition+`)`)
 			args = append(args, id)
 		}
 	}

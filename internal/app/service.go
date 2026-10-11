@@ -221,7 +221,18 @@ func validateFields(title *string, status *Status, issueType *string) error {
 	return nil
 }
 
-const issueColumns = `identifier, title, status, type, project, parent, updated_at, description, created_at`
+// issueColumns starts with the internal id, which other tables reference.
+const issueColumns = `id, identifier, title, status, type,
+	(SELECT name FROM projects WHERE projects.id = issues.project_id),
+	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
+	updated_at, description, created_at`
+
+// projectID and parentID look up the ids an issue stores for a Project name
+// and a parent identifier; an empty string gives NULL.
+const (
+	projectID = `(SELECT id FROM projects WHERE name = NULLIF(?, ''))`
+	parentID  = `(SELECT id FROM issues WHERE identifier = NULLIF(?, ''))`
+)
 
 func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE `+where, args...)
@@ -230,19 +241,22 @@ func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue,
 	}
 	defer rows.Close()
 	issues := []Issue{}
+	ids := []int64{}
 	for rows.Next() {
 		var issue Issue
-		if err := rows.Scan(&issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt); err != nil {
+		var id int64
+		if err := rows.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt); err != nil {
 			return nil, err
 		}
 		issues = append(issues, issue)
+		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	rows.Close()
 	for i := range issues {
-		labels, err := s.issueLabels(ctx, issues[i].Identifier)
+		labels, err := s.issueLabels(ctx, ids[i])
 		if err != nil {
 			return nil, err
 		}
@@ -283,9 +297,13 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		where += ` AND type IS NULLIF(?, '')`
 		args = append(args, *input.Type)
 	}
-	for _, filter := range []struct{ column, value string }{{"team", input.Team}, {"project", input.Project}, {"parent", input.Parent}} {
+	for _, filter := range []struct{ condition, value string }{
+		{`team_id = (SELECT id FROM teams WHERE key = ?)`, input.Team},
+		{`project_id = ` + projectID, input.Project},
+		{`parent_id = ` + parentID, input.Parent},
+	} {
 		if filter.value != "" {
-			where += ` AND ` + filter.column + ` = ?`
+			where += ` AND ` + filter.condition
 			args = append(args, filter.value)
 		}
 	}
@@ -327,8 +345,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	defer tx.Rollback()
 	// Taking the number in the same transaction as the insert means a failed
 	// insert gives the number back.
+	var teamID int64
 	var number int
-	err = tx.QueryRowContext(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE key = ? RETURNING next_number - 1`, input.Team).Scan(&number)
+	err = tx.QueryRowContext(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE key = ? RETURNING id, next_number - 1`, input.Team).Scan(&teamID, &number)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, ErrTeamNotFound
 	}
@@ -338,9 +357,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	identifier := fmt.Sprintf("%s-%d", input.Team, number)
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO issues(identifier, team, number, title, description, status, type, project, parent, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
-		identifier, input.Team, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, input.Project, input.Parent, now, now)
+		INSERT INTO issues(identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), `+projectID+`, `+parentID+`, ?, ?)`,
+		identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, input.Project, input.Parent, now, now)
 	if err != nil {
 		return Issue{}, err
 	}
@@ -358,17 +377,24 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 }
 
 func (s *Service) Get(ctx context.Context, identifier string) (Issue, error) {
+	issue, _, err := s.get(ctx, identifier)
+	return issue, err
+}
+
+// get also returns the issue's id, which other tables reference.
+func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, error) {
 	var issue Issue
+	var id int64
 	err := s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE identifier = ?`, identifier).Scan(
-		&issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt)
+		&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Issue{}, ErrNotFound
+		return Issue{}, 0, ErrNotFound
 	}
 	if err != nil {
-		return Issue{}, err
+		return Issue{}, 0, err
 	}
-	issue.Labels, err = s.issueLabels(ctx, identifier)
-	return issue, err
+	issue.Labels, err = s.issueLabels(ctx, id)
+	return issue, id, err
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) {
@@ -383,13 +409,17 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		column string
 		value  *string
 	}{
-		{"title", input.Title}, {"description", input.Description}, {"type", input.Type}, {"project", input.Project}, {"parent", input.Parent},
+		{"title", input.Title}, {"description", input.Description}, {"type", input.Type}, {"project_id", input.Project}, {"parent_id", input.Parent},
 	} {
 		if field.value != nil {
 			expression := `?`
 			switch field.column {
-			case "type", "project", "parent":
+			case "type":
 				expression = `NULLIF(?, '')`
+			case "project_id":
+				expression = projectID
+			case "parent_id":
+				expression = parentID
 			}
 			sets = append(sets, field.column+` = `+expression)
 			args = append(args, *field.value)
@@ -432,7 +462,7 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 }
 
 func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails, error) {
-	issue, err := s.Get(ctx, identifier)
+	issue, id, err := s.get(ctx, identifier)
 	if err != nil {
 		return IssueDetails{}, err
 	}
@@ -441,18 +471,18 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 		target *[]IssueSummary
 		where  string
 	}{
-		{&detail.Children, `parent = ?`},
-		{&detail.Blocks, `identifier IN (SELECT other FROM relations WHERE issue = ? AND kind = 'blocks')`},
-		{&detail.BlockedBy, `identifier IN (SELECT issue FROM relations WHERE other = ? AND kind = 'blocks')`},
-		{&detail.Related, `identifier IN (SELECT other FROM relations WHERE issue = ?1 AND kind = 'related' UNION SELECT issue FROM relations WHERE other = ?1 AND kind = 'related')`},
+		{&detail.Children, `parent_id = ?`},
+		{&detail.Blocks, `id IN (SELECT other_id FROM relations WHERE issue_id = ? AND kind = 'blocks')`},
+		{&detail.BlockedBy, `id IN (SELECT issue_id FROM relations WHERE other_id = ? AND kind = 'blocks')`},
+		{&detail.Related, `id IN (SELECT other_id FROM relations WHERE issue_id = ?1 AND kind = 'related' UNION SELECT issue_id FROM relations WHERE other_id = ?1 AND kind = 'related')`},
 	} {
-		issues, err := s.list(ctx, group.where+` ORDER BY updated_at DESC, id DESC`, identifier)
+		issues, err := s.list(ctx, group.where+` ORDER BY updated_at DESC, id DESC`, id)
 		if err != nil {
 			return IssueDetails{}, err
 		}
 		*group.target = Summaries(issues)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT body, created_at FROM comments WHERE issue = ? ORDER BY id`, identifier)
+	rows, err := s.db.QueryContext(ctx, `SELECT body, created_at FROM comments WHERE issue_id = ? ORDER BY id`, id)
 	if err != nil {
 		return IssueDetails{}, err
 	}
@@ -467,7 +497,7 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 	if err := rows.Err(); err != nil {
 		return IssueDetails{}, err
 	}
-	rows, err = s.db.QueryContext(ctx, `SELECT title, url FROM links WHERE issue = ? ORDER BY id`, identifier)
+	rows, err = s.db.QueryContext(ctx, `SELECT title, url FROM links WHERE issue_id = ? ORDER BY id`, id)
 	if err != nil {
 		return IssueDetails{}, err
 	}
@@ -499,19 +529,21 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 }
 
 func (s *Service) AddComment(ctx context.Context, identifier, body string) (Comment, error) {
-	if _, err := s.Get(ctx, identifier); err != nil {
+	_, id, err := s.get(ctx, identifier)
+	if err != nil {
 		return Comment{}, err
 	}
 	comment := Comment{Body: body, CreatedAt: s.now().UTC().Format(time.RFC3339Nano)}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO comments(issue, body, created_at) VALUES (?, ?, ?)`, identifier, body, comment.CreatedAt)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO comments(issue_id, body, created_at) VALUES (?, ?, ?)`, id, body, comment.CreatedAt)
 	return comment, err
 }
 
 func (s *Service) AddLink(ctx context.Context, identifier, title, url string) (Link, error) {
-	if _, err := s.Get(ctx, identifier); err != nil {
+	_, id, err := s.get(ctx, identifier)
+	if err != nil {
 		return Link{}, err
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO links(issue, title, url) VALUES (?, ?, ?)`, identifier, title, url)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO links(issue_id, title, url) VALUES (?, ?, ?)`, id, title, url)
 	return Link{Title: title, URL: url}, err
 }
 
@@ -521,22 +553,26 @@ func (s *Service) Relation(ctx context.Context, identifier, kind, other string, 
 	default:
 		return ErrInvalidKind
 	}
-	for _, reference := range []string{identifier, other} {
-		if _, err := s.Get(ctx, reference); err != nil {
+	ids := make([]int64, 2)
+	for i, reference := range []string{identifier, other} {
+		_, id, err := s.get(ctx, reference)
+		if err != nil {
 			return err
 		}
+		ids[i] = id
 	}
+	from, to := ids[0], ids[1]
 	if kind == "blocked_by" {
-		identifier, other, kind = other, identifier, "blocks"
+		from, to, kind = to, from, "blocks"
 	}
-	if kind == "related" && identifier > other {
-		identifier, other = other, identifier
+	if kind == "related" && from > to {
+		from, to = to, from
 	}
-	query := `INSERT INTO relations(issue, kind, other) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
+	query := `INSERT INTO relations(issue_id, kind, other_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
 	if remove {
-		query = `DELETE FROM relations WHERE issue = ? AND kind = ? AND other = ?`
+		query = `DELETE FROM relations WHERE issue_id = ? AND kind = ? AND other_id = ?`
 	}
-	_, err := s.db.ExecContext(ctx, query, identifier, kind, other)
+	_, err := s.db.ExecContext(ctx, query, from, kind, to)
 	return err
 }
 

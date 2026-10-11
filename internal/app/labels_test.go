@@ -94,7 +94,7 @@ func TestLabelsLifecycle(t *testing.T) {
 	}
 	change(ChangeIssueLabels{Identifiers: []string{a.Identifier}, Add: []int64{high.ID}})
 	checkLabels(t, s, a.Identifier, high.ID, front.ID)
-	if _, err := s.db.Exec(`INSERT INTO issue_labels(issue,label_id) VALUES (?,?)`, a.Identifier, low.ID); err == nil {
+	if _, err := s.db.Exec(`INSERT INTO issue_labels(issue_id,label_id) SELECT id, ? FROM issues WHERE identifier = ?`, low.ID, a.Identifier); err == nil {
 		t.Fatal("database allowed two labels from one group")
 	}
 	renamed, err := s.UpdateLabel(ctx, UpdateLabel{ID: front.ID, Name: new("UI"), Description: new("User interface changes"), Color: new("#abcdef")})
@@ -280,7 +280,7 @@ func TestLabelUpgrade(t *testing.T) {
 	if _, err = db.Exec(old + fmt.Sprintf(`PRAGMA user_version = %d;`, len(migrations))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(`INSERT INTO teams(key,name,next_number) VALUES ('AL','InfTask',2); INSERT INTO issues(identifier,team,number,title,description,status,created_at,updated_at) VALUES ('AL-1','AL',1,'Keep me','Existing body','todo','before','before'); INSERT INTO comments(issue,body,created_at) VALUES ('AL-1','Keep comment','before')`); err != nil {
+	if _, err = db.Exec(`INSERT INTO teams(id,key,name,next_number) VALUES (1,'AL','InfTask',2); INSERT INTO issues(id,identifier,team_id,number,title,description,status,created_at,updated_at) VALUES (1,'AL-1',1,1,'Keep me','Existing body','todo','before','before'); INSERT INTO comments(issue_id,body,created_at) VALUES (1,'Keep comment','before')`); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
