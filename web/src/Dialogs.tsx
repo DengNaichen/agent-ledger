@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Box, Users, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { EmojiPicker } from "./EmojiPicker";
 import { RequestError, api, apiPath, columns, Issue, ModalDialog, Priority, PrioritySelect, Project, Status, StatusIcon, Team } from "./shared";
@@ -31,29 +31,29 @@ export function NewIssueDialog({ teams, team: scopeTeam, status, project: initia
   }
 
   return (
-    <ModalDialog className="issue-dialog" aria-labelledby="new-issue-title" restoreFocus onClose={() => { if (!saving) onClose(); }}>
+    <ModalDialog className="issue-dialog issue-composer" aria-labelledby="new-issue-title" restoreFocus onClose={() => { if (!saving) onClose(); }}>
       <form onSubmit={create}>
         <header>
           <h2 id="new-issue-title">New issue</h2>
           <button type="button" className="ghost" aria-label="Close" disabled={saving} onClick={onClose}><X className="icon" /></button>
         </header>
-        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required disabled={saving} /></label>
-        <label>Description<textarea rows={8} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" disabled={saving} /></label>
-        {teams.length > 0 ? (
-          <label>Team<select value={team} onChange={(event) => setTeam(event.target.value)} required disabled={saving}>
-            <option value="">Choose a team…</option>
-            {teams.map((item) => <option key={item.key} value={item.key}>{item.name} ({item.key})</option>)}
-          </select></label>
-        ) : (
-          <p className="error" role="alert">No teams yet. Create a team from Navigation, then reopen this dialog.</p>
-        )}
-        <IssueProjectSelect projects={projects} team={team} value={projectID} onChange={setProjectID} disabled={saving || !team} fallback={initialProject?.name ?? "Unavailable project"} />
+        <label className="composer-title"><span className="composer-field-label">Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Issue title" required disabled={saving} /></label>
+        <label className="composer-description"><span className="composer-field-label">Description</span><textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" disabled={saving} /></label>
+        <div className="composer-properties">
+          {teams.length > 0 ? (
+            <label className="composer-property"><Users className="icon" /><span className="composer-property-name">Team <span title="Required">*</span></span><select value={team} onChange={(event) => setTeam(event.target.value)} required disabled={saving}>
+              <option value="">Choose a team…</option>
+              {teams.map((item) => <option key={item.key} value={item.key}>{item.name} ({item.key})</option>)}
+            </select></label>
+          ) : (
+            <p className="error" role="alert">No teams yet. Create a team from Navigation, then reopen this dialog.</p>
+          )}
+          <IssueProjectSelect projects={projects} team={team} value={projectID} onChange={setProjectID} disabled={saving || !team} fallback={initialProject?.name ?? "Unavailable project"} />
+          <div className="composer-property composer-priority"><span className="composer-property-name">Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="New issue priority" disabled={saving} /></div>
+          <span className="composer-property composer-status" title="Status"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
+        </div>
         {!team && <p className="dialog-hint">Choose the team responsible for this issue before selecting a project.</p>}
         {incompatible && <p className="error" role="alert">This project is not available for the selected team. Clear it or choose another project.</p>}
-        <div className="dialog-priority"><span>Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="New issue priority" disabled={saving} /></div>
-        <p className="dialog-meta">
-          <span className="chip"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>
-        </p>
         {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>
@@ -67,7 +67,7 @@ export function NewIssueDialog({ teams, team: scopeTeam, status, project: initia
 export function IssueProjectSelect({ projects, team, value, onChange, disabled, retainedID = 0, fallback }: { projects: Project[]; team: string; value: number; onChange: (id: number) => void; disabled: boolean; retainedID?: number; fallback: string }) {
   const available = projects.filter((project) => project.teams.includes(team) && (!project.archived || project.id === retainedID));
   const unavailable = value !== 0 && !available.some((project) => project.id === value);
-  return <label>Project<select value={value} onChange={(event) => onChange(Number(event.target.value))} disabled={disabled}>
+  return <label className="composer-property"><Box className="icon" /><span className="composer-property-name">Project</span><select value={value} onChange={(event) => onChange(Number(event.target.value))} disabled={disabled}>
     <option value={0}>No project</option>
     {unavailable && <option value={value} disabled>{projects.find((project) => project.id === value)?.name ?? fallback}{team ? " (not available for this team)" : " (choose a team)"}</option>}
     {available.map((project) => <option key={project.id} value={project.id}>{project.name}{project.archived ? " (archived, current project)" : ""}</option>)}

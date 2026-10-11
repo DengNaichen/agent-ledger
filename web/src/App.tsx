@@ -174,7 +174,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
           <IssueFilters filter={filter} setFilter={changeStatusFilter} team={teamFilter} teams={route.kind === "project" && activeProject ? teams.filter((item) => activeProject.teams.includes(item.key)) : []} setTeam={changeTeamFilter}
             type={type} setType={setType} search={search} setSearch={setSearch} query={query} submitQuery={submitQuery}
             priority={priority} setPriority={setPriority} sort={sort} setSort={setSort} labelFilter={labelFilter} setLabelFilter={setLabelFilter}
-            catalog={catalog} clearSelection={() => setSelected([])} view={view} setView={setView} visibleCount={visibleCount} />
+            catalog={catalog} clearSelection={() => setSelected([])} view={view} setView={setView} visibleCount={visibleCount} selectionDisabled={loading} selectVisible={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))} />
         )}
         {activeProject && <ProjectOverview project={activeProject} teams={teams} onEdit={() => setProjectDialog(activeProject)} onSaved={loadIssues} />}
         {listingProjects && <div className="project-actions project-list-toolbar"><button type="button" className="button" aria-pressed={!archivedProjects} onClick={() => setArchivedProjects(false)}>Active projects</button><button type="button" className="button" aria-pressed={archivedProjects} onClick={() => setArchivedProjects(true)}>Archived projects</button></div>}
@@ -185,7 +185,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
         {savedIssue && <p className="scope-description" role="status">{savedIssue.action} {savedIssue.issue.identifier}. <NavLink to={pagePath(`/issue/${savedIssue.issue.identifier}`)}>View issue</NavLink></p>}
         {error && <RequestError message={error} />}
 
-        {listingIssues && !scopeError && !loading && <div className="label-bulk-bar"><button className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button>{selectedVisible.length > 0 && <><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></>}</div>}
+        {listingIssues && !scopeError && !loading && selectedVisible.length > 0 && <div className="selection-toolbar" role="toolbar" aria-label="Selected issues"><button type="button" className="ghost" onClick={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))}>Select visible</button><span>{selectedVisible.length} selected</span><button className="button" onClick={() => setBatchLabels(true)}>Change labels</button><button className="ghost" onClick={() => setSelected([])}>Clear selection</button></div>}
         {blockingError ? null : managingLabels ? <LabelManager catalog={catalog} onMerged={() => setLabelFilter(emptyLabelFilter)} /> : detailIdentifier ? (
           <IssueDetail teams={teams} onSaved={async (issue) => { setSavedIssue({ issue, action: "Updated" }); await loadIssues(); }} catalog={catalog} key={detailIdentifier} identifier={detailIdentifier} setError={setError} editing={dialog === "edit"} closeEditor={() => setDialog(null)} />
         ) : listingProjects ? (

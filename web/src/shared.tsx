@@ -1,5 +1,5 @@
 import { MouseEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Box, Check } from "lucide-react";
 import * as Select from "@radix-ui/react-select";
 
 export const columns = [
@@ -161,19 +161,27 @@ export function StatusIcon({ status }: { status: Status }) {
 }
 
 export function StatusSelect({ issue, onChange }: { issue: { identifier: string; status: Status }; onChange: (status: Status) => void }) {
-  return (
-    <div className="status-control">
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [container, setContainer] = useState<HTMLDialogElement | null>(null);
+  useLayoutEffect(() => { setContainer(trigger.current!.closest("dialog")); }, []);
+  const selected = columns.find((column) => column.status === issue.status)!;
+  return <Select.Root value={issue.status} onValueChange={(value) => onChange(value as Status)}>
+    <Select.Trigger ref={trigger} className="status-control" aria-label={`Change status for ${issue.identifier}`} title={selected.label}>
       <StatusIcon status={issue.status} />
-      <select
-        className="status-select"
-        value={issue.status}
-        aria-label={`Change status for ${issue.identifier}`}
-        onChange={(event) => onChange(event.target.value as Status)}
-      >
-        {columns.map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}
-      </select>
-    </div>
-  );
+      <span className="status-select">{selected.label}</span>
+    </Select.Trigger>
+    <Select.Portal container={container || undefined}>
+      <Select.Content className="priority-menu status-menu" position="popper" sideOffset={5} align="start" collisionPadding={8}>
+        <Select.Viewport>
+          {columns.map((option) => <Select.Item className="priority-option" value={option.status} key={option.status} textValue={option.label}>
+            <span className="priority-check"><Select.ItemIndicator><Check className="icon" /></Select.ItemIndicator></span>
+            <StatusIcon status={option.status} />
+            <Select.ItemText>{option.label}</Select.ItemText>
+          </Select.Item>)}
+        </Select.Viewport>
+      </Select.Content>
+    </Select.Portal>
+  </Select.Root>;
 }
 
 export function IssueMeta({ issue }: { issue: { type: string | null; project: string | null; labels: Label[] } }) {
@@ -182,7 +190,7 @@ export function IssueMeta({ issue }: { issue: { type: string | null; project: st
       {issue.labels.slice(0, 2).map((label) => <LabelBadge key={label.id} label={label} />)}
       {issue.labels.length > 2 && <span className="label-overflow" title={issue.labels.slice(2).map((l) => l.name).join(", ")}>+{issue.labels.length - 2}</span>}
       {issue.type && <span className="type-label">{issue.type}</span>}
-      {issue.project && <span className="project-label">{issue.project}</span>}
+      {issue.project && <span className="project-label" title={issue.project}><Box className="icon" /><span>{issue.project}</span></span>}
     </span>
   );
 }

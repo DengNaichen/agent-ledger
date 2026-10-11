@@ -1,0 +1,70 @@
+/* The issue body and its property card share one scrolling canvas. */
+.detail { flex: 1; min-height: 0; overflow: auto; }
+.detail-content { display: grid; grid-template-columns: minmax(0, 1fr) var(--detail-properties-width); grid-template-rows: auto 1fr; align-items: start; column-gap: var(--space-48); row-gap: var(--space-24); max-width: calc(var(--content-max-width) + var(--detail-properties-width) + var(--space-48)); margin: 0 auto; padding: var(--space-40) var(--space-32) var(--space-64); }
+.detail-heading { grid-column: 1; min-width: 0; }
+.detail-heading h1 { margin: 0; color: var(--text); font-size: var(--font-size-24); font-weight: var(--weight-heading); font-variation-settings: "opsz" var(--font-optical-heading); letter-spacing: var(--tracking-title); line-height: var(--line-title); overflow-wrap: anywhere; }
+.detail-main { grid-column: 1; min-width: 0; overflow: visible; }
+.detail-properties { grid-column: 2; grid-row: 1 / span 2; min-width: 0; padding-top: var(--space-4); font-size: var(--font-size-13); }
+.detail-properties h2, .detail-properties h3 { margin: 0; color: var(--muted); font-size: var(--font-size-12); font-weight: var(--weight-medium); }
+.detail-properties h2 { margin-bottom: var(--space-12); }
+.detail-properties dl { margin: 0; }
+.detail-properties dt { color: var(--muted); font-size: var(--font-size-12); }
+.detail-properties dd { display: flex; align-items: center; gap: var(--space-8); min-width: 0; min-height: var(--space-28); margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+.detail-properties dd > .icon { flex: none; color: var(--muted); }
+.detail-properties dd > a, .detail-properties dd > span { min-width: 0; }
+.detail-properties .status-control, .detail-properties .priority-control { height: var(--space-28); margin-left: calc(-1 * var(--space-8)); padding: 0 var(--space-8); }
+.detail-properties a:hover { color: var(--text); text-decoration: underline; }
+.detail-primary-properties { display: grid; gap: var(--space-4); }
+.detail-primary-properties > div { min-width: 0; }
+.detail-property-term { position: absolute; width: var(--space-1); height: var(--space-1); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.detail-properties .detail-linked-properties { display: grid; gap: var(--space-12); margin-top: var(--space-20); }
+.detail-property-labels { margin-top: var(--space-20); }
+.detail-property-labels-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); margin-bottom: var(--space-8); }
+.detail-property-labels-heading .ghost { padding: var(--space-4) var(--space-6); font-size: var(--font-size-12); }
+.detail-property-labels-values { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
+.detail-properties .detail-property-dates { display: grid; gap: var(--space-6); margin-top: var(--space-20); padding-top: var(--space-16); border-top: var(--border-width) solid var(--border); }
+.detail-property-dates > div { display: grid; grid-template-columns: var(--property-label-width) minmax(0, 1fr); align-items: baseline; gap: var(--space-8); }
+.detail-property-dates dt { display: flex; align-items: center; gap: var(--space-6); }
+.detail-property-dates dt > .icon { width: var(--space-12); height: var(--space-12); }
+.detail-property-dates dd { min-height: 0; color: var(--muted); font-size: var(--font-size-12); }
+
+/* These overrides apply only to issue composers, leaving other modal forms intact. */
+.issue-composer { width: min(var(--composer-width), calc(100vw - var(--space-32))); }
+.issue-composer form { gap: var(--space-12); padding: var(--space-16) var(--space-24) var(--space-20); }
+.composer-field-label { position: absolute; width: var(--space-1); height: var(--space-1); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.issue-composer .composer-title { margin-top: var(--space-4); }
+.issue-composer .composer-title input, .issue-composer .composer-description textarea { padding: var(--space-4) 0; color: var(--text); background: transparent; border: 0; border-radius: 0; }
+.issue-composer .composer-title input { font-size: var(--font-size-20); font-weight: var(--weight-heading); letter-spacing: var(--tracking-heading); line-height: var(--line-title); }
+.issue-composer .composer-description textarea { font-size: var(--font-size-14); line-height: var(--line-prose); max-height: 35dvh; }
+.issue-composer .composer-title input:focus-visible, .issue-composer .composer-description textarea:focus-visible { outline: var(--border-width) solid var(--accent); outline-offset: var(--space-4); border-radius: var(--radius-sm); }
+.composer-properties { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-4); }
+.issue-composer .composer-property { display: inline-flex; align-items: center; gap: var(--space-6); min-width: 0; max-width: 100%; min-height: var(--space-32); padding: 0 var(--space-8); color: var(--text-2); background: transparent; border: var(--border-width) solid var(--border); border-radius: var(--radius); font-size: var(--font-size-12); font-weight: var(--weight-regular); }
+.composer-property > .icon { flex: none; color: var(--muted); }
+.composer-property-name { flex: none; color: var(--muted); font-size: var(--font-size-11); }
+.issue-composer .composer-property select, .issue-composer .composer-property input { flex: 1; min-width: 0; width: auto; max-width: var(--priority-menu-width); padding: var(--space-6) 0; background: transparent; border: 0; border-radius: 0; font-size: var(--font-size-12); text-overflow: ellipsis; }
+.issue-composer .composer-property:focus-within { border-color: var(--accent); }
+.issue-composer .composer-property:has(select:not(:disabled)):hover { background: var(--hover); }
+.issue-composer .composer-property:has(select:disabled) { opacity: var(--opacity-disabled); }
+.issue-composer .composer-priority { padding-right: 0; }
+.composer-priority .priority-control { font-size: var(--font-size-12); }
+.issue-composer .composer-status { color: var(--muted); }
+.issue-composer footer { margin-top: var(--space-4); padding-top: var(--space-16); border-top: var(--border-width) solid var(--border); }
+
+@media (max-width: 1024px) {
+  .detail-content { grid-template-columns: minmax(0, 1fr); max-width: var(--content-max-width); }
+  .detail-properties { grid-column: 1; grid-row: 2; padding-top: 0; }
+  .detail-properties > h2 { position: absolute; width: var(--space-1); height: var(--space-1); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .detail-main { grid-row: 3; }
+  .detail-primary-properties { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-16); }
+  .detail-properties .detail-linked-properties { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-16); margin-top: var(--space-12); }
+  .detail-property-labels { margin-top: var(--space-12); }
+  .detail-property-labels-heading { margin-bottom: var(--space-4); }
+  .detail-properties .detail-property-dates { padding-top: var(--space-8); margin-top: var(--space-12); gap: var(--space-4); }
+}
+
+@media (max-width: 760px) {
+  .detail-content { gap: var(--space-16); padding: var(--space-24) var(--space-16) var(--space-48); }
+  .detail-heading h1 { font-size: var(--font-size-22); }
+  .issue-composer form { padding-inline: var(--space-16); }
+  .issue-composer .composer-property { max-width: 100%; }
+}

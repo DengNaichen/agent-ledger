@@ -1,0 +1,88 @@
+/* An opaque sticky layer shields both the inset and the rounded group bar. */
+.list-view, .board { flex: 1; min-height: 0; }
+.list-view {
+  display: grid;
+  grid-template-columns: var(--list-control-size) var(--list-control-size) max-content var(--list-control-size) minmax(0, 1fr) minmax(0, max-content) var(--list-date-width);
+  column-gap: var(--space-8);
+  align-content: start;
+  overflow: auto;
+  padding: 0 var(--space-16) var(--space-16);
+  scroll-padding-top: calc(var(--row-height-sm) + var(--space-12));
+}
+.list-group, .list-rows, .list-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+.list-group { min-width: 0; }
+.list-rows[hidden] { display: none; }
+.group-header-wrap { position: sticky; z-index: 1; top: 0; grid-column: 1 / -1; padding-top: var(--space-12); background: var(--panel); }
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  height: var(--row-height-sm);
+  padding: 0 var(--space-8);
+  color: var(--text-2);
+  background: linear-gradient(to right, var(--group-gradient-start), var(--group-gradient-end));
+  border: 0;
+  border-radius: var(--radius-lg);
+  text-align: left;
+  font-weight: var(--weight-medium);
+}
+.group-header:hover { color: var(--text); }
+.group-header small { color: var(--muted); font-size: var(--font-size-12); }
+.chevron { color: var(--muted); transition: transform var(--duration-fast); }
+.group-header[aria-expanded="false"] .chevron { transform: rotate(-90deg); }
+.list-row { align-items: center; min-width: 0; height: var(--row-height); border-radius: var(--radius); }
+.list-row:hover { background: var(--hover); }
+.list-row.is-selected { background: var(--selected); }
+.list-row > .issue-selection { justify-self: center; width: var(--space-14); height: var(--space-14); margin: 0; }
+.list-row > .identifier { font-size: var(--font-size-12); }
+.list-row > .issue-meta { grid-column: 6; max-width: calc(var(--search-width) + var(--label-max-width)); overflow: hidden; }
+.list-row .label-badge { flex-shrink: 1; }
+.list-title { min-width: 0; overflow: hidden; color: var(--text); font-weight: var(--weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.row-date { grid-column: 7; min-width: var(--list-date-width); color: var(--muted); font-size: var(--font-size-12); text-align: right; white-space: nowrap; }
+.list-empty { grid-column: 3 / -1; padding: var(--space-12) 0; color: var(--muted); font-size: var(--font-size-12); }
+
+/* Columns scroll vertically on their own; the board owns horizontal scroll. */
+.board { display: flex; gap: var(--space-12); overflow-x: auto; overflow-y: hidden; padding: var(--space-12) var(--space-16) var(--space-16); }
+.column { display: flex; flex: 0 0 min(var(--board-column-width), calc(100vw - var(--space-32))); flex-direction: column; min-height: 0; min-width: 0; border-radius: var(--radius-lg); }
+.column > header { display: flex; flex: none; align-items: center; gap: var(--space-8); height: var(--row-height-sm); padding: 0 var(--space-8); }
+.column h2 { color: var(--text-2); font-size: var(--font-size-13); font-weight: var(--weight-medium); }
+.column header small { color: var(--muted); font-size: var(--font-size-12); }
+.column.drop-target { background: var(--drop-bg); outline: var(--border-width) dashed var(--accent); outline-offset: calc(-1 * var(--border-width)); }
+.cards { display: grid; flex: 1; min-height: 0; align-content: start; gap: var(--space-8); overflow-y: auto; overscroll-behavior-y: contain; padding: var(--space-4); }
+.card { position: relative; min-width: 0; padding: var(--space-12); background: var(--surface-card); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); -webkit-user-drag: element; -webkit-user-select: none; user-select: none; }
+.card:hover { background: var(--card-hover); border-color: var(--border-strong); }
+.card.is-selected { background: var(--selected); border-color: var(--accent); }
+.card:active { cursor: grabbing; }
+.card-identifier { display: block; padding-right: var(--space-24); font-size: var(--font-size-12); }
+.card-heading { display: flex; align-items: flex-start; gap: var(--space-6); margin-top: var(--space-4); }
+.card-heading > .status-control { margin-left: calc(-1 * var(--space-5)); }
+.card-open { display: block; min-width: 0; padding: 0; }
+.card-title { padding-top: var(--space-3); color: var(--text); font-weight: var(--weight-medium); line-height: var(--line-compact); overflow-wrap: anywhere; }
+.card-open:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+.card-meta { display: flex; align-items: flex-start; gap: var(--space-6); min-width: 0; margin: var(--space-8) 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-5)); }
+.card .issue-meta { flex-wrap: wrap; gap: var(--space-6); min-height: var(--list-control-size); padding-top: var(--space-2); }
+.card .project-label { order: -1; }
+.card > .issue-selection { position: absolute; top: var(--space-12); right: var(--space-12); width: var(--space-14); height: var(--space-14); margin: 0; }
+
+/* Keep unchecked controls in the tab order and reveal them on first focus. */
+.list-row > .issue-selection, .card > .issue-selection { opacity: 0; accent-color: var(--accent); }
+.list-row:hover > .issue-selection, .list-row:focus-within > .issue-selection,
+.card:hover > .issue-selection, .card:focus-within > .issue-selection,
+.issue-selection:checked, .selection-active .issue-selection { opacity: 1; }
+.issue-selection:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--space-2); }
+@media (hover: none), (pointer: coarse) {
+  .list-row > .issue-selection, .card > .issue-selection { opacity: 1; }
+}
+
+@media (max-width: 1024px) {
+  .list-view { grid-template-columns: var(--list-control-size) var(--list-control-size) max-content var(--list-control-size) minmax(0, 1fr); }
+  .list-row { height: auto; min-height: var(--row-height); padding-block: var(--space-8); row-gap: var(--space-6); }
+  .list-row > .issue-meta { grid-column: 3 / -1; max-width: none; flex-wrap: wrap; overflow: visible; }
+  .list-row .issue-meta:empty { display: none; }
+  .row-date { display: none; }
+}
+@media (max-width: 760px) {
+  .list-view { padding-inline: var(--space-8); column-gap: var(--space-4); }
+  .board { padding-inline: var(--space-8); }
+}
