@@ -14,7 +14,7 @@
 | 弹窗与代码 | `--dialog-bg`、`--backdrop`、`--shadow-dialog`、`--code-bg` |
 | 间距与字体 | `--space-*` 是现有像素间距尺度；`--space-prose-*` 是随正文大小变化的 em 间距；`--font-size-*`、`--weight-*`、`--line-*`、`--tracking-*`、`--font-ui`、`--mono`、`--font-features`、`--font-optical-heading` 控制字体 |
 | 形状与尺寸 | `--radius*`、`--border-width`、`--focus-width`、`--icon-size`/`--icon-stroke`、`--status-icon-size`；`--sidebar-width`、`--board-column-width`、`--property-panel-width`、`--content-max-width`、`--dialog-width` 等表达组件尺寸 |
-| 其他共享值 | `--opacity-disabled`、`--duration-fast`、`--font-code-relative`、`--code-tab-size`；列表两列控件共用 `--list-control-size`，日期列用 `--list-date-width` |
+| 其他共享值 | `--opacity-disabled`、`--duration-fast`、`--font-code-relative`、`--code-tab-size`；列表三列控件共用 `--list-control-size`，日期列用 `--list-date-width` |
 
 light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状态色按浅色背景调整明度。dark 保留既有配色。两套颜色都在 `app.css`，是 InfTask 的设计选择；[Refero 的 Linear 风格参考](https://styles.refero.design/style/90ce5883-bb24-4466-93f7-801cd617b0d1) 仅作为 token 组织参考，没有提供 light 配色，也不是 Linear 官方应用规范。
 
@@ -23,7 +23,7 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 允许保留的字面量边界：
 
 - `0`、百分比、viewport 单位、`auto`/`none`/`transparent`/`currentColor`、Grid 列位置与 flex 比例表达布局结构；旋转角度表达箭头几何。
-- 状态 SVG 的 viewBox、路径、圆心、半径、扇形、虚线和属性尺寸是 14×14 几何；实际显示尺寸由 CSS token 控制。lucide 路径由库管理。
+- 状态和优先级 SVG 的 viewBox、路径、圆心、半径、扇形、虚线和属性尺寸分别是 14×14 和 16×16 几何；实际显示尺寸由 CSS token 控制。lucide 路径由库管理。
 - CSS media 条件保留 `1024px` 和 `760px`：原生 custom property 不能用于 media 条件。不能为 token 整理改变断点或引入另一套预处理系统。
 - `LabelBadge` 的 `label.color` 与标签编辑器的初始颜色是业务数据，不随主题改写。新增组件颜色不属于此例外。
 - `web/index.html` 的两条 `theme-color` meta 分别用带 media 的 `#f5f6f8` 和 `#08090a`，必须与两个 `--bg` 同步；meta content 不能直接引用 CSS var。这是 HTML 平台边界，其他消费点不可照此复制色值。
@@ -47,7 +47,13 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 | done | 实心圆加对勾 | `--status-done` | `#5e6ad2` | `#5e6ad2` |
 | canceled | 实心圆加叉 | `--status-canceled` | `#95a2b3` | `#697789` |
 
-双箭头、对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用两列 24px 控件空间，展开箭头与复选框居中于首列，状态图标居中于第二列。
+双箭头、对勾和叉用 `--panel` 色画在实心圆上。侧栏里状态图标和 16px 图标同列，`.nav-item .status-icon` 左右各留 1px 让文字对齐；列表分组头和条目共用三列 24px 控件空间，展开箭头与复选框居中于首列，优先级居中于第二列，状态图标居中于第三列。
+
+## 优先级
+
+Priority 的档位与 [Linear](https://linear.app/docs/issue-property#priority) 对齐：No priority、Urgent、High、Medium、Low，对应 0–4。`shared.tsx` 的 `PriorityIcon` 自绘 16px 图形，参照官方菜单截图：未设置为三段横线，紧急为圆角方块加感叹号，其他档位为三根递增的实心柱、以亮柱数量表示级别。紧急使用 `--priority-urgent`（dark `#f2994a`、light `#a75b14`，项目自定强调色），其余消费现有文字 token；菜单阴影使用 `--shadow-priority-menu`、宽度使用 `--priority-menu-width`、未亮柱透明度使用 `--priority-muted-opacity`；不声称所有像素或取色与 Linear 完全一致。
+
+`PrioritySelect` 使用开源 `@radix-ui/react-select` 基础控件（MIT），项目 CSS 消费现有 light/dark token 控制菜单、悬停、当前项勾选和焦点；没有引入 shadcn/Tailwind。列表和看板为 24px 图标触发器，详情及创建/编辑弹窗展示图标加名称。列表共享列依次为选择、优先级、状态、编号、标题、元信息及日期，分组标题保留优先级列空位。原生 dialog 内的菜单 portal 挂到 dialog 本身，保持在 modal 的 top layer 中，否则会被遮挡或无法操作。
 
 ## 状态与可访问外观
 

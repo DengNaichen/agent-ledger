@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, pagePath, Status, StatusIcon, StatusSelect } from "./shared";
+import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect } from "./shared";
 
 import { Catalog, LabelPicker } from "./Labels";
 import { LabelBadge } from "./shared";
@@ -15,6 +15,7 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
   const [issue, setIssue] = useState<IssueDetails | null>(null);
   const [comment, setComment] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
+  const [savingPriority, setSavingPriority] = useState(false);
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
@@ -30,6 +31,19 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
       setIssue((current) => ({ ...current!, ...updated }));
     } catch (cause) {
       setError((cause as Error).message);
+    }
+  }
+
+  async function changePriority(priority: Priority) {
+    setSavingPriority(true);
+    setError("");
+    try {
+      const updated = await api<Issue>(apiPath(`/issues/${identifier}`), "PATCH", { priority });
+      setIssue((current) => ({ ...current!, ...updated }));
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSavingPriority(false);
     }
   }
 
@@ -60,6 +74,8 @@ export function IssueDetail({ catalog, identifier, setError, editing, closeEdito
     <dl className="properties">
       <dt>Status</dt>
       <dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd>
+      <dt>Priority</dt>
+      <dd><PrioritySelect priority={issue.priority} label={`Change priority for ${identifier}`} disabled={savingPriority} onChange={(next) => void changePriority(next)} /></dd>
       <dt>Type</dt>
       <dd>{issue.type ? <span className="type-label">{issue.type}</span> : <span className="none">None</span>}</dd>
       <dt>Project</dt>
@@ -170,6 +186,7 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
     <ul className="detail-rows">
       {issues.map((item) => (
         <li key={item.identifier}>
+          <PriorityIcon priority={item.priority} />
           <StatusIcon status={item.status} />
           <NavLink to={pagePath(`/issue/${item.identifier}`)}><span className="identifier">{item.identifier}</span> {item.title}</NavLink>
           <small>{columns.find((column) => column.status === item.status)!.label}</small>
@@ -185,6 +202,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
   const [title, setTitle] = useState(issue.title);
   const [description, setDescription] = useState(issue.description);
   const [status, setStatus] = useState(issue.status);
+  const [priority, setPriority] = useState(issue.priority);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -203,7 +221,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
       const response = await fetch(apiPath(`/issues/${issue.identifier}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, status }),
+        body: JSON.stringify({ title, description, status, priority }),
       });
       if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
       if (response.ok) window.dispatchEvent(new Event("session-active"));
@@ -229,6 +247,7 @@ function IssueEditor({ issue, onClose, onSave }: { issue: Issue; onClose: () => 
         <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
           {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
         </select></label>
+        <div className="dialog-priority"><span>Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="Edit issue priority" disabled={saving} /></div>
         {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" onClick={onClose}>Cancel</button>

@@ -70,7 +70,7 @@ See [cloud deployment and recovery](docs/DEVELOPMENT.md#云端团队部署) for 
 
 The running server exposes these tools over streamable HTTP at `/w/<slug>/mcp`. Each request reads and writes the workspace in its path, and no tool takes a workspace argument; there are no tools to manage workspaces. A slug that does not exist returns 404.
 
-- `list_issues`: filter by status, type, team key, Project name, parent identifier, title/description query, and labels (AND). `label_ids` and `label_group_ids` select predicates combined using `label_mode`: `any` (default), `all`, or `none`; `unlabeled` requires empty selections. Returns summaries including labels, ordered by `updated_at` descending, with a default limit of 50.
+- `list_issues`: filter by status, priority, type, team key, Project name, parent identifier, title/description query, and labels (AND). `label_ids` and `label_group_ids` select predicates combined using `label_mode`: `any` (default), `all`, or `none`; `unlabeled` requires empty selections. Returns summaries including labels and priority, with a default limit of 50. Accepts `sort=priority|updated`; defaults to priority for `status=agent_ready`, otherwise `updated_at` descending.
 - `get_issue`: retrieve the full issue, comments, links, linked GitHub pull requests, parent identifier, children summaries, and `blocks`, `blocked_by`, and `related` summaries.
 - `create_issue`: create an issue with a required team key and title; optionally set description, status, type, Project, and parent. There is no default team. The issue gets the team's next number in one transaction with the insert.
 - `list_teams`: list teams with their key, name, and `next_number`.
@@ -86,6 +86,8 @@ The running server exposes these tools over streamable HTTP at `/w/<slug>/mcp`. 
 - `merge_labels`: transfer `source_id` associations to an active `target_id` in the same group, then delete the source. External filters referencing the source ID must be updated.
 - `list_projects`: list unarchived Projects by default; set `include_archived` to include all.
 - `create_project`, `update_project`: create named Projects with outcome descriptions, or update description and archived state by name. Names are unique in the workspace and cannot be changed.
+
+Priority follows Linear: `0` No priority (default), `1` Urgent, `2` High, `3` Medium, `4` Low. Create/update accept `priority`; omission on update preserves it and explicit `0` clears it. List filters accept `priority` and `sort=priority|updated`: the default is priority for `status=agent_ready`, otherwise newest updated first. Priority order places No priority last, with ties broken by newest update and then newest internal id. The UI provides priority controls in the list, board, details, and create/edit dialogs, plus filtering and ordering. Its default ordering applies priority within the Agent ready group and last updated within other status groups.
 
 Statuses are `triage` (new and undecided; the default), `backlog` (kept but not scheduled), `todo` (committed work), `agent_ready`, `in_progress`, `in_review`, `done`, and `canceled`. Optional types are `spec`, `feature`, `bug`, `improvement`, and `chore`. Team, Project, parent, relation, and label references must already exist in the same workspace. An issue cannot be its own parent; parent cycles are not checked.
 

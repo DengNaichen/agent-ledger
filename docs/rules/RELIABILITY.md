@@ -4,13 +4,15 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 4 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 5 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
 - 迁移 3 新建 `workspaces(id, slug, name)` 和 workspace `default`（名称 `Default`），重建 `teams`、`projects`、`issues`、`label_groups`、`labels`、`pull_requests`、`github_sync`，各加 `workspace_id` 并全部填为 `default`，所有行保留原 id。唯一约束改为 workspace 内唯一：team key、Project 名称、标签组名、标签名和 issue identifier；`labels` 通过 `(workspace_id, group_id)` 复合外键引用同一 workspace 的组；`pull_requests` 主键和 `github_sync` 游标都带 `workspace_id`。重建 `labels` 前先删掉引用它的 `issue_labels_exclusive` 触发器，结束时重建。迁移 3 之后，旧版二进制仍能启动、读取和修改已有记录，但新建 issue、team、Project 和标签会因 `workspace_id` 缺失或冲突子句不匹配而失败；回滚到旧版要停服务并恢复 `before-migration-3.db`，此后的写入会丢失。
 
 - 迁移 4 重建 `issues`，在 status CHECK 中加入 `backlog`；保留全部字段、内部 id、workspace 和自增序列上限，重建 team/number、status/updated 和 parent 索引。引用 `issues(id)` 的表不重建，迁移事务内检查外键。已有版本 3 数据库升级前生成 `before-migration-4.db`；新库直接使用含 backlog 的 schema。旧版服务不接受 backlog 输入，页面也没有该状态，回滚时要停服务并恢复升级前备份，此后的写入会丢失。
+
+- 迁移 5 用 `ALTER TABLE issues ADD COLUMN` 增加 `priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4))`，已有票回填为 No priority，原引用、正文及时间保留。迁移前备份为 `before-migration-5.db`（从版本 4 升级时）；旧版程序可以忽略此新增列，但不会读取或设置优先级。
 
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 

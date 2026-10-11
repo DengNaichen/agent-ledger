@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS issues (
     parent_id INTEGER REFERENCES issues(id) CHECK (parent_id <> id),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4)),
     UNIQUE (workspace_id, identifier)
 );
 

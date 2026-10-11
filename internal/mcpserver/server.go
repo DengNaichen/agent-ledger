@@ -14,7 +14,7 @@ type identifierInput struct {
 }
 
 type listOutput struct {
-	Issues []app.IssueSummary `json:"issues" jsonschema:"issue summaries without descriptions, ordered by updated_at descending"`
+	Issues []app.IssueSummary `json:"issues" jsonschema:"issue summaries without descriptions, including priority and ordered by the requested sort"`
 }
 
 type commentInput struct {
@@ -76,7 +76,7 @@ func New(service *app.Service) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "inftask", Version: "0.1.0"}, nil)
 	const statuses = "Statuses: triage, backlog, todo, agent_ready, in_progress, in_review, done, canceled. "
 	const types = "Types: spec, feature, bug, improvement, chore; empty string means no type. "
-	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, newest updated first. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types},
+	mcp.AddTool(server, &mcp.Tool{Name: "list_issues", Description: "List summaries without descriptions, including priority. Default sort: priority for status=agent_ready, otherwise newest updated first. Explicit sort=priority or updated overrides; no priority sorts last; ties use newest updated then newest id. All filters combine with AND; team filters by team key; limit defaults to 50. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ListIssues) (*mcp.CallToolResult, listOutput, error) {
 			issues, err := service.List(ctx, input)
 			return nil, listOutput{Issues: app.Summaries(issues)}, err
@@ -91,7 +91,7 @@ func New(service *app.Service) *mcp.Server {
 			issue, err := service.Create(ctx, input)
 			return nil, issue, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "update_issue", Description: "Update only supplied fields. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types},
+	mcp.AddTool(server, &mcp.Tool{Name: "update_issue", Description: "Update only supplied fields; omitted priority is unchanged and priority=0 clears it. Empty strings clear type, project, or parent. Parent cannot be self. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateIssue) (*mcp.CallToolResult, app.Issue, error) {
 			issue, err := service.Update(ctx, input)
 			return nil, issue, err

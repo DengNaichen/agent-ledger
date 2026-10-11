@@ -87,7 +87,15 @@ func TestMigrateBacklog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
-	if after := snapshot(service.db); !reflect.DeepEqual(before, after) {
+	// Migration 5 then appends priority, 0 for every existing issue.
+	after := snapshot(service.db)
+	for i, row := range after["issues"] {
+		if row[len(row)-1] != int64(0) {
+			t.Fatalf("migrated priority = %#v", row)
+		}
+		after["issues"][i] = row[:len(row)-1]
+	}
+	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("migration changed stored rows:\nbefore = %#v\nafter = %#v", before, after)
 	}
 	ctx := context.Background()
@@ -99,8 +107,8 @@ func TestMigrateBacklog(t *testing.T) {
 	if err != nil || issue.Status != StatusBacklog {
 		t.Fatalf("upgraded backlog update: %#v, %v", issue, err)
 	}
-	if version := userVersion(t, service.db); version != 4 {
-		t.Fatalf("user_version = %d, want 4", version)
+	if version := userVersion(t, service.db); version != len(migrations) {
+		t.Fatalf("user_version = %d, want %d", version, len(migrations))
 	}
 	backup, err := sql.Open("sqlite", filepath.Join(dir, "backups", "before-migration-4.db"))
 	if err != nil {

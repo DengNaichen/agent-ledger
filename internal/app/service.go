@@ -33,6 +33,8 @@ var (
 	ErrProjectNotFound = errors.New("project not found")
 	ErrInvalidTitle    = errors.New("title is required")
 	ErrInvalidStatus   = errors.New("invalid status: use triage, backlog, todo, agent_ready, in_progress, in_review, done, or canceled")
+	ErrInvalidPriority = errors.New("invalid priority: use 0 (no priority), 1 (urgent), 2 (high), 3 (medium), or 4 (low)")
+	ErrInvalidSort     = errors.New("invalid sort: use priority or updated")
 	ErrInvalidType     = errors.New("invalid type: use spec, feature, bug, improvement, chore, or an empty string")
 	ErrInvalidKind     = errors.New("invalid relation kind: use blocks, blocked_by, or related")
 	ErrTeamRequired    = errors.New("team is required")
@@ -60,6 +62,7 @@ var Statuses = []Status{StatusTriage, StatusBacklog, StatusTodo, StatusAgentRead
 var schema string
 
 type IssueSummary struct {
+	Priority   int     `json:"priority"`
 	Labels     []Label `json:"labels"`
 	Identifier string  `json:"identifier"`
 	Title      string  `json:"title"`
@@ -71,6 +74,7 @@ type IssueSummary struct {
 }
 
 type Issue struct {
+	Priority    int     `json:"priority"`
 	Labels      []Label `json:"labels"`
 	Identifier  string  `json:"identifier"`
 	Title       string  `json:"title"`
@@ -95,6 +99,8 @@ type IssueDetails struct {
 }
 
 type ListIssues struct {
+	Priority      *int    `json:"priority,omitempty" jsonschema:"filter by priority: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low"`
+	Sort          string  `json:"sort,omitempty" jsonschema:"priority or updated; omitted uses priority for an agent_ready status filter, otherwise updated; priority puts no priority last; ties use newest updated then newest id"`
 	LabelIDs      []int64 `json:"label_ids,omitempty" jsonschema:"selected label IDs, including archived labels"`
 	LabelGroupIDs []int64 `json:"label_group_ids,omitempty" jsonschema:"selected groups; each matches any child label"`
 	LabelMode     string  `json:"label_mode,omitempty" jsonschema:"any (default), all, none, or unlabeled; unlabeled requires empty selections"`
@@ -108,6 +114,7 @@ type ListIssues struct {
 }
 
 type CreateIssue struct {
+	Priority    int     `json:"priority,omitempty" jsonschema:"0 no priority (default), 1 urgent, 2 high, 3 medium, 4 low"`
 	Team        string  `json:"team" jsonschema:"required key of an existing team, such as AL; the issue is numbered <key>-<n> in that team's sequence"`
 	Title       string  `json:"title" jsonschema:"required nonempty issue title"`
 	Description string  `json:"description,omitempty" jsonschema:"self-contained issue description"`
@@ -118,6 +125,7 @@ type CreateIssue struct {
 }
 
 type UpdateIssue struct {
+	Priority    *int    `json:"priority,omitempty" jsonschema:"0 clears priority, 1 urgent, 2 high, 3 medium, 4 low; omitted leaves unchanged"`
 	Identifier  string  `json:"identifier" jsonschema:"issue identifier, such as AL-1"`
 	Title       *string `json:"title,omitempty" jsonschema:"new nonempty title; omitted leaves unchanged"`
 	Description *string `json:"description,omitempty" jsonschema:"new description; omitted leaves unchanged"`
@@ -308,11 +316,18 @@ func validateFields(title *string, status *Status, issueType *string) error {
 	return nil
 }
 
+func validatePriority(priority *int) error {
+	if priority != nil && (*priority < 0 || *priority > 4) {
+		return ErrInvalidPriority
+	}
+	return nil
+}
+
 // issueColumns starts with the internal id, which other tables reference.
 const issueColumns = `id, identifier, title, status, type,
 	(SELECT name FROM projects WHERE projects.id = issues.project_id),
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
-	updated_at, description, created_at`
+	updated_at, description, created_at, priority`
 
 // teamID, projectID, and issueID look up the id of a team key, a Project name,
 // and an issue identifier in the workspace; an empty string gives NULL.
@@ -363,7 +378,7 @@ func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue,
 	for rows.Next() {
 		var issue Issue
 		var id int64
-		if err := rows.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt); err != nil {
+		if err := rows.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority); err != nil {
 			return nil, err
 		}
 		issues = append(issues, issue)
@@ -387,7 +402,7 @@ func Summaries(issues []Issue) []IssueSummary {
 	summaries := make([]IssueSummary, 0, len(issues))
 	for _, issue := range issues {
 		summaries = append(summaries, IssueSummary{
-			Identifier: issue.Identifier, Title: issue.Title, Status: issue.Status, Type: issue.Type,
+			Identifier: issue.Identifier, Title: issue.Title, Status: issue.Status, Type: issue.Type, Priority: issue.Priority,
 			Project: issue.Project, Parent: issue.Parent, UpdatedAt: issue.UpdatedAt, Labels: issue.Labels,
 		})
 	}
@@ -395,6 +410,12 @@ func Summaries(issues []Issue) []IssueSummary {
 }
 
 func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
+	if err := validatePriority(input.Priority); err != nil {
+		return nil, err
+	}
+	if input.Sort != "" && input.Sort != "priority" && input.Sort != "updated" {
+		return nil, ErrInvalidSort
+	}
 	if err := validateFields(nil, input.Status, input.Type); err != nil {
 		return nil, err
 	}
@@ -411,6 +432,10 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		return nil, err
 	}
 	where, args := `workspace_id = ?`, []any{s.workspace}
+	if input.Priority != nil {
+		where += ` AND priority = ?`
+		args = append(args, *input.Priority)
+	}
 	if input.Status != nil {
 		where += ` AND status = ?`
 		args = append(args, *input.Status)
@@ -442,10 +467,17 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 	if input.Limit != nil {
 		limit = *input.Limit
 	}
-	return s.list(ctx, where+` ORDER BY updated_at DESC, id DESC LIMIT ?`, append(args, limit)...)
+	order := `updated_at DESC, id DESC`
+	if input.Sort == "priority" || (input.Sort == "" && input.Status != nil && *input.Status == StatusAgentReady) {
+		order = `CASE priority WHEN 0 THEN 5 ELSE priority END, ` + order
+	}
+	return s.list(ctx, where+` ORDER BY `+order+` LIMIT ?`, append(args, limit)...)
 }
 
 func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) {
+	if err := validatePriority(&input.Priority); err != nil {
+		return Issue{}, err
+	}
 	if input.Team == "" {
 		return Issue{}, ErrTeamRequired
 	}
@@ -483,9 +515,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	identifier := fmt.Sprintf("%s-%d", input.Team, number)
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?)`,
-		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now)
+		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at, priority)
+		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?)`,
+		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now, input.Priority)
 	if err != nil {
 		return Issue{}, err
 	}
@@ -512,7 +544,7 @@ func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, err
 	var issue Issue
 	var id int64
 	err := s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(
-		&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt)
+		&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, 0, ErrNotFound
 	}
@@ -524,6 +556,9 @@ func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, err
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) {
+	if err := validatePriority(input.Priority); err != nil {
+		return Issue{}, err
+	}
 	if err := validateFields(input.Title, input.Status, input.Type); err != nil {
 		return Issue{}, err
 	}
@@ -558,6 +593,10 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 			sets = append(sets, reference.column+` = ?`)
 			args = append(args, id)
 		}
+	}
+	if input.Priority != nil {
+		sets = append(sets, `priority = ?`)
+		args = append(args, *input.Priority)
 	}
 	if input.Status != nil {
 		sets = append(sets, `status = ?`)

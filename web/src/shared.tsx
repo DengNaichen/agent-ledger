@@ -1,4 +1,6 @@
-import { MouseEvent, ReactNode } from "react";
+import { MouseEvent, ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
+import * as Select from "@radix-ui/react-select";
 
 export const columns = [
   { status: "triage", label: "Triage", hint: "Worth keeping?" },
@@ -11,6 +13,16 @@ export const columns = [
   { status: "canceled", label: "Canceled", hint: "No longer planned" },
 ] as const;
 
+export const priorities = [
+  { value: 0, label: "No priority" },
+  { value: 1, label: "Urgent" },
+  { value: 2, label: "High" },
+  { value: 3, label: "Medium" },
+  { value: 4, label: "Low" },
+] as const;
+export type Priority = (typeof priorities)[number]["value"];
+export type IssueSort = "auto" | "updated" | "priority";
+
 export type Status = (typeof columns)[number]["status"];
 
 export type Label = { id: number; name: string; color: string; description: string; group_id: number; archived: boolean };
@@ -21,6 +33,7 @@ export type Issue = {
   identifier: string;
   title: string;
   status: Status;
+  priority: Priority;
   type: string | null;
   project: string | null;
   parent: string | null;
@@ -34,6 +47,7 @@ export type IssueSummary = {
   identifier: string;
   title: string;
   status: Status;
+  priority: Priority;
   type: string | null;
   project: string | null;
   parent: string | null;
@@ -160,4 +174,36 @@ export function LabelBadge({ label }: { label: Label }) {
 
 export function RequestError({ message }: { message: string }) {
   return <p className="error" role="alert">{message === "unauthorized" ? <>Your session expired. <a href="/auth/login" target="_blank" rel="noopener noreferrer">Sign in again</a>, then retry. Your text stays here.</> : message}</p>;
+}
+
+// The three bars retain their silhouette at every level; inactive bars are dimmed.
+export function PriorityIcon({ priority }: { priority: Priority }) {
+  return <svg className={`priority-icon priority-${priority}`} width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    {priority === 0 ? <path d="M2 8h2M7 8h2M12 8h2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : priority === 1 ? <><rect x="1" y="1" width="14" height="14" rx="3" fill="currentColor" /><path d="M8 4v5" className="priority-mark" /><circle cx="8" cy="11.5" r=".8" className="priority-mark-dot" /></> : [0, 1, 2].map((bar) => <rect key={bar} x={2 + bar * 4.5} y={9 - bar * 3} width="3" height={5 + bar * 3} rx="1" fill="currentColor" className={bar < 5 - priority ? undefined : "priority-bar-muted"} />)}
+  </svg>;
+}
+
+export function PrioritySelect({ priority, onChange, label, compact = false, disabled = false }: { priority: Priority; onChange: (priority: Priority) => void; label: string; compact?: boolean; disabled?: boolean }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [container, setContainer] = useState<HTMLDialogElement | null>(null);
+  // A portal inside a native modal must stay inside that dialog's top layer.
+  useLayoutEffect(() => { setContainer(trigger.current!.closest("dialog")); }, []);
+  const selected = priorities[priority];
+  return <Select.Root value={String(priority)} onValueChange={(value) => onChange(Number(value) as Priority)} disabled={disabled}>
+    <Select.Trigger ref={trigger} className={`priority-control ${compact ? "priority-compact" : ""}`} aria-label={label} title={selected.label}>
+      <PriorityIcon priority={priority} />
+      {!compact && <span>{selected.label}</span>}
+    </Select.Trigger>
+    <Select.Portal container={container || undefined}>
+      <Select.Content className="priority-menu" position="popper" sideOffset={5} align="start" collisionPadding={8}>
+        <Select.Viewport>
+          {priorities.map((option) => <Select.Item className="priority-option" value={String(option.value)} key={option.value} textValue={option.label}>
+            <span className="priority-check"><Select.ItemIndicator><Check className="icon" /></Select.ItemIndicator></span>
+            <PriorityIcon priority={option.value} />
+            <Select.ItemText>{option.label}</Select.ItemText>
+          </Select.Item>)}
+        </Select.Viewport>
+      </Select.Content>
+    </Select.Portal>
+  </Select.Root>;
 }
