@@ -27,8 +27,10 @@
 .scope-navigation { display: flex; flex-direction: column; gap: var(--space-1); }
 .scope-navigation a { text-decoration: none; }
 .nav-item.active:hover { background: var(--button-hover); }
+.scope-sidebar .nav-item { line-height: var(--line-control); }
+.scope-sidebar .team-mark { line-height: 1; }
 .team-heading { cursor: default; }
-.team-heading .entity-emoji { height: var(--space-16); font-size: var(--font-size-14); }
+.team-heading .entity-emoji { width: var(--space-16); height: var(--space-16); font-size: var(--font-size-13); }
 .team-navigation + .team-navigation { margin-top: var(--space-8); }
 .team-destination { padding-left: var(--space-32); }
 .sidebar-account { margin-top: auto; padding: var(--space-8) 0 0; }
@@ -123,7 +125,9 @@
 .team-settings form { padding: 0 var(--space-16); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); }
 .settings-field { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); padding: var(--space-16) 0; border-bottom: var(--border-width) solid var(--border); }
 .settings-name { display: flex; align-items: center; gap: var(--space-8); width: 50%; min-width: 0; }
-.settings-name input { width: 100%; min-width: 0; padding: var(--space-6) var(--space-8); border: var(--border-width) solid var(--border-strong); border-radius: var(--radius); background: var(--button-bg); }
+.settings-name .emoji-trigger { width: var(--space-32); height: var(--space-32); border: var(--border-width) solid var(--border-strong); border-radius: var(--radius); background: var(--button-bg); }
+.settings-name .entity-emoji { width: var(--space-16); height: var(--space-16); font-size: var(--font-size-14); }
+.settings-name input { height: var(--space-32); width: 100%; min-width: 0; padding: var(--space-6) var(--space-8); border: var(--border-width) solid var(--border-strong); border-radius: var(--radius); background: var(--button-bg); }
 .settings-name input:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--border-width); }
 .settings-identifier { font-family: var(--mono); color: var(--muted); }
 .team-settings footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-12) 0; }
