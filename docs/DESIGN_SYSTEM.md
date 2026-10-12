@@ -34,17 +34,16 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 
 应用图标使用奶油底色与桃色、珊瑚色、橙色层叠任务卡片，前景为浅色任务线条和勾选。可编辑源文件是 [`assets/InfTask.icon`](../assets/InfTask.icon)，包含四个 SVG 图层和四个深度组；背景为 `#fff4e1`。应用图标保留自身配色，明暗主题使用同一导出；Workspace 入口及工作区头像属于另一类标识，本次不修改。
 
-`web/src/assets/inftask-icon.png` 为 128px 导出，供 HTML favicon 使用；Vite 构建时产生带内容哈希的资源地址。`macos/Sources/InfTaskPreview/Resources/AppIcon.png` 为 1024px 导出，供 macOS Dock 打包使用。两张图片均由 Icon Composer 的 Default/macOS 外观导出，图层修改后一起重新导出。
+`web/src/assets/inftask-icon.png` 为 128px 导出，供 HTML favicon 使用；Vite 构建时产生带内容哈希的资源地址。图片由 Icon Composer 的 Default/macOS 外观导出，图层修改后重新导出。
 
 安装包含 design generation 27 的 Icon Composer 后，可在仓库根目录使用它自带的 `ictool`（不同于 `xcrun ictool`）重新生成，命令中的输入和输出使用绝对路径：
 
 ```sh
 icon_tool='/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool'
 "$icon_tool" "$PWD/assets/InfTask.icon" --export-image --output-file "$PWD/web/src/assets/inftask-icon.png" --platform macOS --rendition Default --width 128 --height 128 --scale 1 --design-generation 27
-"$icon_tool" "$PWD/assets/InfTask.icon" --export-image --output-file "$PWD/macos/Sources/InfTaskPreview/Resources/AppIcon.png" --platform macOS --rendition Default --width 1024 --height 1024 --scale 1 --design-generation 27
 ```
 
-应用运行和常规构建只消费已提交的 PNG，不要求安装 Icon Composer。macOS 的 `make-icon.swift` 保留系统图标留白，不叠加第二层底板。
+应用运行和常规构建只消费已提交的 PNG，不要求安装 Icon Composer。
 
 ## 图标
 

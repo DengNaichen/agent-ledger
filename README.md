@@ -44,10 +44,6 @@ npm --prefix web run dev
 
 The Vite server proxies `/api` and `/auth` to the Go server.
 
-## Native macOS preview
-
-An offline SwiftUI shell is available in [macos/](macos/README.md). It uses fictional sample issues and does not connect to the server or change real data. On a Mac with Xcode installed, run `bash macos/package.sh` to build a locally signed `.app` and zip for visual review. This is not yet a full native client.
-
 ## Data and backups
 
 The server keeps one copy of the database per day in a `backups` directory next to the database file (`daily-YYYY-MM-DD.db`, newest 14 kept) and checks hourly whether today's copy exists. Before upgrading the schema it also writes `before-migration-<n>.db`, which is never pruned.
