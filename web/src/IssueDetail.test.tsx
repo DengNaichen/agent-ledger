@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueDetail } from "./IssueDetail";
 import { fixtureIssue, deferred, json } from "./test/fixtures";
@@ -133,6 +133,21 @@ it("shows main and child delegation records without replacing the human assignee
   expect(screen.getAllByText("parent-session")).toHaveLength(3);
   expect(screen.getByText("child-a")).toBeTruthy();
   expect((screen.getByRole("combobox", { name: "Change assignee for AL-1" }) as HTMLSelectElement).value).toBe("member");
+});
+
+it("lays out properties as aligned Linear-style rows", async () => {
+  const team = { private: false, joined: true, accessible: true, can_manage: true, membership_enabled: true, key: "AL", name: "AL", next_number: 2, emoji: "" };
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({
+    ...fixtureIssue, delegations: [{ id: 1, agent: "codex", session_id: "session", hostname: "host", actor: null, created_at: fixtureIssue.created_at }],
+  }))));
+  render(<IssueDetail {...props} teams={[team]} />);
+  const properties = await screen.findByRole("region", { name: "Properties" });
+  expect(properties.textContent).not.toMatch(/Created|Updated|Delegated by|No labels|\(AL\)/);
+  expect(within(properties).getByText("Set priority")).toBeTruthy();
+  const delegation = within(properties).getByRole("button", { name: "Codex · 1 execution" });
+  expect(within(properties).getByText("Assignee").parentElement!.contains(delegation)).toBe(true);
+  expect(delegation.querySelector('[data-agent="codex"]')).not.toBeNull();
+  expect(within(properties).getByRole("button", { name: "Add label" })).toBeTruthy();
 });
 
 it("renders delegation metadata as text, not HTML", async () => {

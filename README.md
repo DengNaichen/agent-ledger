@@ -34,7 +34,7 @@ Project choices are active projects associated with the selected Team. Changing 
 
 The page lists issues with `GET /api/w/<slug>/issues`, which accepts the page's filters and returns every matching issue as the same summary MCP `list_issues` returns, without `description` and `created_at`. An issue's page reads the full issue from `GET /api/w/<slug>/issues/<identifier>`.
 
-Use **Labels** in the sidebar to create, edit, archive, restore, and merge the workspace's issue labels. Ungrouped labels are multi-select; each group allows one value per issue. Open **Edit labels** on an issue, or select issues in the list/board and choose **Change labels** for an atomic batch operation. The Labels filter supports any, all, none of the selected labels/groups, and issues with no labels. Archived labels remain on existing issues and in filters. Labels are independent of type, status, and Project.
+Use **Labels** in the sidebar to create, edit, archive, restore, and merge the workspace's issue labels. Ungrouped labels are multi-select; each group allows one value per issue. Use the **+** beside an issue's labels (**Add label** when it has none), or select issues in the list/board and choose **Change labels** for an atomic batch operation. The Labels filter supports any, all, none of the selected labels/groups, and issues with no labels. Archived labels remain on existing issues and in filters. Labels are independent of type, status, and Project.
 
 For frontend hot reload, keep the Go server running and start:
 

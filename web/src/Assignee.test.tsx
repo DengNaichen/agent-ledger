@@ -17,8 +17,9 @@ it("keeps the selected member visible while the filter directory loads", async (
 
 it("retains an unavailable current assignee without offering new assignments to them", async () => {
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({ assignees: [{ subject: "admin", name: "Admin", email: "" }] }))));
-  render(<AssigneeSelect team="AL" value="member" current={{ subject: "member", name: "Member", email: "" }} onChange={() => {}} disabled={false} label="Assignee" />);
+  const { container } = render(<AssigneeSelect team="AL" value="member" current={{ subject: "member", name: "Member", email: "" }} onChange={() => {}} disabled={false} label="Assignee" />);
   await screen.findByRole("option", { name: "Admin" });
+  expect(container.querySelector(".person-avatar")!.textContent).toBe("M");
   const selected = screen.getByRole("option", { name: "Member (unavailable)" }) as HTMLOptionElement;
   expect(selected.selected).toBe(true);
   expect(selected.disabled).toBe(true);

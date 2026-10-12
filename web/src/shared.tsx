@@ -283,13 +283,13 @@ export function PriorityIcon({ priority }: { priority: Priority }) {
   </svg>;
 }
 
-export function PrioritySelect({ priority, onChange, label, compact = false, disabled = false }: { priority: Priority; onChange: (priority: Priority) => void; label: string; compact?: boolean; disabled?: boolean }) {
+export function PrioritySelect({ priority, onChange, label, compact = false, disabled = false, emptyLabel }: { priority: Priority; onChange: (priority: Priority) => void; label: string; compact?: boolean; disabled?: boolean; emptyLabel?: string }) {
   const { open, setOpen, trigger, container, onKeyDown } = useLazySelect(String(priority), priorities.map((option) => ({ value: String(option.value), label: option.label })), (value) => onChange(Number(value) as Priority));
   const selected = priorities[priority];
   return <Select.Root open={open} onOpenChange={setOpen} value={String(priority)} onValueChange={(value) => onChange(Number(value) as Priority)} disabled={disabled}>
     <Select.Trigger ref={trigger} onKeyDown={onKeyDown} className={`priority-control ${compact ? "priority-compact" : ""}`} aria-label={label} title={selected.label}>
       <PriorityIcon priority={priority} />
-      {!compact && <span>{selected.label}</span>}
+      {!compact && (priority === 0 && emptyLabel ? <span className="none">{emptyLabel}</span> : <span>{selected.label}</span>)}
     </Select.Trigger>
     {open && <Select.Portal container={container || undefined}>
       <Select.Content className="priority-menu" position="popper" sideOffset={5} align="start" collisionPadding={8}>
