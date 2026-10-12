@@ -261,7 +261,7 @@ func TestMigrateIssueReferencesToIDs(t *testing.T) {
 	ten := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Ten", Status: StatusTriage, Parent: new("AL-1"), UpdatedAt: "u2", CreatedAt: "c3"}, Description: "Ten body"}
 	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{risk}, Identifier: "TOK-1", Title: "Other team", Status: StatusDone, Type: new("chore"), UpdatedAt: "u4", CreatedAt: "c4"}}
 	details := func(issue Issue) IssueDetails {
-		return IssueDetails{Assignments: []AssignmentChange{}, Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
+		return IssueDetails{Delegations: []Delegation{}, Assignments: []AssignmentChange{}, Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
 			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}
 	}
 	al1, al9, al10, tok1 := details(spec), details(nine), details(ten), details(tok)
@@ -354,7 +354,7 @@ func TestMigrateWorkspaces(t *testing.T) {
 	child := Issue{IssueSummary: IssueSummary{Labels: []Label{}, Identifier: "AL-10", Title: "Child", Status: StatusInReview, Type: new("feature"), Project: new("Legacy"), ProjectID: new(int64(2)), Parent: new("AL-1"), UpdatedAt: "u3", CreatedAt: "c2"}}
 	tok := Issue{IssueSummary: IssueSummary{Labels: []Label{retired}, Identifier: "TOK-2", Title: "Other team", Status: StatusDone, UpdatedAt: "u2", CreatedAt: "c3"}, Description: "Other body"}
 	details := func(issue Issue) IssueDetails {
-		return IssueDetails{Assignments: []AssignmentChange{}, Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
+		return IssueDetails{Delegations: []Delegation{}, Assignments: []AssignmentChange{}, Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{},
 			Children: []IssueSummary{}, Blocks: []IssueSummary{}, BlockedBy: []IssueSummary{}, Related: []IssueSummary{}}
 	}
 	al1, al10, tok2 := details(spec), details(child), details(tok)

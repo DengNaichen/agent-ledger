@@ -1,0 +1,18 @@
+{
+  "description": "Repository-local InfTask delegation provenance; no plugin distribution.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^mcp__(inftask|inftask-cloud|inftask_cloud|plugin_inftask_inftask)__delegate_issue$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh \"$(git rev-parse --show-toplevel)/scripts/run-delegate-hook\" \"$(git rev-parse --show-toplevel)/scripts/delegate-hook.mjs\" codex",
+            "timeout": 5,
+            "statusMessage": "Recording InfTask session context"
+          }
+        ]
+      }
+    ]
+  }
+}

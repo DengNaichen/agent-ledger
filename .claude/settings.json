@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^mcp__(inftask|inftask-cloud|inftask_cloud|plugin_inftask_inftask)__delegate_issue$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh \"${CLAUDE_PROJECT_DIR}/scripts/run-delegate-hook\" \"${CLAUDE_PROJECT_DIR}/scripts/delegate-hook.mjs\" claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

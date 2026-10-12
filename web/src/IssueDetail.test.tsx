@@ -111,6 +111,41 @@ it("does not send queued writes after leaving the detail", async () => {
 });
 
 
+it("shows main and child delegation records without replacing the human assignee", async () => {
+  const context = { agent: "codex", session_id: "parent-session", hostname: "test-host", actor: { subject: "member", name: "Member", email: "" }, created_at: fixtureIssue.created_at };
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({
+    ...fixtureIssue, assignee: context.actor,
+    delegations: [
+      { ...context, id: 1 },
+      { ...context, id: 2, agent_id: "child-a", agent_type: "implementer" },
+      { ...context, id: 3, agent_id: "child-b", agent_type: "reviewer" },
+    ],
+  }))));
+  render(<IssueDetail {...props} />);
+  await screen.findByRole("heading", { name: "Agent executions" });
+  const history = screen.getByRole("region", { name: "Agent executions" });
+  history.scrollIntoView = vi.fn();
+  fireEvent.click(screen.getByRole("button", { name: "Codex · 3 executions" }));
+  expect(history.scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+  expect(screen.getByRole("heading", { name: "Codex · Session" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Codex · Subagent · implementer" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Codex · Subagent · reviewer" })).toBeTruthy();
+  expect(screen.getAllByText("parent-session")).toHaveLength(3);
+  expect(screen.getByText("child-a")).toBeTruthy();
+  expect((screen.getByRole("combobox", { name: "Change assignee for AL-1" }) as HTMLSelectElement).value).toBe("member");
+});
+
+it("renders delegation metadata as text, not HTML", async () => {
+  const text = "<img src=x onerror=alert(1)>";
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({
+    ...fixtureIssue, delegations: [{ id: 1, agent: "claude", session_id: text, hostname: text, actor: null, created_at: fixtureIssue.created_at }],
+  }))));
+  const { container } = render(<IssueDetail {...props} />);
+  await screen.findByRole("heading", { name: "Claude · Session" });
+  expect(screen.getAllByText(text)).toHaveLength(2);
+  expect(container.querySelector("img")).toBeNull();
+});
+
 it("clears previously loaded private content after access is revoked", async () => {
   let revoked = false;
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(revoked ? json({ error: "issue not found" }, 404) : json(fixtureIssue))));

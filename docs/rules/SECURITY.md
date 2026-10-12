@@ -47,6 +47,12 @@ API bearer 与 MCP bearer 都验证配置公钥的 RS256/ES256 签名、非空 s
 
 GitHub 内部同步仍可处理私有团队，但启用 linkback 时只发送任务 identifier，不发送私有标题或说明。当前没有公共任务链接配置，因此不拼接外部 issue URL。转私有不撤回已经发送到 GitHub 的旧评论；启用 linkback 的管理员须考虑此前外发的内容。
 
+## Agent 接票来源
+
+`delegate_issue` 复用现有活动成员和任务团队访问，不建立 Agent 独立授权。可信 actor 来自请求上下文，客户端只提供有界的执行来源；输入未知 actor 字段被拒绝。来源不是密码学证明，客户端可以自报，因此不能用 session/agent/hostname 扩大访问权。详情来源信息与任务共用可见性边界。
+
+仓库 `PreToolUse` 只匹配已知 InfTask 服务的 `delegate_issue`，保留业务参数并整体覆盖 `client_context`，不读取 token、环境凭据、transcript 或本地会话文件，不自行发请求。缺宿主 session 时拒绝，不输出原始 hook JSON；第三方和其他工具 no-op。明确允许的 hook 决策只针对这一接票操作，服务端仍重新检查权限。记录会外发机器 hostname、session ID 和可选子 Agent ID/profile 到所连接工作区，不能把它们当成无数据外发的纯本地操作。不要在展示或日志中把来源当成身份认证；页面以普通文本展示，不插入 raw HTML。
+
 ## 负责人和审计
 
 人的 assignee 不附加独占编辑限制；有任务写权限的活动成员可分配、清空、改派。Service 在写入事务内校验被分配者为本工作区活动成员且有团队访问权。候选目录先验证调用者的团队内容访问权，Workspace Admin 的设置发现权限不能借候选目录读出私有团队成员。任务/审计读取沿用任务可见性边界。审计操作者只来自已认证的请求上下文，REST/MCP 的未知 actor 参数被拒绝；内部无身份操作明确记录为空，不冒充用户。停用保留历史负责人，不允许新分配。

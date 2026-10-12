@@ -24,6 +24,8 @@ workspace 是云端成员访问边界：team、Project、标签和 PR 记录各�
 
 任务创建/编辑成功由所属页面显示结果与查看入口；创建后 `useIssues.ts` 重读筛选结果，不强插新票。详情的快捷状态、优先级、负责人、评论、标签和编辑器保存共享同票队列；编辑成功应用响应后重读详情。评论仅在提交后未再编辑时清空输入，后续草稿保留。列表乐观状态失败恢复最近确认的状态，不回滚整票，也不覆盖已保存的其它字段。编辑器项目目录独立读取同 Team 的含归档目录，失败保留草稿并提供重试。这些队列只协调当前页面发起的操作，不提供跨浏览器/跨客户端事务或冲突检测。
 
+Agent 接票由独立 MCP `delegate_issue` 调用 `Service.Delegate`，不通过 `Update` 的状态变化推断。`delegation.go` 校验客户端来源、沿用 issue 的 workspace/team 权限，并单语句插入 `issue_delegations`；详情 `delegations` 按 id 返回所有参与者。唯一键为 issue/agent/session_id/agent_id/hostname，重复调用保留原 actor、类型和时间，不改变 issue 的 updated_at、status 或 assignee。`IssueDetail.tsx` 展示参与 Agent 和可选择复制的来源历史，不表示实时运行状态。仓库本地 hooks 注入工具参数，分发插件不含这些 hooks；配置见 [开发](DEVELOPMENT.md#仓库内-agent-接票)。
+
 增加 issue 字段时，先核对 `CreateIssue`、`UpdateIssue`、查询列和扫描，再判断是否需要 schema/迁移、MCP schema、HTTP 测试和前端类型/编辑器一起变更。REST 并未暴露 MCP 的全部能力，不因工具存在就假设有对应 HTTP endpoint。
 
 增加状态时，核对后端 `Statuses`、schema 的 CHECK、前端 `columns` 和 `StatusIcon`，以及 GitHub 自动推进逻辑；迁移与旧数据保留要求见 [可靠性](rules/RELIABILITY.md)。

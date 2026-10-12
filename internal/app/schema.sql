@@ -198,3 +198,17 @@ CREATE TABLE IF NOT EXISTS issue_assignments (
 );
 CREATE INDEX IF NOT EXISTS issue_assignments_issue_idx ON issue_assignments(issue_id,id);
 CREATE INDEX IF NOT EXISTS issues_assignee_idx ON issues(workspace_id,assignee_subject);
+
+CREATE TABLE IF NOT EXISTS issue_delegations (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+ agent TEXT NOT NULL CHECK(agent IN ('codex','claude')),
+ session_id TEXT NOT NULL CHECK(length(session_id) BETWEEN 1 AND 256),
+ agent_id TEXT NOT NULL DEFAULT '' CHECK(length(agent_id) <= 256),
+ agent_type TEXT NOT NULL DEFAULT '' CHECK(length(agent_type) <= 128),
+ hostname TEXT NOT NULL CHECK(length(hostname) BETWEEN 1 AND 253),
+ actor_subject TEXT REFERENCES users(subject),
+ created_at TEXT NOT NULL,
+ UNIQUE(issue_id,agent,session_id,agent_id,hostname)
+);
+CREATE INDEX IF NOT EXISTS issue_delegations_issue_idx ON issue_delegations(issue_id,id);

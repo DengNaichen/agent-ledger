@@ -65,6 +65,7 @@ type Issue struct {
 }
 
 type IssueDetails struct {
+	Delegations []Delegation       `json:"delegations"`
 	Assignments []AssignmentChange `json:"assignments"`
 	Issue
 	Comments     []Comment      `json:"comments"`
@@ -581,6 +582,10 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 		return IssueDetails{}, err
 	}
 	detail := IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{}}
+	detail.Delegations, err = s.delegations(ctx, id)
+	if err != nil {
+		return IssueDetails{}, err
+	}
 	detail.Assignments, err = s.assignmentHistory(ctx, id)
 	if err != nil {
 		return IssueDetails{}, err

@@ -77,3 +77,12 @@
 .assignment-history li { margin-bottom: var(--space-3); }
 .assignment-history p { margin-bottom: var(--space-1); overflow-wrap: anywhere; }
 .assignment-history time { color: var(--text-3); font-size: var(--font-size-12); }
+.detail-properties .delegation-link { padding: 0; text-align: left; font: inherit; }
+.delegation-history ol { list-style: none; padding: 0; }
+.delegation-history li { margin-bottom: var(--space-16); padding: var(--space-12); border: var(--border-width) solid var(--border); border-radius: var(--radius); min-width: 0; }
+.delegation-history h3 { margin: 0 0 var(--space-8); overflow-wrap: anywhere; }
+.delegation-history dl { display: grid; gap: var(--space-6); margin: 0; }
+.delegation-history dl > div { display: grid; grid-template-columns: var(--property-label-width) minmax(0, 1fr); gap: var(--space-8); }
+.delegation-history dt { color: var(--muted); font-size: var(--font-size-12); }
+.delegation-history dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: var(--font-size-13); }
+.delegation-history code { font-family: var(--mono); white-space: pre-wrap; user-select: text; }

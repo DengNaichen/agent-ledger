@@ -9,7 +9,7 @@ go vet ./...
 make test
 ```
 
-`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，再运行 Hooks lint、前端单次组件测试和 `go test ./...`。前端 build 只证明 TypeScript 严格类型检查与 Vite 打包；测试独立执行，本地成功不等于已配置自动 Hook。
+`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，再运行仓库接票 hook 合同测试、Hooks lint、前端单次组件测试和 `go test ./...`。前端 build 只证明 TypeScript 严格类型检查与 Vite 打包；测试独立执行，本地成功不等于已配置自动 Hook。
 
 GitHub Actions（`.github/workflows/ci.yml`）在目标为 `main` 的 pull request 和 push 到 `main` 时，于 `ubuntu-latest` 上安装前端依赖并运行 `go vet ./...` 与 `make test`，结果与本地同一组命令。它运行 Vitest + React Testing Library 的 jsdom 行为测试，不覆盖真实浏览器布局及 UC、GitHub 集成；是否要求 CI 通过才能合并由分支保护决定，仓库目前未设置。
 
@@ -45,6 +45,19 @@ GitHub Actions（`.github/workflows/ci.yml`）在目标为 `main` 的 pull reque
 - `npm --prefix web run build`：检查输出中独立的 `IssuePage`、`IssuesPage`、`ProjectsPage`、`LabelsPage`、`SettingsPage` chunk。bundle 大小不是浏览器耗时证据。
 
 组件测试不证明虚拟列表几何、原生 dialog、拖动或菜单焦点；仍需下方浏览器验收。
+
+## Agent 接票
+
+```sh
+go test ./internal/app -run 'TestIssueDelegation|TestDelegationUpgrade' -count=1
+go test ./internal/mcpserver ./internal/httpapi -run TestIssueDelegation -count=1
+node scripts/test-delegation-hook.mjs
+npm --prefix web run test -- IssueDetail.test.tsx
+```
+
+覆盖显式接票与状态/assignee 分离、主/子身份和并发去重、可信 actor、私有团队/workspace/停用、非法输入、存储失败、新旧库结构与升级备份、MCP 严格输入和 REST 详情。hook 合同执行实际仓库 command（含稀疏 PATH、空格路径），只用虚构主/子事件，不联网；不能把它当成真实宿主触发证据。真实两端 smoke 使用隔离客户端配置、临时库和 loopback MCP，记录实际 `PreToolUse` session/agent ID，不复制维护者凭据或向正式实例造数。先用自己的临时服务创建一张测试票，再运行 `node scripts/probe-delegation-hosts.mjs http://127.0.0.1:<端口> <测试票号> <仓库外输出目录>`；需要 PATH 上的 Claude Code/Codex。脚本使用本地模拟模型 API 触发真实主/子 Agent 工具与 hook，不调用真实模型；只在临时 Codex 进程中绕过审核来测试链路，不修改用户信任或审批配置。各工具的日常客户端审批仍由宿主决定。
+
+在同一临时票上先准备主/子和长 ID 记录，再运行 `node scripts/browser/delegation.mjs http://127.0.0.1:<端口> <测试票号> <仓库外截图目录>`，检查真实详情的 Delegated by 滚动、主/子记录、长 ID 选择和 390px 无溢出；截图与点击结果分别报告。分发插件本票不改，不能宣称插件已获得 hooks。
 
 ## Skill 校验
 
