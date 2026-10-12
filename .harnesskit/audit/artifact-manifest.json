@@ -44,10 +44,6 @@
     {
       "path": "deploy/README.md",
       "owner": "deploy"
-    },
-    {
-      "path": "macos/README.md",
-      "owner": "macos-preview"
     }
   ]
 }
