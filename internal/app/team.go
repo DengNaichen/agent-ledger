@@ -31,6 +31,9 @@ type UpdateTeam struct {
 }
 
 func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return nil, err
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT key, name, next_number, emoji FROM teams WHERE workspace_id = ? ORDER BY key`, s.workspace)
 	if err != nil {
 		return nil, err
@@ -50,6 +53,9 @@ func (s *Service) ListTeams(ctx context.Context) ([]Team, error) {
 // CreateTeam adds a team whose numbering starts at StartNumber, or 1 when it
 // is omitted. A team's key and numbering cannot be changed.
 func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Team{}, err
+	}
 	team := Team{Key: input.Key, Name: strings.TrimSpace(input.Name), NextNumber: 1, Emoji: input.Emoji}
 	if !validEmoji(input.Emoji) {
 		return Team{}, ErrInvalidEmoji
@@ -72,6 +78,9 @@ func (s *Service) CreateTeam(ctx context.Context, input CreateTeam) (Team, error
 }
 
 func (s *Service) UpdateTeam(ctx context.Context, input UpdateTeam) (Team, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Team{}, err
+	}
 	if input.Emoji != nil && !validEmoji(*input.Emoji) {
 		return Team{}, ErrInvalidEmoji
 	}

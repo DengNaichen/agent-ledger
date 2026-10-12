@@ -71,6 +71,9 @@ func labelName(name string) (string, string, error) {
 	return name, strings.ToLower(name), nil
 }
 func (s *Service) SaveLabelGroup(ctx context.Context, input SaveLabelGroup) (LabelGroup, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return LabelGroup{}, err
+	}
 	name, key, err := labelName(input.Name)
 	if err != nil {
 		return LabelGroup{}, err
@@ -84,6 +87,9 @@ func (s *Service) SaveLabelGroup(ctx context.Context, input SaveLabelGroup) (Lab
 	return group, labelError(err)
 }
 func (s *Service) ListLabelGroups(ctx context.Context) ([]LabelGroup, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return nil, err
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM label_groups WHERE workspace_id = ? ORDER BY name_key, id`, s.workspace)
 	if err != nil {
 		return nil, err
@@ -108,6 +114,9 @@ func scanLabel(row interface{ Scan(...any) error }) (Label, error) {
 	return l, labelError(err)
 }
 func (s *Service) CreateLabel(ctx context.Context, input CreateLabel) (Label, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Label{}, err
+	}
 	name, key, err := labelName(input.Name)
 	if err != nil {
 		return Label{}, err
@@ -119,6 +128,9 @@ func (s *Service) CreateLabel(ctx context.Context, input CreateLabel) (Label, er
 		s.workspace, name, key, input.Color, input.Description, input.GroupID))
 }
 func (s *Service) UpdateLabel(ctx context.Context, input UpdateLabel) (Label, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Label{}, err
+	}
 	var key *string
 	if input.Name != nil {
 		name, k, err := labelName(*input.Name)
@@ -150,12 +162,18 @@ func (s *Service) labels(ctx context.Context, where string, args ...any) ([]Labe
 	return labels, rows.Err()
 }
 func (s *Service) ListLabels(ctx context.Context, includeArchived bool) ([]Label, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return nil, err
+	}
 	return s.labels(ctx, `(? OR NOT archived)`, includeArchived)
 }
 func (s *Service) issueLabels(ctx context.Context, issueID int64) ([]Label, error) {
 	return s.labels(ctx, `id IN (SELECT label_id FROM issue_labels WHERE issue_id = ?)`, issueID)
 }
 func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels) error {
+	if err := s.checkAccess(ctx); err != nil {
+		return err
+	}
 	if len(input.Identifiers) == 0 {
 		return fmt.Errorf("%w: at least one issue is required", ErrInvalidLabel)
 	}
@@ -239,6 +257,9 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 	return tx.Commit()
 }
 func (s *Service) MergeLabels(ctx context.Context, input MergeLabels) error {
+	if err := s.checkAccess(ctx); err != nil {
+		return err
+	}
 	if input.SourceID == input.TargetID {
 		return fmt.Errorf("%w: merge requires distinct labels", ErrInvalidLabel)
 	}

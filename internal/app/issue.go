@@ -246,6 +246,9 @@ func Summaries(issues []Issue) []IssueSummary {
 }
 
 func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return nil, err
+	}
 	if err := validatePriority(input.Priority); err != nil {
 		return nil, err
 	}
@@ -311,6 +314,9 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 }
 
 func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Issue{}, err
+	}
 	if err := validatePriority(&input.Priority); err != nil {
 		return Issue{}, err
 	}
@@ -374,6 +380,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 }
 
 func (s *Service) Get(ctx context.Context, identifier string) (Issue, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Issue{}, err
+	}
 	issue, _, err := s.get(ctx, identifier)
 	return issue, err
 }
@@ -392,6 +401,9 @@ func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, err
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Issue{}, err
+	}
 	if err := validatePriority(input.Priority); err != nil {
 		return Issue{}, err
 	}
@@ -505,6 +517,9 @@ func (s *Service) changeStatus(ctx context.Context, tx *sql.Tx, identifier strin
 }
 
 func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return IssueDetails{}, err
+	}
 	issue, id, err := s.get(ctx, identifier)
 	if err != nil {
 		return IssueDetails{}, err
@@ -572,6 +587,9 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 }
 
 func (s *Service) AddComment(ctx context.Context, identifier, body string) (Comment, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Comment{}, err
+	}
 	_, id, err := s.get(ctx, identifier)
 	if err != nil {
 		return Comment{}, err
@@ -582,6 +600,9 @@ func (s *Service) AddComment(ctx context.Context, identifier, body string) (Comm
 }
 
 func (s *Service) AddLink(ctx context.Context, identifier, title, url string) (Link, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Link{}, err
+	}
 	_, id, err := s.get(ctx, identifier)
 	if err != nil {
 		return Link{}, err
@@ -591,6 +612,9 @@ func (s *Service) AddLink(ctx context.Context, identifier, title, url string) (L
 }
 
 func (s *Service) Relation(ctx context.Context, identifier, kind, other string, remove bool) error {
+	if err := s.checkAccess(ctx); err != nil {
+		return err
+	}
 	switch kind {
 	case "blocks", "related", "blocked_by":
 	default:

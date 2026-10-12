@@ -30,6 +30,7 @@ type fixture struct {
 	handler       http.Handler
 	key           *ecdsa.PrivateKey
 	token         string
+	identity      Identity
 	upstreamCalls atomic.Int64
 }
 
@@ -48,7 +49,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{key: key}
+	f := &fixture{key: key, identity: Identity{Subject: "user-1", Name: "Team member", Email: "member@example.test"}}
 	f.token = f.sign(map[string]any{"sub": "user-1", "name": "Team member", "client_id": "harnesskit", "type": "access", "exp": time.Now().Add(time.Hour).Unix()})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.upstreamCalls.Add(1)
@@ -69,7 +70,7 @@ func newFixture(t *testing.T) *fixture {
 				http.Error(w, "no", 401)
 				return
 			}
-			jsonResponse(w, 200, Identity{Subject: "user-1", Name: "Team member", Email: "member@example.test"})
+			jsonResponse(w, 200, f.identity)
 		default:
 			http.NotFound(w, r)
 		}
@@ -327,7 +328,7 @@ func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r.Header.Set("Authorization", "Bearer "+b.token)
 	return http.DefaultTransport.RoundTrip(r)
 }
-func TestAuthenticatedMCPWritesSharedBoard(t *testing.T) {
+func TestAuthenticatedMCPWritesMemberWorkspace(t *testing.T) {
 	f := newFixture(t)
 	service, err := app.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -336,6 +337,9 @@ func TestAuthenticatedMCPWritesSharedBoard(t *testing.T) {
 	defer service.Close()
 	ctx := context.Background()
 	if _, err := service.CreateWorkspace(ctx, app.Workspace{Slug: "default", Name: "Default"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.BootstrapAccess(ctx, "default", "user-1"); err != nil {
 		t.Fatal(err)
 	}
 	def, err := service.InWorkspace(ctx, "default")

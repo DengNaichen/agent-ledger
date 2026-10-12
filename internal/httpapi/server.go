@@ -19,6 +19,7 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s := &server{service: service}
 	mux := http.NewServeMux()
 	s.labelRoutes(mux)
+	s.accessRoutes(mux)
 	mux.HandleFunc("GET /auth/session", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
 	})
@@ -47,7 +48,17 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 		mux.Handle(method+" /w/{workspace}/mcp", mcp)
 	}
 	mux.Handle("GET /", web)
-	return http.NewCrossOriginProtection().Handler(mux)
+	return http.NewCrossOriginProtection().Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path != "/api/health" {
+			if err := service.RememberIdentity(r.Context()); err != nil {
+				writeError(w, err)
+				return
+			}
+		}
+		mux.ServeHTTP(w, r)
+	}))
 }
 
 // in serves a route of the workspace named in the path; handle reads and
@@ -267,6 +278,8 @@ func writeError(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	case app.KindInvalid:
 		status = http.StatusBadRequest
+	case app.KindForbidden:
+		status = http.StatusForbidden
 	case app.KindConflict:
 		status = http.StatusConflict
 	default:

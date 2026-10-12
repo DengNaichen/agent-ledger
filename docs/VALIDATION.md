@@ -98,3 +98,26 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
 真实验收分别在 Claude Code、Codex 登录一次，跨越两次 access token 到期后调用 `list_teams`，记录自动刷新成功和无人工登录的证据。浏览器登录后跨越 access 到期访问页面及 REST，应用重启后再次访问仍已登录；退出后重启也不得恢复该会话。不要缩短共享生产 UC token 生命周期来加速验收，不记录 token、cookie 或上游敏感响应。
 
 `python3 scripts/auth/probe_codex_refresh.py` 需要 PATH 上的 Codex，使用临时配置与虚构 token，先模拟 503，再跨过短 token 有效期，验证凭据保留、连续轮换和进程重启后的 `list_teams` 工具发现。每次 RPC 最多等待 20 秒，中间等待 36 秒；不运行模型，不使用真实 UC 凭据。此脚本验证宿主行为，不替代 InfTask 服务端测试或真实 UC 验收。
+
+## 工作区成员权限
+
+AL-62 的 Red 是新增 `TestWorkspaceAuthorizationHTTP` 后先运行旧实现，两个未加入工作区的 UC 用户仍能列出和读取已有工作区，必须观察到 `--- FAIL`；在未包含该测试的旧提交直接 `-run` 会得到无测试的假绿。
+
+```sh
+go test ./internal/app -run 'TestWorkspaceAccess|TestWorkspaceMembership|TestWorkspaceInvite|TestWorkspaceAccessUpgrade' -count=1
+go test ./internal/ucauth ./internal/httpapi ./internal/mcpserver -run 'TestWorkspaceAuthorization|TestIdentity' -count=1
+go test ./cmd/inftask -run TestBootstrapAccess -count=1
+```
+
+覆盖 Service 操作的即时成员检查、并发降级保留最后一个 Admin、邀请轮换/重复接受/停用、REST/MCP 同一身份与撤权、Cookie 传递身份、缺中间件身份拒绝、旧库数据/备份/新旧结构一致与显式初始化。真实 UC 和生产部署不在这些测试范围内。
+
+浏览器验收需要先 `npm --prefix web run build`、Node 22+ 与 Chrome，使用前述 `CHROME_PATH` 可选路径。以下两个终端使用同一临时目录：
+
+```sh
+# 终端一：先用 mktemp -d 创建目录，将路径作为 <临时目录>；服务随机选择 loopback 端口。
+INFTASK_ACCESS_BROWSER=<临时目录>/fixture.json go test ./internal/ucauth -run TestWorkspaceAuthorizationBrowser -count=1 -timeout=11m
+# 终端二：等 fixture.json 出现再执行。
+node scripts/browser/access.mjs <临时目录>/fixture.json <临时目录>/screenshots
+```
+
+脚本在真实嵌入页面、临时数据库、伪 UC 的两个真实登录 Cookie 上操作：最后 Admin 错误、重置链接、无效/有效邀请接受、Member 隐藏管理按钮、停用/恢复和提升角色；检查 390px 无横向溢出，保存桌面错误态、Member、窄屏和深色截图。脚本结束写 `.done` 让 fixture 退出，fixture 最长等待十分钟。重复运行使用新的临时目录；fixture JSON 含临时凭据，不提交、不用于正式实例。

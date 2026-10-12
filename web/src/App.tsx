@@ -11,6 +11,9 @@ import { ProjectList } from "./ProjectList";
 import { Sidebar } from "./Sidebar";
 import { SettingsPage } from "./SettingsPage";
 import { useIssues } from "./useIssues";
+import { JoinWorkspace } from "./WorkspaceAccess";
+import { WorkspaceDialog } from "./WorkspaceMenu";
+import { Session } from "./Session";
 
 // The first path segment names the workspace; the root opens the first one.
 function App() {
@@ -22,13 +25,14 @@ function App() {
     return () => window.removeEventListener("popstate", sync);
   }, []);
 
-  return slug ? <WorkspaceView key={slug} /> : <FirstWorkspace />;
+  return slug === "auth" && window.location.pathname === "/auth/join" ? <JoinWorkspace /> : slug ? <WorkspaceView key={slug} /> : <FirstWorkspace />;
 }
 
 // The root names no workspace: it replaces itself with the first workspace by
 // slug, or explains how to create one when there is none.
 function FirstWorkspace() {
   const [empty, setEmpty] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -45,8 +49,10 @@ function FirstWorkspace() {
   return (
     <main className="panel first-workspace">
       {error ? <RequestError message={error} /> : empty ? (
-        <p>No workspace yet. Create one with <code>POST /api/workspaces</code> and a body such as <code>{'{"slug":"default","name":"Default"}'}</code>, then reload this page.</p>
+        <><h1>Your workspaces</h1><p>You haven’t joined a workspace yet. Open an invitation from an administrator, or create your own.</p><button className="button primary" onClick={() => setCreating(true)}>Create workspace</button></>
       ) : <p className="empty">Loading…</p>}
+      {creating && <WorkspaceDialog onClose={() => setCreating(false)} onSaved={(workspace) => navigate(`/${workspace.slug}/`)} />}
+      <Session />
     </main>
   );
 }

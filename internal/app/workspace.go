@@ -34,11 +34,24 @@ func (s *Service) InWorkspace(ctx context.Context, slug string) (*Service, error
 	if err != nil {
 		return nil, err
 	}
+	if err := scoped.checkAccess(ctx); err != nil {
+		return nil, err
+	}
 	return &scoped, nil
 }
 
 func (s *Service) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT slug, name FROM workspaces ORDER BY slug`)
+	identity, err := s.authenticated(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := `SELECT slug, name FROM workspaces`
+	args := []any{}
+	if identity.Subject != "" {
+		query += ` WHERE id IN (SELECT workspace_id FROM workspace_members WHERE subject=? AND status='active')`
+		args = append(args, identity.Subject)
+	}
+	rows, err := s.db.QueryContext(ctx, query+` ORDER BY slug`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -60,18 +73,48 @@ func (s *Service) CreateWorkspace(ctx context.Context, input Workspace) (Workspa
 	if !workspaceSlug.MatchString(workspace.Slug) || slices.Contains(reservedSlugs, workspace.Slug) || workspace.Name == "" {
 		return Workspace{}, ErrInvalidWorkspace
 	}
-	result, err := s.db.ExecContext(ctx, `INSERT INTO workspaces(slug, name) VALUES (?, ?) ON CONFLICT(slug) DO NOTHING`, workspace.Slug, workspace.Name)
+	identity, err := s.authenticated(ctx)
+	if err != nil {
+		return Workspace{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `INSERT INTO workspaces(slug, name) VALUES (?, ?) ON CONFLICT(slug) DO NOTHING`, workspace.Slug, workspace.Name)
 	if err != nil {
 		return Workspace{}, err
 	}
 	if inserted, _ := result.RowsAffected(); inserted == 0 {
 		return Workspace{}, ErrWorkspaceExists
 	}
-	return workspace, nil
+	if identity.Subject != "" {
+		if err := saveIdentity(ctx, tx, identity); err != nil {
+			return Workspace{}, err
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			return Workspace{}, err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_members(workspace_id,subject,role,status) VALUES(?,?,'admin','active')`, id, identity.Subject); err != nil {
+			return Workspace{}, err
+		}
+	}
+	return workspace, tx.Commit()
 }
 
 // RenameWorkspace changes the name of the workspace with this slug.
 func (s *Service) RenameWorkspace(ctx context.Context, slug, name string) (Workspace, error) {
+	scoped, err := s.InWorkspace(ctx, slug)
+	if err != nil {
+		return Workspace{}, err
+	}
+	if requestIdentity(ctx).Subject != "" {
+		if err := scoped.requireAdmin(ctx); err != nil {
+			return Workspace{}, err
+		}
+	}
 	workspace := Workspace{Slug: slug, Name: strings.TrimSpace(name)}
 	if workspace.Name == "" {
 		return Workspace{}, ErrInvalidWorkspace
