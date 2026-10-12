@@ -22,6 +22,7 @@ export default function IssuesPage({ route, teams, teamsLoading, onCreateTeam, v
   const [teamFilter, setTeamFilter] = useState("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [type, setType] = useState("");
+  const [assignee, setAssignee] = useState("");
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [projectDialog, setProjectDialog] = useState(false);
@@ -32,7 +33,7 @@ export default function IssuesPage({ route, teams, teamsLoading, onCreateTeam, v
   const project = useResource<Project | null>(route.kind === "project" ? apiPath(`/projects/by-id/${route.id}`) : null, null);
   const projects = useResource<{ projects: Project[] }>(apiPath("/projects"), { projects: [] });
   const activeProject = project.data;
-  const { issues, loading: issuesLoading, loadError, savingPriorities, loadIssues, moveIssue, changePriority, writeLabels } = useIssues({ projectID: route.kind === "project" ? route.id : undefined, team, type, query, priority, labelFilter }, setError);
+  const { issues, loading: issuesLoading, loadError, savingPriorities, loadIssues, moveIssue, changePriority, writeLabels } = useIssues({ projectID: route.kind === "project" ? route.id : undefined, team, type, query, priority, labelFilter, assignee }, setError);
   const loading = issuesLoading || project.loading || teamsLoading;
   const grouped = useMemo(
     () => Object.fromEntries(columns.map(({ status }) => [status, issues.filter((issue) => issue.status === status).sort((a, b) => {
@@ -96,7 +97,7 @@ export default function IssuesPage({ route, teams, teamsLoading, onCreateTeam, v
       }} /> : activeTeam ? <EntityEmoji emoji={activeTeam.emoji} teamKey={activeTeam.key} /> : null}<span>{heading}</span>
     </PageHeader>
         {!scopeError && (
-          <IssueFilters filter={filter} setFilter={changeStatusFilter} team={teamFilter} teams={route.kind === "project" && activeProject ? teams.filter((item) => activeProject.teams.includes(item.key)) : []} setTeam={changeTeamFilter}
+          <IssueFilters assignee={assignee} setAssignee={setAssignee} membershipEnabled={teams.some((item) => item.membership_enabled)} filter={filter} setFilter={changeStatusFilter} team={teamFilter} teams={route.kind === "project" && activeProject ? teams.filter((item) => activeProject.teams.includes(item.key)) : []} setTeam={changeTeamFilter}
             type={type} setType={setType} query={query} submitQuery={submitQuery}
             priority={priority} setPriority={setPriority} sort={sort} setSort={setSort} labelFilter={labelFilter} setLabelFilter={setLabelFilter}
             catalog={catalog} clearSelection={() => setSelected([])} view={view} setView={setView} visibleCount={visibleCount} selectionDisabled={loading} selectVisible={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))} />

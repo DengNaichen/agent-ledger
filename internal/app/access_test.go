@@ -211,6 +211,7 @@ func TestWorkspaceAccessUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	removeAssignmentSchema(t, s.db)
 	// Recreate the previous shape, preserving real issue data.
 	if _, err = s.db.Exec(fmt.Sprintf(`DROP TRIGGER team_members_workspace; DROP TABLE team_members; ALTER TABLE teams DROP COLUMN private; DROP TABLE workspace_invites; DROP TABLE workspace_members; DROP TABLE users; PRAGMA user_version=%d`, 8)); err != nil {
 		t.Fatal(err)

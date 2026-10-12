@@ -1,3 +1,4 @@
+import { AssigneeFilter } from "./Assignee";
 import * as Popover from "@radix-ui/react-popover";
 import { Columns2, List, ListFilter, Search, SlidersHorizontal, Tag, X } from "lucide-react";
 import { useRef, useState } from "react";
@@ -7,7 +8,10 @@ import { Catalog, emptyLabelFilter, LabelFilterValue } from "./useLabels";
 import { columns, IssueSort, issueTypes, priorities, Priority, Status, StatusIcon, PriorityIcon, Team } from "./shared";
 
 // Filter and display preferences share a compact toolbar above the results.
-export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, setType, query, submitQuery, priority, setPriority, sort, setSort, labelFilter, setLabelFilter, catalog, clearSelection, view, setView, visibleCount, selectVisible, selectionDisabled }: {
+export function IssueFilters({ assignee, setAssignee, membershipEnabled, filter, setFilter, team, teams, setTeam, type, setType, query, submitQuery, priority, setPriority, sort, setSort, labelFilter, setLabelFilter, catalog, clearSelection, view, setView, visibleCount, selectVisible, selectionDisabled }: {
+  assignee: string;
+  setAssignee: (value: string) => void;
+  membershipEnabled: boolean;
   filter: Status | "all";
   setFilter: (status: Status | "all") => void;
   team: string;
@@ -32,11 +36,12 @@ export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, se
   selectionDisabled: boolean;
 }) {
   const [search, setSearch] = useState(query);
+  const [assigneeLabel, setAssigneeLabel] = useState("");
   const filterContent = useRef<HTMLDivElement>(null);
   const labelCount = labelFilter.labels.length + labelFilter.groups.length;
   const hasLabels = labelFilter.mode === "unlabeled" || labelCount > 0;
   const priorityLabel = priorities.find((item) => item.value === priority)?.label;
-  const activeCount = Number(filter !== "all") + Number(Boolean(team)) + Number(Boolean(type)) + Number(priority !== "") + Number(hasLabels);
+  const activeCount = Number(filter !== "all") + Number(Boolean(team)) + Number(Boolean(type)) + Number(priority !== "") + Number(hasLabels) + Number(Boolean(assignee));
   const statusColumn = columns.find((column) => column.status === filter);
   return (
     <div className="issue-toolbar">
@@ -48,6 +53,7 @@ export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, se
             <button type="button" aria-label={`Clear ${statusColumn.label} filter`} onClick={() => setFilter("all")}><X className="icon" /></button>
           </span>
         )}
+        {assignee && <span className="chip"><span className="toolbar-chip-value">{assigneeLabel}</span><button type="button" aria-label="Clear assignee filter" onClick={() => { setAssignee(""); clearSelection(); }}><X className="icon" /></button></span>}
         {team && <span className="chip"><span className="toolbar-chip-value">Team: {teams.find((item) => item.key === team)?.name ?? team}</span><button type="button" aria-label="Clear Team filter" onClick={() => setTeam("")}><X className="icon" /></button></span>}
         {type && (
           <span className="chip">
@@ -88,6 +94,7 @@ export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, se
                 {columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
               </select></label>
               {teams.length > 0 && <label className="toolbar-field">Team<select value={team} aria-label="Filter by Team" onChange={(event) => setTeam(event.target.value)}><option value="">All project teams</option>{teams.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select></label>}
+              <AssigneeFilter value={assignee} currentLabel={assigneeLabel} onChange={(value, label) => { setAssignee(value); setAssigneeLabel(label); clearSelection(); }} enabled={membershipEnabled} />
               <label className="toolbar-field">Type<select value={type} aria-label="Filter by type" onChange={(event) => { setType(event.target.value); clearSelection(); }}>
                 <option value="">All types</option>
                 {issueTypes.map((item) => <option key={item} value={item}>{item}</option>)}

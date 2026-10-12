@@ -4,7 +4,7 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 10 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 11 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
@@ -24,6 +24,8 @@
 
 - 迁移 10 追加 `teams.private`（默认 false），新建 `team_members` 和 workspace 成员一致性插入触发器。保留工作区成员、原任务、团队编号、Project 和关联；不自动生成团队成员或 owner。版本 9 升级前备份 `before-migration-10.db`，新库/升级库结构一致。旧二进制不实施私有团队过滤，不能回滚旧二进制继续云端服务。
 
+- 迁移 11 追加 `issues.assignee_subject`（可空、引用 `users.subject`），新建 `issue_assignments` 审计表及查询索引。已有任务保持未分配，业务字段、引用和时间不变。版本 10 升级前备份 `before-migration-11.db`，新旧库结构一致。旧二进制忽略新增负责人字段，但不会维护分配审计；需停服务再回滚，不能由旧版继续分配业务。恢复备份会丢失此后的写入。
+
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 
 更改 CHECK（例如增加状态）要新建目标表、复制数据、删除旧表、重命名。迁移期间关闭外键，每项迁移在事务内执行并做 `foreign_key_check`，违规回滚该项；此前已经提交的迁移不会随后一项失败一起回滚。新旧路径都要测试，参考 `migrate_test.go`。
@@ -42,7 +44,7 @@
 
 ## 写入与同步
 
-创建 issue、更新状态及对应事件需要一起成功，沿用 Service 的事务；单语句不另包事务。`inftask import-linear` 把一份 Linear 快照的全部写入放在一个事务里，任何检查或写入失败都不留下数据（包括 `project_teams` 关联）；它打开数据库时会执行迁移，所以运行前要停掉使用该库的服务，并先备份，步骤见 [开发](../DEVELOPMENT.md#从-linear-快照导入)。数据库使用 WAL、外键和单个打开连接，不能以单连接推断外部 GitHub 操作也具备事务性。
+创建 issue、更新状态及对应事件、修改负责人及对应审计需要一起成功，沿用 Service 的事务；单语句不另包事务。`inftask import-linear` 把一份 Linear 快照的全部写入放在一个事务里，任何检查或写入失败都不留下数据（包括 `project_teams` 关联）；它打开数据库时会执行迁移，所以运行前要停掉使用该库的服务，并先备份，步骤见 [开发](../DEVELOPMENT.md#从-linear-快照导入)。数据库使用 WAL、外键和单个打开连接，不能以单连接推断外部 GitHub 操作也具备事务性。
 
 GitHub 同步每轮顺序处理仓库，某仓库失败（包括绑定的 workspace 还不存在）会记录日志，下轮再读；游标按 workspace 和仓库分别记录，仅在完整读取成功后推进，仓库改绑到另一个 workspace 后第一轮从头读取。PR 关联可重复 upsert，自动状态只按既有条件向前推进，不应增加额外重试。
 

@@ -22,7 +22,7 @@ workspace 是云端成员访问边界：team、Project、标签和 PR 记录各�
 
 状态选择或拖动调用 `PATCH /api/w/{workspace}/issues/{identifier}/status`，HTTP 适配为 `app.UpdateIssue`，交给 `Service.Update` 校验并更新数据库。MCP 的 `update_issue` 走同一个 Service；因此业务校验要放在 Service，不能只保护网页路径。传输层负责解析请求、调用和结果表达。
 
-任务创建/编辑成功由所属页面显示结果与查看入口；创建后 `useIssues.ts` 重读筛选结果，不强插新票。详情的快捷状态、优先级、评论、标签和编辑器保存共享同票队列；编辑成功应用响应后重读详情。评论仅在提交后未再编辑时清空输入，后续草稿保留。列表乐观状态失败恢复最近确认的状态，不回滚整票，也不覆盖已保存的其它字段。编辑器项目目录独立读取同 Team 的含归档目录，失败保留草稿并提供重试。这些队列只协调当前页面发起的操作，不提供跨浏览器/跨客户端事务或冲突检测。
+任务创建/编辑成功由所属页面显示结果与查看入口；创建后 `useIssues.ts` 重读筛选结果，不强插新票。详情的快捷状态、优先级、负责人、评论、标签和编辑器保存共享同票队列；编辑成功应用响应后重读详情。评论仅在提交后未再编辑时清空输入，后续草稿保留。列表乐观状态失败恢复最近确认的状态，不回滚整票，也不覆盖已保存的其它字段。编辑器项目目录独立读取同 Team 的含归档目录，失败保留草稿并提供重试。这些队列只协调当前页面发起的操作，不提供跨浏览器/跨客户端事务或冲突检测。
 
 增加 issue 字段时，先核对 `CreateIssue`、`UpdateIssue`、查询列和扫描，再判断是否需要 schema/迁移、MCP schema、HTTP 测试和前端类型/编辑器一起变更。REST 并未暴露 MCP 的全部能力，不因工具存在就假设有对应 HTTP endpoint。
 
@@ -63,3 +63,11 @@ REST 提供项目 POST、GET、PATCH，当前名称入口为 `/projects/{name}`�
 Project 无关联的历史记录保留可见；有至少一个可见关联团队时可见，返回的 teams 仅含可见关联。更新 teams 只替换调用者可见的部分，保留隐藏关联；不能传入不可访问团队以改变关联。私有任务的 parent 和详情关系也经同一过滤。合并标签若涉及不可见任务则拒绝整个事务，避免通过全局操作修改隐藏关联。
 
 Settings 使用独立 team-directory 提供加入/退出、成员增删、owner 和可见性管理；侧栏显示已加入团队及当前正在浏览的公开团队。本地无 UC 模式仍可访问所有业务数据，不提供云端成员操作。
+
+## 人的任务负责人
+
+`issue.go` 的 create/update/list/get 与 `assignee.go` 共用负责人契约：输入 `assignee` 是 UC subject，空字符串清空，update 省略保持；输出是 `{subject,name,email}` 或 null。候选经 `GET /api/w/{workspace}/teams/{key}/assignees` 或 MCP `list_assignees(team)` 读取；只有可访问团队的调用者能读取其候选。公开团队允许工作区全部活动成员，私有团队仅允许其活动成员。筛选 `assignee` 指定 subject，空值匹配未分配；`assigned_to_me=true` 从可信上下文取人，不能与 `assignee` 同用。
+
+`issues.assignee_subject` 保存单一用户引用。事务内验证候选资格，并将实际变更写入 `issue_assignments`，包含 issue、可信 actor、from/to 用户引用及时间；相同值不重复记录历史。详情 `assignments` 按审计 id 排序，返回各人的当前显示资料及稳定 subject。本地内部操作的 actor 为 null，页面显示 System；请求正文不能提供 actor。停用或团队权限变化不抹除现有归属和历史，但后续显式分配必须重新通过候选资格校验。负责人不改变任务编辑权，不承载 Agent 会话。
+
+`Assignee.tsx` 复用 `useResource` 加载候选和筛选目录，创建时换 Team 清空负责人；详情改派走同票写入队列，成功后重读历史，失败保留原值。`shared.tsx` 的 IssueMeta 在列表/看板显示人名；IssuesPage 将自己、未分配和成员选择转换为同一列表查询。

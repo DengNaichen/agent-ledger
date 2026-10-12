@@ -355,6 +355,19 @@ CREATE TRIGGER IF NOT EXISTS team_members_workspace BEFORE INSERT ON team_member
 WHEN NOT EXISTS(SELECT 1 FROM workspace_members m JOIN teams t ON t.workspace_id=m.workspace_id WHERE t.id=NEW.team_id AND m.subject=NEW.subject)
 BEGIN SELECT RAISE(ABORT, 'team member must belong to workspace'); END;
 `,
+	// Human assignment and its trusted actor history.
+	`ALTER TABLE issues ADD COLUMN assignee_subject TEXT REFERENCES users(subject);
+CREATE TABLE IF NOT EXISTS issue_assignments (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+ actor_subject TEXT REFERENCES users(subject),
+ from_subject TEXT REFERENCES users(subject),
+ to_subject TEXT REFERENCES users(subject),
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS issue_assignments_issue_idx ON issue_assignments(issue_id,id);
+CREATE INDEX IF NOT EXISTS issues_assignee_idx ON issues(workspace_id,assignee_subject);
+`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

@@ -5,15 +5,17 @@ import { useRequestScope } from "./useRequestScope";
 
 type IssueList = { issues: IssueSummary[] };
 
-export type IssueQuery = { projectID?: number; team: string; type: string; query: string; priority: Priority | ""; labelFilter: LabelFilterValue };
+export type IssueQuery = { assignee?: string; projectID?: number; team: string; type: string; query: string; priority: Priority | ""; labelFilter: LabelFilterValue };
 
-export function useIssues({ projectID, team, type, query, priority, labelFilter }: IssueQuery, setError: (message: string) => void) {
+export function useIssues({ projectID, team, type, query, priority, labelFilter, assignee = "" }: IssueQuery, setError: (message: string) => void) {
   const confirmedStatuses = useRef(new Map<string, Status>());
   const [issues, setIssues] = useState<IssueSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [savingPriorities, setSavingPriorities] = useState<string[]>([]);
   const params = new URLSearchParams({ query, label_mode: labelFilter.mode });
+  if (assignee === "me") params.set("assigned_to_me", "true");
+  else if (assignee) params.set("assignee", assignee === "unassigned" ? "" : assignee.slice(5));
   if (projectID !== undefined) params.set("project_id", String(projectID));
   if (team) params.set("team", team);
   if (type) params.set("type", type);

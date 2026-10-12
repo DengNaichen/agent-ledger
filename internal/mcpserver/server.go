@@ -170,6 +170,7 @@ func New(service *app.Service) *mcp.Server {
 		})
 	addLabelTools(server, service)
 	addTeamAccessTools(server, service)
+	addAssigneeTools(server, service)
 	return server
 }
 

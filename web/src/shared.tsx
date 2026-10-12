@@ -1,5 +1,5 @@
 import { KeyboardEvent, MouseEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Box, Check } from "lucide-react";
+import { Box, Check, UserRound } from "lucide-react";
 import * as Select from "@radix-ui/react-select";
 
 export const columns = [
@@ -30,7 +30,11 @@ export type Status = (typeof columns)[number]["status"];
 export type Label = { id: number; name: string; color: string; description: string; group_id: number; archived: boolean };
 export type LabelGroup = { id: number; name: string };
 
+export type Identity = { subject: string; name: string; email: string };
+export const personName = (person: Identity) => person.name || person.email || person.subject;
+
 export type IssueSummary = {
+  assignee: Identity | null;
   labels: Label[];
   identifier: string;
   title: string;
@@ -55,6 +59,7 @@ export type Link = { title: string; url: string };
 export type PullRequest = { repo: string; number: number; title: string; url: string; state: "open" | "draft" | "merged" | "closed"; updated_at: string };
 
 export type IssueDetails = Issue & {
+  assignments: { actor: Identity | null; from: Identity | null; to: Identity | null; created_at: string }[];
   comments: Comment[];
   links: Link[];
   pull_requests: PullRequest[];
@@ -216,9 +221,14 @@ export function StatusSelect({ issue, onChange }: { issue: { identifier: string;
   </Select.Root>;
 }
 
-export function IssueMeta({ issue }: { issue: { type: string | null; project: string | null; project_emoji: string; labels: Label[] } }) {
+export function AssigneeBadge({ person }: { person: Identity | null }) {
+  return <span className="assignee-badge" title={person ? `Assignee: ${personName(person)}` : "Unassigned"}><UserRound className="icon" /><span>{person ? personName(person) : "Unassigned"}</span></span>;
+}
+
+export function IssueMeta({ issue }: { issue: IssueSummary }) {
   return (
     <span className="issue-meta">
+      <AssigneeBadge person={issue.assignee} />
       {issue.labels.slice(0, 2).map((label) => <LabelBadge key={label.id} label={label} />)}
       {issue.labels.length > 2 && <span className="label-overflow" title={issue.labels.slice(2).map((l) => l.name).join(", ")}>+{issue.labels.length - 2}</span>}
       {issue.type && <span className="type-label" data-type={issue.type} title={issue.type}><span className="label-dot" />{issue.type}</span>}

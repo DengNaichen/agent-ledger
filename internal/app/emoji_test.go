@@ -130,6 +130,7 @@ func TestMigrateEntityEmoji(t *testing.T) {
 	if _, err := db.Exec(old); err != nil {
 		t.Fatal(err)
 	}
+	removeAssignmentSchema(t, db)
 	if _, err := db.Exec(`INSERT INTO workspaces(id,slug,name) VALUES(1,'default','Default'); INSERT INTO teams(workspace_id,key,name,next_number) VALUES(1,'AL','InfTask',42); INSERT INTO projects(workspace_id,name,description) VALUES(1,'Core','Keep me'); PRAGMA user_version = 6;`); err != nil {
 		t.Fatal(err)
 	}

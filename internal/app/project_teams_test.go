@@ -133,6 +133,7 @@ func TestMigrateProjectTeams(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	removeAssignmentSchema(t, s.db)
 	if _, err := s.db.Exec(`ALTER TABLE teams DROP COLUMN private`); err != nil {
 		t.Fatal(err)
 	}
