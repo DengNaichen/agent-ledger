@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueDetail } from "./IssueDetail";
 import { fixtureIssue, deferred, json } from "./test/fixtures";
 
+vi.mock("./Assignee", () => ({ AssigneeSelect: ({ value, onChange, disabled, label }: { value: string; onChange: (value: string) => void; disabled: boolean; label: string }) => <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}><option value="">Unassigned</option><option value="member">Member</option></select> }));
+
 const catalog = { labels: [], groups: [], error: "", reload: async () => {} };
 const props = { catalog, teams: [], onSaved: async () => {}, identifier: "AL-1", setError: vi.fn(), editing: false, closeEditor: vi.fn() };
 const priorityControl = () => screen.getByRole("combobox", { name: "Change priority for AL-1" });

@@ -1,3 +1,4 @@
+import { AssigneeSelect } from "./Assignee";
 import { Box, Users, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { EmojiPicker } from "./EmojiPicker";
@@ -9,6 +10,7 @@ export function NewIssueDialog({ teams, team: scopeTeam, status, project: initia
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>(0);
+  const [assignee, setAssignee] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const mounted = useRef(true);
@@ -21,7 +23,7 @@ export function NewIssueDialog({ teams, team: scopeTeam, status, project: initia
     setSaving(true);
     setError("");
     try {
-      const created = await api<Issue>(apiPath("/issues"), "POST", { team, title, description, status, project_id: projectID, priority });
+      const created = await api<Issue>(apiPath("/issues"), "POST", { team, title, description, status, project_id: projectID, priority, assignee });
       if (mounted.current) await onCreate(created);
     } catch (cause) {
       if (mounted.current) setError((cause as Error).message);
@@ -41,13 +43,14 @@ export function NewIssueDialog({ teams, team: scopeTeam, status, project: initia
         <label className="composer-description"><span className="composer-field-label">Description</span><textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a description… (Markdown)" disabled={saving} /></label>
         <div className="composer-properties">
           {teams.length > 0 ? (
-            <label className="composer-property"><Users className="icon" /><span className="composer-property-name">Team <span title="Required">*</span></span><select value={team} onChange={(event) => setTeam(event.target.value)} required disabled={saving}>
+            <label className="composer-property"><Users className="icon" /><span className="composer-property-name">Team <span title="Required">*</span></span><select value={team} onChange={(event) => { setTeam(event.target.value); setAssignee(""); }} required disabled={saving}>
               <option value="">Choose a team…</option>
               {teams.map((item) => <option key={item.key} value={item.key}>{item.name} ({item.key})</option>)}
             </select></label>
           ) : (
             <p className="error" role="alert">No teams yet. Create a team from Navigation, then reopen this dialog.</p>
           )}
+          <label className="composer-property"><span className="composer-property-name">Assignee</span><AssigneeSelect key={team} team={team} value={assignee} onChange={setAssignee} disabled={saving} label="New issue assignee" /></label>
           <IssueProjectSelect projects={projects} team={team} value={projectID} onChange={setProjectID} disabled={saving || !team} fallback={initialProject?.name ?? "Unavailable project"} />
           <div className="composer-property composer-priority"><span className="composer-property-name">Priority</span><PrioritySelect priority={priority} onChange={setPriority} label="New issue priority" disabled={saving} /></div>
           <span className="composer-property composer-status" title="Status"><StatusIcon status={status} />{columns.find((column) => column.status === status)!.label}</span>

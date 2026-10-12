@@ -21,6 +21,7 @@ func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s.labelRoutes(mux)
 	s.accessRoutes(mux)
 	s.teamAccessRoutes(mux)
+	mux.HandleFunc("GET /api/w/{workspace}/teams/{key}/assignees", s.in((*server).listAssignees))
 	mux.HandleFunc("GET /auth/session", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
 	})
@@ -120,6 +121,17 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	issueType := r.URL.Query().Get("type")
 	limit := -1
 	input := app.ListIssues{Sort: r.URL.Query().Get("sort"), Team: r.URL.Query().Get("team"), Query: r.URL.Query().Get("query"), Limit: &limit}
+	if r.URL.Query().Has("assignee") {
+		input.Assignee = new(r.URL.Query().Get("assignee"))
+	}
+	if r.URL.Query().Has("assigned_to_me") {
+		value, err := strconv.ParseBool(r.URL.Query().Get("assigned_to_me"))
+		if err != nil {
+			writeJSON(w, 400, map[string]string{"error": "invalid assigned_to_me"})
+			return
+		}
+		input.AssignedToMe = value
+	}
 	if r.URL.Query().Has("project") {
 		input.Project = new(r.URL.Query().Get("project"))
 	}

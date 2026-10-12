@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -43,18 +44,19 @@ func joinOr(items []string) string {
 }
 
 type IssueSummary struct {
-	CreatedAt    string  `json:"created_at"`
-	ProjectEmoji string  `json:"project_emoji"`
-	Priority     int     `json:"priority"`
-	Labels       []Label `json:"labels"`
-	Identifier   string  `json:"identifier"`
-	Title        string  `json:"title"`
-	Status       Status  `json:"status"`
-	Type         *string `json:"type"`
-	ProjectID    *int64  `json:"project_id"`
-	Project      *string `json:"project"`
-	Parent       *string `json:"parent"`
-	UpdatedAt    string  `json:"updated_at"`
+	Assignee     *Identity `json:"assignee"`
+	CreatedAt    string    `json:"created_at"`
+	ProjectEmoji string    `json:"project_emoji"`
+	Priority     int       `json:"priority"`
+	Labels       []Label   `json:"labels"`
+	Identifier   string    `json:"identifier"`
+	Title        string    `json:"title"`
+	Status       Status    `json:"status"`
+	Type         *string   `json:"type"`
+	ProjectID    *int64    `json:"project_id"`
+	Project      *string   `json:"project"`
+	Parent       *string   `json:"parent"`
+	UpdatedAt    string    `json:"updated_at"`
 }
 
 type Issue struct {
@@ -63,6 +65,7 @@ type Issue struct {
 }
 
 type IssueDetails struct {
+	Assignments []AssignmentChange `json:"assignments"`
 	Issue
 	Comments     []Comment      `json:"comments"`
 	Links        []Link         `json:"links"`
@@ -74,6 +77,8 @@ type IssueDetails struct {
 }
 
 type ListIssues struct {
+	Assignee      *string `json:"assignee,omitempty" jsonschema:"exact user subject; empty string matches unassigned; omitted means any"`
+	AssignedToMe  bool    `json:"assigned_to_me,omitempty" jsonschema:"filter to trusted current user; cannot combine with assignee"`
 	Priority      *int    `json:"priority,omitempty" jsonschema:"filter by priority: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low"`
 	Sort          string  `json:"sort,omitempty" jsonschema:"priority or updated; omitted uses priority for an agent_ready status filter, otherwise updated; priority puts no priority last; ties use newest updated then newest id"`
 	LabelIDs      []int64 `json:"label_ids,omitempty" jsonschema:"selected label IDs, including archived labels"`
@@ -90,6 +95,7 @@ type ListIssues struct {
 }
 
 type CreateIssue struct {
+	Assignee    string  `json:"assignee,omitempty" jsonschema:"active workspace user subject with team access; empty means unassigned"`
 	Priority    int     `json:"priority,omitempty" jsonschema:"0 no priority (default), 1 urgent, 2 high, 3 medium, 4 low"`
 	Team        string  `json:"team" jsonschema:"required key of an existing team, such as AL; the issue is numbered <key>-<n> in that team's sequence"`
 	Title       string  `json:"title" jsonschema:"required nonempty issue title"`
@@ -102,6 +108,7 @@ type CreateIssue struct {
 }
 
 type UpdateIssue struct {
+	Assignee    *string `json:"assignee,omitempty" jsonschema:"user subject; empty string clears; omitted leaves unchanged"`
 	Priority    *int    `json:"priority,omitempty" jsonschema:"0 clears priority, 1 urgent, 2 high, 3 medium, 4 low; omitted leaves unchanged"`
 	Identifier  string  `json:"identifier" jsonschema:"issue identifier, such as AL-1"`
 	Title       *string `json:"title,omitempty" jsonschema:"new nonempty title; omitted leaves unchanged"`
@@ -171,14 +178,19 @@ const issueColumns = `id, identifier, title, status, type,
 	(SELECT name FROM projects WHERE projects.id = issues.project_id),
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id AND p.team_id IN (` + visibleTeamIDs + `)),
 	updated_at, description, created_at, priority, project_id,
-	COALESCE((SELECT emoji FROM projects WHERE projects.id = issues.project_id), '')`
+	COALESCE((SELECT emoji FROM projects WHERE projects.id = issues.project_id), ''),
+ (SELECT json_object('subject',subject,'name',name,'email',email) FROM users WHERE subject=issues.assignee_subject)`
 
 // scanIssue reads a row of issueColumns into an issue without its labels and
 // returns the issue's id with it.
 func scanIssue(row interface{ Scan(...any) error }) (Issue, int64, error) {
 	var issue Issue
+	var assignee sql.NullString
 	var id int64
-	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID, &issue.ProjectEmoji)
+	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID, &issue.ProjectEmoji, &assignee)
+	if err == nil && assignee.Valid {
+		err = json.Unmarshal([]byte(assignee.String), &issue.Assignee)
+	}
 	return issue, id, err
 }
 
@@ -274,6 +286,20 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		return nil, err
 	}
 	where, args := `workspace_id = ?`, []any{s.workspace}
+	if input.AssignedToMe {
+		if input.Assignee != nil {
+			return nil, ErrInvalidAssigneeFilter
+		}
+		subject := requestIdentity(ctx).Subject
+		if subject == "" {
+			return nil, ErrIdentityRequired
+		}
+		input.Assignee = &subject
+	}
+	if input.Assignee != nil {
+		where += ` AND assignee_subject IS NULLIF(?, '')`
+		args = append(args, *input.Assignee)
+	}
 	if input.Priority != nil {
 		where += ` AND priority = ?`
 		args = append(args, *input.Priority)
@@ -361,12 +387,15 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	if err := s.validateIssueProject(ctx, tx, projectID, teamID, sql.NullInt64{}); err != nil {
 		return Issue{}, err
 	}
+	if err := s.validateAssignee(ctx, tx, teamID, input.Assignee); err != nil {
+		return Issue{}, err
+	}
 	identifier := fmt.Sprintf("%s-%d", input.Team, number)
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at, priority)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?)`,
-		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now, input.Priority)
+		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at, priority, assignee_subject)
+		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''))`,
+		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now, input.Priority, input.Assignee)
 	if err != nil {
 		return Issue{}, err
 	}
@@ -375,6 +404,9 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 		return Issue{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO events(issue_id, kind, detail, created_at) VALUES (?, 'created', ?, ?)`, id, string(status), now); err != nil {
+		return Issue{}, err
+	}
+	if err := recordAssignment(ctx, tx, id, "", input.Assignee, now); err != nil {
 		return Issue{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -464,14 +496,14 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		sets = append(sets, `priority = ?`)
 		args = append(args, *input.Priority)
 	}
-	if len(sets) == 0 && input.Status == nil {
+	if len(sets) == 0 && input.Status == nil && input.Assignee == nil {
 		return s.Get(ctx, input.Identifier)
 	}
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	sets = append(sets, `updated_at = ?`)
 	args = append(args, now, s.workspace, input.Identifier)
 	query := `UPDATE issues SET ` + strings.Join(sets, ", ") + ` WHERE workspace_id = ? AND identifier = ?`
-	if input.Status == nil && input.Project == nil && input.ProjectID == nil {
+	if input.Status == nil && input.Project == nil && input.ProjectID == nil && input.Assignee == nil {
 		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 			return Issue{}, err
 		}
@@ -493,6 +525,22 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 			return Issue{}, err
 		}
 		if err = s.validateIssueProject(ctx, tx, projectID, team, current); err != nil {
+			return Issue{}, err
+		}
+	}
+	if input.Assignee != nil {
+		var id, team int64
+		var before sql.NullString
+		if err = tx.QueryRowContext(ctx, `SELECT id,team_id,assignee_subject FROM issues WHERE workspace_id=? AND identifier=?`, s.workspace, input.Identifier).Scan(&id, &team, &before); err != nil {
+			return Issue{}, err
+		}
+		if err = s.validateAssignee(ctx, tx, team, *input.Assignee); err != nil {
+			return Issue{}, err
+		}
+		if err = recordAssignment(ctx, tx, id, before.String, *input.Assignee, now); err != nil {
+			return Issue{}, err
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE issues SET assignee_subject=NULLIF(?, '') WHERE id=?`, *input.Assignee, id); err != nil {
 			return Issue{}, err
 		}
 	}
@@ -533,6 +581,10 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 		return IssueDetails{}, err
 	}
 	detail := IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{}}
+	detail.Assignments, err = s.assignmentHistory(ctx, id)
+	if err != nil {
+		return IssueDetails{}, err
+	}
 	for _, group := range []struct {
 		target *[]IssueSummary
 		where  string

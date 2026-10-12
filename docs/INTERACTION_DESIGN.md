@@ -88,3 +88,9 @@ Settings → Members 显示成员目录、角色和停用状态；Admin 可调�
 创建团队可选 Make team private，创建者成为 owner。Settings 展示可发现的团队，公开团队可直接 Join/Leave；加入决定侧栏常驻，未加入仍可通过 View issues 浏览公开任务。普通成员只看到已加入的私有团队，Admin 在目录可看到全部私有团队但不能直接 View issues，须点击 Join team 并确认访问提示。
 
 Owner/Admin 可改可见性、添加工作区活动成员、升降 owner 和移除成员。私有团队普通成员可 Leave，退出后团队消失，不能自行加入。Workspace Admin 的有效 owner 来自工作区角色，团队页不能将其降级。写入等待成功后刷新权限与目录，失败保留选择并显示错误；窄屏控件换行。详情直达读取失败保留自身错误与 Retry，不被其它目录加载清空；失去资源访问时移除旧详情内容。
+
+## 人的负责人
+
+新建任务在 Team 后选择 Assignee，默认 Unassigned；换 Team 清空原负责人并重新加载候选。详情属性可改派或清空，保存等待服务端成功，错误保留原值；候选读取失败提供 Retry people。当前负责人失去资格时保留人名并标记 unavailable，不作为新候选。Assignment history 显示可信操作者、前后人名与时间。
+
+列表和看板显示负责人；Filter → Assignee 支持全部、自己、未分配、指定工作区成员（包含用于历史筛选的 suspended 成员）。筛选参与服务端查询，与其它条件相交；变更筛选清空批选。负责人不锁定任务，也不会替代 Agent 认领或会话字段。

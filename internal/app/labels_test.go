@@ -277,7 +277,7 @@ func TestLabelUpgrade(t *testing.T) {
 	}
 	// Label tables come last in the schema. A database at the current
 	// migration version without them gets them on open, with no migration.
-	old := strings.Split(schema, "CREATE TABLE IF NOT EXISTS label_groups")[0]
+	old := strings.Split(schema, "CREATE TABLE IF NOT EXISTS label_groups")[0] + "CREATE TABLE users(subject TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,email TEXT NOT NULL);"
 	if _, err = db.Exec(old + fmt.Sprintf(`PRAGMA user_version = %d;`, len(migrations))); err != nil {
 		t.Fatal(err)
 	}

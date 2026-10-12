@@ -97,6 +97,12 @@ The cloud instance uses InfOne UC for sign-in. All authenticated UC users see ev
 
 See [cloud deployment and recovery](docs/DEVELOPMENT.md#云端团队部署) for configuration, Compose, and the remote MCP OAuth contract. Deployment artifacts are [Dockerfile](Dockerfile), [Compose](deploy/compose.yaml), and [Caddyfile](deploy/Caddyfile). The single instance keeps SQLite on a persistent volume; it is not a multi-replica deployment.
 
+## Human assignment
+
+Issues have one human assignee or are unassigned. Any active member who can edit an issue may reassign or clear it. Public teams accept any active workspace member; private teams accept their active team members. Suspended users remain visible on past assignments but cannot receive new ones. Assignment does not lock editing or represent an agent session.
+
+Choose an assignee during creation or in issue details, and filter by yourself, unassigned, or a workspace member. Assignment history shows who changed responsibility and its before/after values. REST/MCP create and update accept `assignee` as a user subject; empty string clears and omitted update leaves unchanged. Reads return the person profile or null. `list_assignees(team)` and `GET /api/w/<slug>/teams/<key>/assignees` list eligible people. Lists accept `assignee` (empty means unassigned) or `assigned_to_me=true`, but not both.
+
 ## MCP
 
 The running server exposes these tools over streamable HTTP at `/w/<slug>/mcp`. Each request reads and writes the workspace in its path, and no tool takes a workspace argument; there are no tools to manage workspaces. A slug that does not exist returns 404.

@@ -68,3 +68,12 @@
   .issue-composer form { padding-inline: var(--space-16); }
   .issue-composer .composer-property { max-width: 100%; }
 }
+
+.assignee-control { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-6); min-width: 0; max-width: 100%; }
+.assignee-control > .icon { flex-shrink: 0; color: var(--text-3); }
+.assignee-control select { flex: 1; min-width: 0; max-width: 100%; padding: var(--space-4); font: inherit; color: inherit; background: transparent; border: 0; border-radius: var(--radius); }
+.assignee-control select:hover { background: var(--hover); }
+.assignment-history ol { padding-left: var(--space-6); }
+.assignment-history li { margin-bottom: var(--space-3); }
+.assignment-history p { margin-bottom: var(--space-1); overflow-wrap: anywhere; }
+.assignment-history time { color: var(--text-3); font-size: var(--font-size-12); }

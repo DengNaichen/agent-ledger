@@ -267,6 +267,7 @@ func TestTeamAccessUpgrade(t *testing.T) {
 	if err = root.BootstrapAccess(context.Background(), "default", "admin"); err != nil {
 		t.Fatal(err)
 	}
+	removeAssignmentSchema(t, root.db)
 	if _, err = root.db.Exec(`DROP TRIGGER team_members_workspace;DROP TABLE team_members;ALTER TABLE teams DROP COLUMN private;PRAGMA user_version=9`); err != nil {
 		t.Fatal(err)
 	}

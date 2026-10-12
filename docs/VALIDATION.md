@@ -163,3 +163,21 @@ node scripts/browser/access.mjs <临时目录>/fixture.json <截图目录> teams
 ```
 
 三个伪 UC Cookie 分别代表 Admin、私有团队 owner 和普通 Member；覆盖公开加入/退出、私有直达拒绝、owner 添加成员、成员退出、管理员确认加入、转公开，以及 390px 截图。环境与凭据清理要求同上，不验证真实 UC 或生产部署。
+
+## 人的任务负责人
+
+AL-64 的 Red 是先在未改实现上添加 `TestIssueAssigneeLifecycle` 并观察创建缺少 assignee 的真实 `--- FAIL`。以下检查分别覆盖生命周期、可信操作者、重复值不增审计、失败原子回滚、跨 workspace/私有团队/停用限制、新旧 schema 和升级备份，以及 REST/MCP 输入伪造拒绝：
+
+```sh
+go test ./internal/app -run 'TestIssueAssigneeLifecycle|TestIssueAssigneeAuthorization|TestAssigneeUpgrade' -count=1
+go test ./internal/httpapi ./internal/mcpserver -run TestIssueAssignee -count=1
+```
+
+浏览器沿用前述临时库与伪 UC fixture，先构建前端；以下两个终端使用同一新建临时目录：
+
+```sh
+INFTASK_ACCESS_BROWSER=<临时目录>/fixture.json INFTASK_TEAM_BROWSER=1 go test ./internal/ucauth -run TestWorkspaceAuthorizationBrowser -count=1 -timeout=11m
+node scripts/browser/access.mjs <临时目录>/fixture.json <临时目录>/screenshots assignees
+```
+
+验证创建指定、另一成员改派/清空、可信历史、断网失败保留原值、自己/未分配/指定成员过滤、列表/看板展示，保存桌面与 390px 截图并检查窄屏溢出。不是生产 UC 或正式部署验收。

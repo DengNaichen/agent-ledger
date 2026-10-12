@@ -1,3 +1,5 @@
+import { AssigneeSelect } from "./Assignee";
+import { personName } from "./shared";
 import { Box, CalendarDays, Clock, CornerUpLeft, Tag, Users, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
@@ -21,6 +23,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   const [comment, setComment] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
+  const [savingAssignee, setSavingAssignee] = useState(false);
   const [posting, setPosting] = useState(false);
   const requests = useRequestScope(identifier);
   const path = apiPath(`/issues/${identifier}`);
@@ -56,6 +59,14 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
     }, (cause) => { setError(cause.message); setSavingPriority(false); });
   }
 
+  async function changeAssignee(assignee: string) {
+    setSavingAssignee(true); setError("");
+    const saved = await requests.write(identifier, () => api<Issue>(path, "PATCH", { assignee }),
+      (updated) => { setIssue((current) => ({ ...current!, ...updated })); setSavingAssignee(false); },
+      (cause) => { setError(cause.message); setSavingAssignee(false); });
+    if (saved) await loadIssue();
+  }
+
   async function postComment(event: FormEvent) {
     event.preventDefault();
     if (posting) return;
@@ -82,6 +93,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
       <dl className="detail-primary-properties">
         <div><dt className="detail-property-term">Status</dt><dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd></div>
         <div><dt className="detail-property-term">Priority</dt><dd><PrioritySelect priority={issue.priority} label={`Change priority for ${identifier}`} disabled={savingPriority} onChange={(next) => void changePriority(next)} /></dd></div>
+        <div><dt className="detail-property-term">Assignee</dt><dd><AssigneeSelect key={identifier} team={issueTeamKey(identifier)} value={issue.assignee?.subject ?? ""} current={issue.assignee} disabled={savingAssignee} onChange={(value) => void changeAssignee(value)} label={`Change assignee for ${identifier}`} /></dd></div>
         <div><dt className="detail-property-term">Team</dt><dd><Users className="icon" /><span>{teams.find((team) => team.key === issueTeamKey(issue.identifier))?.name ?? issueTeamKey(issue.identifier)} ({issueTeamKey(issue.identifier)})</span></dd></div>
         <div><dt className="detail-property-term">Type</dt><dd><Tag className="icon" />{issue.type || <span className="none">No type</span>}</dd></div>
       </dl>
@@ -111,6 +123,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
         </section>
         <article className="detail-main">
           <MarkdownText text={issue.description} />
+          {issue.assignments.length > 0 && <section className="detail-section assignment-history"><h2>Assignment history</h2><ol>{issue.assignments.map((change, index) => <li key={index}><p><strong>{change.actor ? personName(change.actor) : "System"}</strong>: {change.from ? personName(change.from) : "Unassigned"} → {change.to ? personName(change.to) : "Unassigned"}</p><time dateTime={change.created_at}>{timestamp(change.created_at)}</time></li>)}</ol></section>}
 
           {issue.children.length > 0 && (
             <section className="detail-section">
