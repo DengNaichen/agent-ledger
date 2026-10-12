@@ -1,12 +1,12 @@
 import * as Popover from "@radix-ui/react-popover";
 import { Columns2, List, ListFilter, Search, SlidersHorizontal, Tag, X } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ViewMode } from "./IssueViews";
 import { Catalog, emptyLabelFilter, LabelFilter, LabelFilterValue } from "./Labels";
 import { columns, IssueSort, issueTypes, priorities, Priority, Status, StatusIcon, PriorityIcon, Team } from "./shared";
 
 // Filter and display preferences share a compact toolbar above the results.
-export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, setType, search, setSearch, query, submitQuery, priority, setPriority, sort, setSort, labelFilter, setLabelFilter, catalog, clearSelection, view, setView, visibleCount, selectVisible, selectionDisabled }: {
+export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, setType, query, submitQuery, priority, setPriority, sort, setSort, labelFilter, setLabelFilter, catalog, clearSelection, view, setView, visibleCount, selectVisible, selectionDisabled }: {
   filter: Status | "all";
   setFilter: (status: Status | "all") => void;
   team: string;
@@ -14,8 +14,6 @@ export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, se
   setTeam: (team: string) => void;
   type: string;
   setType: (type: string) => void;
-  search: string;
-  setSearch: (search: string) => void;
   query: string;
   submitQuery: (query: string) => void;
   priority: Priority | "";
@@ -32,6 +30,7 @@ export function IssueFilters({ filter, setFilter, team, teams, setTeam, type, se
   selectVisible: () => void;
   selectionDisabled: boolean;
 }) {
+  const [search, setSearch] = useState(query);
   const filterContent = useRef<HTMLDivElement>(null);
   const labelCount = labelFilter.labels.length + labelFilter.groups.length;
   const hasLabels = labelFilter.mode === "unlabeled" || labelCount > 0;

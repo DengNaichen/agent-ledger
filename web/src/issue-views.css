@@ -9,7 +9,10 @@
   padding: 0 var(--space-16) var(--space-16);
   scroll-padding-top: calc(var(--row-height-sm) + var(--space-12));
 }
-.list-group, .list-rows, .list-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+.list-group, .list-rows, .virtual-rows, .list-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+.virtual-spacer { grid-column: 1 / -1; pointer-events: none; }
+.identifier-width { display: grid; grid-column: 3; height: 0; visibility: hidden; font-size: var(--font-size-12); }
+.identifier-width > span { grid-area: 1 / 1; }
 .list-group { min-width: 0; }
 .list-rows[hidden] { display: none; }
 .group-header-wrap { position: sticky; z-index: 1; top: 0; grid-column: 1 / -1; padding-top: var(--space-12); background: var(--panel); }

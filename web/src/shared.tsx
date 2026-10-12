@@ -1,4 +1,4 @@
-import { MouseEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { KeyboardEvent, MouseEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Box, Check } from "lucide-react";
 import * as Select from "@radix-ui/react-select";
 
@@ -164,17 +164,45 @@ export function StatusIcon({ status }: { status: Status }) {
   );
 }
 
-export function StatusSelect({ issue, onChange }: { issue: { identifier: string; status: Status }; onChange: (status: Status) => void }) {
+// Closed menus have no option tree. Typeahead on a closed trigger uses the
+// small data catalog; Radix handles navigation once the menu is open.
+function useLazySelect(value: string, options: { value: string; label: string }[], onChange: (value: string) => void) {
+  const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const [container, setContainer] = useState<HTMLDialogElement | null>(null);
+  const search = useRef({ text: "", time: 0 });
   useLayoutEffect(() => { setContainer(trigger.current!.closest("dialog")); }, []);
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (open || event.ctrlKey || event.altKey || event.metaKey || event.key.length !== 1) return;
+    const now = Date.now();
+    const previous = now - search.current.time < 1000 ? search.current.text : "";
+    if (event.key === " " && !previous) return;
+    const text = previous + event.key.toLowerCase();
+    search.current = { text, time: now };
+    const repeated = [...text].every((char) => char === text[0]);
+    const prefix = repeated ? text[0] : text;
+    const index = options.findIndex((option) => option.value === value);
+    const ordered = [...options.slice(index), ...options.slice(0, index)];
+    const next = ordered.find((option) => (!repeated || option.value !== value) && option.label.toLowerCase().startsWith(prefix));
+    if (next && next.value !== value) onChange(next.value);
+    event.preventDefault();
+  }
+  function changeOpen(next: boolean) {
+    search.current = { text: "", time: 0 };
+    setOpen(next);
+  }
+  return { open, setOpen: changeOpen, trigger, container, onKeyDown };
+}
+
+export function StatusSelect({ issue, onChange }: { issue: { identifier: string; status: Status }; onChange: (status: Status) => void }) {
+  const { open, setOpen, trigger, container, onKeyDown } = useLazySelect(issue.status, columns.map((option) => ({ value: option.status, label: option.label })), (value) => onChange(value as Status));
   const selected = columns.find((column) => column.status === issue.status)!;
-  return <Select.Root value={issue.status} onValueChange={(value) => onChange(value as Status)}>
-    <Select.Trigger ref={trigger} className="status-control" aria-label={`Change status for ${issue.identifier}`} title={selected.label}>
+  return <Select.Root open={open} onOpenChange={setOpen} value={issue.status} onValueChange={(value) => onChange(value as Status)}>
+    <Select.Trigger ref={trigger} onKeyDown={onKeyDown} className="status-control" aria-label={`Change status for ${issue.identifier}`} title={selected.label}>
       <StatusIcon status={issue.status} />
       <span className="status-select">{selected.label}</span>
     </Select.Trigger>
-    <Select.Portal container={container || undefined}>
+    {open && <Select.Portal container={container || undefined}>
       <Select.Content className="priority-menu status-menu" position="popper" sideOffset={5} align="start" collisionPadding={8}>
         <Select.Viewport>
           {columns.map((option) => <Select.Item className="priority-option" value={option.status} key={option.status} textValue={option.label}>
@@ -184,7 +212,7 @@ export function StatusSelect({ issue, onChange }: { issue: { identifier: string;
           </Select.Item>)}
         </Select.Viewport>
       </Select.Content>
-    </Select.Portal>
+    </Select.Portal>}
   </Select.Root>;
 }
 
@@ -233,17 +261,14 @@ export function PriorityIcon({ priority }: { priority: Priority }) {
 }
 
 export function PrioritySelect({ priority, onChange, label, compact = false, disabled = false }: { priority: Priority; onChange: (priority: Priority) => void; label: string; compact?: boolean; disabled?: boolean }) {
-  const trigger = useRef<HTMLButtonElement>(null);
-  const [container, setContainer] = useState<HTMLDialogElement | null>(null);
-  // A portal inside a native modal must stay inside that dialog's top layer.
-  useLayoutEffect(() => { setContainer(trigger.current!.closest("dialog")); }, []);
+  const { open, setOpen, trigger, container, onKeyDown } = useLazySelect(String(priority), priorities.map((option) => ({ value: String(option.value), label: option.label })), (value) => onChange(Number(value) as Priority));
   const selected = priorities[priority];
-  return <Select.Root value={String(priority)} onValueChange={(value) => onChange(Number(value) as Priority)} disabled={disabled}>
-    <Select.Trigger ref={trigger} className={`priority-control ${compact ? "priority-compact" : ""}`} aria-label={label} title={selected.label}>
+  return <Select.Root open={open} onOpenChange={setOpen} value={String(priority)} onValueChange={(value) => onChange(Number(value) as Priority)} disabled={disabled}>
+    <Select.Trigger ref={trigger} onKeyDown={onKeyDown} className={`priority-control ${compact ? "priority-compact" : ""}`} aria-label={label} title={selected.label}>
       <PriorityIcon priority={priority} />
       {!compact && <span>{selected.label}</span>}
     </Select.Trigger>
-    <Select.Portal container={container || undefined}>
+    {open && <Select.Portal container={container || undefined}>
       <Select.Content className="priority-menu" position="popper" sideOffset={5} align="start" collisionPadding={8}>
         <Select.Viewport>
           {priorities.map((option) => <Select.Item className="priority-option" value={String(option.value)} key={option.value} textValue={option.label}>
@@ -253,6 +278,6 @@ export function PrioritySelect({ priority, onChange, label, compact = false, dis
           </Select.Item>)}
         </Select.Viewport>
       </Select.Content>
-    </Select.Portal>
+    </Select.Portal>}
   </Select.Root>;
 }
