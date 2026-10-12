@@ -1,5 +1,5 @@
 import { AssigneeSelect } from "./Assignee";
-import { personName } from "./shared";
+import { codingAgentName, personName } from "./shared";
 import { Box, CalendarDays, Clock, CornerUpLeft, Tag, Users, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
@@ -29,6 +29,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   const path = apiPath(`/issues/${identifier}`);
   const [loadError, setLoadError] = useState("");
   const commentRevision = useRef(0);
+  const delegationHistory = useRef<HTMLElement>(null);
 
   const loadIssue = useCallback(async () => {
     await requests.read(() => api<IssueDetails>(path), (loaded) => {
@@ -98,6 +99,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
         <div><dt className="detail-property-term">Type</dt><dd><Tag className="icon" />{issue.type || <span className="none">No type</span>}</dd></div>
       </dl>
       <dl className="detail-linked-properties">
+        <div><dt>Delegated by</dt><dd>{issue.delegations.length > 0 ? <button className="ghost delegation-link" onClick={() => delegationHistory.current!.scrollIntoView({ block: "start" })}>{Array.from(new Set(issue.delegations.map((entry) => codingAgentName(entry.agent)))).join(", ")} · {issue.delegations.length} {issue.delegations.length === 1 ? "execution" : "executions"}</button> : <span className="none">No agent</span>}</dd></div>
         <div><dt>Project</dt><dd><Box className="icon" />{issue.project_id !== null ? <NavLink to={pagePath(`/project/${issue.project_id}`)}>{issue.project}</NavLink> : <span className="none">No project</span>}</dd></div>
         <div><dt>Parent</dt><dd><CornerUpLeft className="icon" />{issue.parent ? <NavLink to={pagePath(`/issue/${issue.parent}`)}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd></div>
       </dl>
@@ -123,6 +125,20 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
         </section>
         <article className="detail-main">
           <MarkdownText text={issue.description} />
+          {issue.delegations.length > 0 && <section ref={delegationHistory} className="detail-section delegation-history" aria-label="Agent executions">
+            <h2>Agent executions</h2>
+            <p className="none">Recorded participation, not an edit lock or live process status.</p>
+            <ol>{issue.delegations.map((entry) => <li key={entry.id}>
+              <h3>{codingAgentName(entry.agent)} · {entry.agent_id ? "Subagent" : "Session"}{entry.agent_type && ` · ${entry.agent_type}`}</h3>
+              <dl>
+                <div><dt>Session ID</dt><dd><code>{entry.session_id}</code></dd></div>
+                {entry.agent_id && <div><dt>Agent ID</dt><dd><code>{entry.agent_id}</code></dd></div>}
+                <div><dt>Host</dt><dd>{entry.hostname}</dd></div>
+                <div><dt>Recorded by</dt><dd>{entry.actor ? personName(entry.actor) : "System"}</dd></div>
+                <div><dt>Started</dt><dd><time dateTime={entry.created_at}>{timestamp(entry.created_at)}</time></dd></div>
+              </dl>
+            </li>)}</ol>
+          </section>}
           {issue.assignments.length > 0 && <section className="detail-section assignment-history"><h2>Assignment history</h2><ol>{issue.assignments.map((change, index) => <li key={index}><p><strong>{change.actor ? personName(change.actor) : "System"}</strong>: {change.from ? personName(change.from) : "Unassigned"} → {change.to ? personName(change.to) : "Unassigned"}</p><time dateTime={change.created_at}>{timestamp(change.created_at)}</time></li>)}</ol></section>}
 
           {issue.children.length > 0 && (

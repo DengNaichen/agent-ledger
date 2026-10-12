@@ -51,6 +51,16 @@ go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 本地开发的 MCP 在自己的临时服务 `/w/<slug>/mcp` 上；`params.name` 是工具名，`params.arguments` 是参数，`tools/list` 可列出工具。成功时结果在 `result.structuredContent`，工具失败时 `result.isError` 为 `true`。开发环境不得使用正式数据或凭据。
 
+## 仓库内 Agent 接票
+
+本仓库的 `.codex/hooks.json` 与 `.claude/settings.json` 在 `delegate_issue` 执行前调用 `scripts/delegate-hook.mjs`。需要 Node 22+；`scripts/run-delegate-hook` 保留原 PATH 优先级，再追加已有的常见工具目录，不读取 shell profile、不安装工具。Codex 先信任仓库配置层，再按客户端提示信任该 hook，不在真实配置中绕过信任。工具调用仍须通过宿主的 MCP 审批；hook 的 allow 不替代 Codex 的日常审批策略。
+
+只适配 MCP 名称 `inftask`、`inftask-cloud`、`inftask_cloud` 与 Claude 插件的 `plugin_inftask_inftask` 工具前缀；自定义其他名称不会注入。这不是插件分发：`plugins/inftask/` 和 marketplace 保持原样。仓库主/子 Agent 按 [ticket skill](../.agents/skills/ticket/SKILL.md#agent-participation-repository-dogfooding) 只提供票号；hook 整体替换 `client_context`，不依赖 status、Git remote 或是否为 root agent。
+
+模型端新增工具 schema 需重连 MCP 后加载。生产实例尚未部署该工具时不能宣称接票记录成功；既有任务流程仍可使用。开发和 host smoke 指向隔离 loopback MCP，不向正式实例写入测试委派。hook 不读取 MCP token 或 transcript，不自行联网；元数据随客户端已有认证连接发往当前 InfTask workspace。
+
+记录字段为 `agent`（codex/claude）、`session_id`、可选 `agent_id`/`agent_type`、`hostname`；hostname 是运行 hook 的机器名，不主动查 IP。子 Agent 的 session ID 可能是父会话 ID，具体子 Agent 以宿主提供的 `agent_id` 区分。缺 session 或非法字段会明确拒绝，不生成假 ID。会话/Agent ID 只是来源，不证明进程仍存活或具备独立授权。
+
 ## 从 Linear 快照导入
 
 导出脚本 `scripts/linear/export.py` 和 `inftask import-linear` 的用法、输出文件、key 位置、映射和写入前检查见 [README](../README.md#import-from-linear)。快照含团队内部数据，放在仓库外（维护者的快照在 `~/Library/Application Support/inftask/linear-export/<日期>/`，目录权限 700），不进提交、fixture、ticket 或 PR；评论和 PR 里只写数量和结论。导出脚本调用 Linear API，只在需要新快照时运行。

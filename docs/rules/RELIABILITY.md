@@ -4,7 +4,7 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 11 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 12 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
@@ -25,6 +25,8 @@
 - 迁移 10 追加 `teams.private`（默认 false），新建 `team_members` 和 workspace 成员一致性插入触发器。保留工作区成员、原任务、团队编号、Project 和关联；不自动生成团队成员或 owner。版本 9 升级前备份 `before-migration-10.db`，新库/升级库结构一致。旧二进制不实施私有团队过滤，不能回滚旧二进制继续云端服务。
 
 - 迁移 11 追加 `issues.assignee_subject`（可空、引用 `users.subject`），新建 `issue_assignments` 审计表及查询索引。已有任务保持未分配，业务字段、引用和时间不变。版本 10 升级前备份 `before-migration-11.db`，新旧库结构一致。旧二进制忽略新增负责人字段，但不会维护分配审计；需停服务再回滚，不能由旧版继续分配业务。恢复备份会丢失此后的写入。
+
+- 迁移 12 新建 `issue_delegations` 和 issue/id 查询索引，不重建原表、不回填来源。版本 11 升级前保存 `before-migration-12.db`；新库/升级库结构一致。旧二进制可忽略新增表继续既有操作，但不登记或展示 Agent 接票；停服务切回旧二进制时记录仍保留，恢复备份会丢失此后的写入。
 
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 
@@ -49,6 +51,8 @@
 GitHub 同步每轮顺序处理仓库，某仓库失败（包括绑定的 workspace 还不存在）会记录日志，下轮再读；游标按 workspace 和仓库分别记录，仅在完整读取成功后推进，仓库改绑到另一个 workspace 后第一轮从头读取。PR 关联可重复 upsert，自动状态只按既有条件向前推进，不应增加额外重试。
 
 linkback 先发送 GitHub 评论，再记录本地时间戳。远端成功但响应丢失或本地记录失败时，下轮可能再次评论；当前不保证恰好一次。改变此流程要明确部分成功状态，不能以本地事务声称外部副作用可回滚。
+
+Agent 接票只追加一条来源记录，独立于业务状态，使用单语句 `INSERT ... ON CONFLICT DO NOTHING`；同一 issue/agent/session_id/agent_id/hostname 的并发或重复请求保留首次记录。详情按审计 id 排序，不根据客户端时间或 session ID 推断接手顺序。记录不提供进程状态、租约或排他性。
 
 ## 备份与恢复
 

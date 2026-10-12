@@ -171,6 +171,11 @@ func New(service *app.Service) *mcp.Server {
 	addLabelTools(server, service)
 	addTeamAccessTools(server, service)
 	addAssigneeTools(server, service)
+	addTool(server, &mcp.Tool{Name: "delegate_issue", Description: "Register the calling coding agent session as working on an issue. Main agents and subagents can both delegate themselves. Supply only identifier; the repository PreToolUse hook injects client_context. Context is required by the Service; never invent it. Repeated calls from the same agent/session/agent_id/hostname return the original record. Does not change status or human assignee, start a process, or grant exclusive access."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.DelegateIssue) (*mcp.CallToolResult, app.Delegation, error) {
+			delegation, err := service.Delegate(ctx, input)
+			return nil, delegation, err
+		})
 	return server
 }
 

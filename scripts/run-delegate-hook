@@ -1,0 +1,10 @@
+#!/bin/sh
+# Preserve host PATH precedence; desktop clients may omit tool directories.
+set -eu
+for directory in "${HOME}/.local/bin" /opt/homebrew/bin /usr/local/bin; do
+  if [ -d "$directory" ]; then
+    PATH="${PATH}:$directory"
+  fi
+done
+export PATH
+exec node "$@"

@@ -5,7 +5,7 @@ description: "Create and update InfTask tickets: choose the Project by outcome, 
 
 # Ticket
 
-Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `get_issue`, `list_issues`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
+Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `get_issue`, `list_issues`, `delegate_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
 
 ## New work without an existing ticket
 
@@ -14,6 +14,14 @@ Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: 
 - For work the user asked to execute now, create the ticket as `in_progress`, read it back with `get_issue`, and use the returned identifier for the branch, commits, and pull request under [git-workflow](../git-workflow/SKILL.md). Direct execution does not need to pass through `agent_ready`.
 - Ask for an existing identifier only when the user says the work belongs to a particular existing ticket and the session and branch do not identify it. Project ambiguity still follows the Project rules below.
 - If ticket creation is unavailable or fails, report the actual failure and pause the repository changes that require that ticket. Do not invent a number or continue through the no-ticket exception.
+
+## Agent participation (repository dogfooding)
+
+- After reading a ticket, a Claude/Codex main agent or subagent starting work calls `delegate_issue` with only `identifier`. The repository `PreToolUse` hook supplies the current agent/session/subagent/hostname context; never guess or manually generate it.
+- This is independent of status. Register even when the ticket is already `in_progress`; then follow the normal status workflow. Comments, edits, and status changes do not register participation.
+- Each subagent calls for the ticket it actually takes. Shared parent session IDs do not replace the host-provided subagent ID. Repeated calls from the same execution identity are idempotent.
+- These hooks are repository-local, not part of the distributed `inftask` plugin. They require Node 22+ and a trusted hook configuration; see [development](../../../docs/DEVELOPMENT.md#仓库内-agent-接票).
+- If the connected server does not expose `delegate_issue`, report that participation recording is not deployed and continue the existing ticket workflow without inventing a record. Other hosts without a provenance adapter do not fabricate metadata. A configured hook failure must be fixed before claiming registration succeeded.
 
 ## Project
 

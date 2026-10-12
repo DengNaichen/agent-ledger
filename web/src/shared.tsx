@@ -58,7 +58,20 @@ export type Comment = { body: string; created_at: string; author: string };
 export type Link = { title: string; url: string };
 export type PullRequest = { repo: string; number: number; title: string; url: string; state: "open" | "draft" | "merged" | "closed"; updated_at: string };
 
+export type Delegation = {
+  id: number;
+  agent: "codex" | "claude";
+  session_id: string;
+  agent_id?: string;
+  agent_type?: string;
+  hostname: string;
+  actor: Identity | null;
+  created_at: string;
+};
+export const codingAgentName = (agent: Delegation["agent"]) => agent === "codex" ? "Codex" : "Claude";
+
 export type IssueDetails = Issue & {
+  delegations: Delegation[];
   assignments: { actor: Identity | null; from: Identity | null; to: Identity | null; created_at: string }[];
   comments: Comment[];
   links: Link[];
