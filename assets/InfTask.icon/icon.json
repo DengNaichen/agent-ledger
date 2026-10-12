@@ -1,0 +1,81 @@
+{
+  "fill": {
+    "solid": "extended-srgb:1.00000,0.95686,0.88235,1.00000"
+  },
+  "groups": [
+    {
+      "name": "Task Details",
+      "layers": [
+        {
+          "image-name": "04-Task-Details.svg",
+          "name": "04-Task-Details"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.0
+      }
+    },
+    {
+      "name": "Orange Card",
+      "layers": [
+        {
+          "image-name": "03-Orange-Card.svg",
+          "name": "03-Orange-Card"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.0
+      }
+    },
+    {
+      "name": "Coral Card",
+      "layers": [
+        {
+          "image-name": "02-Coral-Card.svg",
+          "name": "02-Coral-Card"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.0
+      }
+    },
+    {
+      "name": "Peach Card",
+      "layers": [
+        {
+          "image-name": "01-Peach-Card.svg",
+          "name": "01-Peach-Card"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

@@ -33,7 +33,7 @@ open "macos/dist/InfTask Preview.app"
 - 颜色、字体尺寸和业务状态图形参考 `web/src/app.css` 与 `web/src/shared.tsx`；仅维护预览所需的 token 子集。
 - `Sources/InfTaskPreview/Resources/InterVariable.ttf` 来自 [Inter v4.1](https://github.com/rsms/inter/tree/v4.1)，SIL Open Font License 1.1，许可证随包附带。
 - 导航图标参考当前 Web 使用的 Lucide 图形，以 SwiftUI Path 绘制，部分几何简化；ISC 许可证随包附带。不加载或执行 JavaScript。
-- Dock 图标由 `make-icon.swift` 生成 InfTask 的 `IT` 字标，不使用其他产品的图标。
+- 应用图标是奶油底色的橙色任务卡片；可编辑源文件为 [`assets/InfTask.icon`](../assets/InfTask.icon)，由 Icon Composer 制作。`Sources/InfTaskPreview/Resources/AppIcon.png` 是其 1024px 导出，`make-icon.swift` 加上 macOS 留白后生成 Dock 所需的各尺寸。侧栏标识和活动头像保持原样。导出方式见[设计系统](../docs/DESIGN_SYSTEM.md#应用标识)。
 
 ## 验证
 
