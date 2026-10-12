@@ -4,29 +4,33 @@
 .detail-heading { grid-column: 1; min-width: 0; }
 .detail-heading h1 { margin: 0; color: var(--text); font-size: var(--font-size-24); font-weight: var(--weight-heading); font-variation-settings: "opsz" var(--font-optical-heading); letter-spacing: var(--tracking-title); line-height: var(--line-title); overflow-wrap: anywhere; }
 .detail-main { grid-column: 1; min-width: 0; overflow: visible; }
-.detail-properties { grid-column: 2; grid-row: 1 / span 2; min-width: 0; padding-top: var(--space-4); font-size: var(--font-size-13); }
-.detail-properties h2, .detail-properties h3 { margin: 0; color: var(--muted); font-size: var(--font-size-12); font-weight: var(--weight-medium); }
-.detail-properties h2 { margin-bottom: var(--space-12); }
-.detail-properties dl { margin: 0; }
-.detail-properties dt { color: var(--muted); font-size: var(--font-size-12); }
-.detail-properties dd { display: flex; align-items: center; gap: var(--space-8); min-width: 0; min-height: var(--space-28); margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
-.detail-properties dd > .icon { flex: none; color: var(--muted); }
-.detail-properties dd > a, .detail-properties dd > span { min-width: 0; }
-.detail-properties .status-control, .detail-properties .priority-control { height: var(--space-28); margin-left: calc(-1 * var(--space-8)); padding: 0 var(--space-8); }
-.detail-properties a:hover { color: var(--text); text-decoration: underline; }
-.detail-primary-properties { display: grid; gap: var(--space-4); }
-.detail-primary-properties > div { min-width: 0; }
+.detail-properties { display: grid; grid-column: 2; grid-row: 1 / span 2; align-content: start; gap: var(--space-24); min-width: 0; padding-top: var(--space-4); font-size: var(--font-size-13); }
+.detail-property-group { min-width: 0; }
+.detail-properties h2, .detail-properties h3 { margin: 0 0 var(--space-8); color: var(--muted); font-size: var(--font-size-12); font-weight: var(--weight-medium); }
+.detail-properties dl, .detail-properties dd, .detail-properties p { margin: 0; }
+.detail-properties dd { display: flex; min-width: 0; }
 .detail-property-term { position: absolute; width: var(--space-1); height: var(--space-1); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.detail-properties .detail-linked-properties { display: grid; gap: var(--space-12); margin-top: var(--space-20); }
-.detail-property-labels { margin-top: var(--space-20); }
-.detail-property-labels-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); margin-bottom: var(--space-8); }
-.detail-property-labels-heading .ghost { padding: var(--space-4) var(--space-6); font-size: var(--font-size-12); }
-.detail-property-labels-values { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
-.detail-properties .detail-property-dates { display: grid; gap: var(--space-6); margin-top: var(--space-20); padding-top: var(--space-16); border-top: var(--border-width) solid var(--border); }
-.detail-property-dates > div { display: grid; grid-template-columns: var(--property-label-width) minmax(0, 1fr); align-items: baseline; gap: var(--space-8); }
-.detail-property-dates dt { display: flex; align-items: center; gap: var(--space-6); }
-.detail-property-dates dt > .icon { width: var(--space-12); height: var(--space-12); }
-.detail-property-dates dd { min-height: 0; color: var(--muted); font-size: var(--font-size-12); }
+/* Every row has a 16px icon slot, so value text starts on one line. Clickable
+   rows extend their hit area one inset left of the slot and share that edge. */
+.detail-property-row, .detail-property-action, .detail-properties .status-control, .detail-properties .priority-control, .detail-properties .delegation-link { display: flex; align-items: center; gap: var(--space-8); min-width: 0; height: var(--detail-property-row-height); color: var(--text-2); }
+.detail-property-action, .detail-properties .status-control, .detail-properties .priority-control, .detail-properties .delegation-link { max-width: calc(100% + var(--space-8)); margin-left: calc(-1 * var(--space-8)); padding: 0 var(--space-8); background: transparent; border: 0; border-radius: var(--radius); font: inherit; text-align: left; }
+.detail-property-action:hover, .detail-properties .delegation-link:hover { color: var(--text-2); background: var(--hover); }
+.detail-property-row > span, .detail-property-action > span, .detail-properties .status-control > span, .detail-properties .priority-control > span, .detail-properties .delegation-link > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-property-row > .icon, .detail-property-action > .icon { color: var(--muted); }
+.detail-properties .status-icon { margin: 0 var(--space-1); }
+.detail-properties .assignee-control { position: relative; display: flex; max-width: calc(100% + var(--space-8)); margin-left: calc(-1 * var(--space-8)); }
+.detail-properties .assignee-control > .icon, .detail-properties .assignee-control > .person-avatar { position: absolute; top: calc((var(--detail-property-row-height) - var(--icon-size)) / 2); left: var(--space-8); pointer-events: none; }
+.detail-properties .assignee-control select { appearance: none; max-width: 100%; height: var(--detail-property-row-height); padding: 0 var(--space-8) 0 calc(var(--space-8) + var(--icon-size) + var(--space-8)); color: var(--text-2); text-overflow: ellipsis; }
+.detail-properties .assignee-control select:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: calc(-1 * var(--focus-width)); }
+.detail-properties .assignee-empty select { color: var(--muted); }
+.detail-property-child .delegation-link { position: relative; padding-left: calc(var(--space-8) + var(--icon-size) + var(--space-8)); }
+/* The elbow runs from the assignee icon's centre to the agent mark. */
+.detail-property-child .delegation-link::before { position: absolute; top: calc((var(--icon-size) - var(--detail-property-row-height)) / 2); left: calc(var(--space-8) + var(--icon-size) / 2); width: calc(var(--icon-size) / 2 + var(--space-4)); height: var(--detail-property-row-height); border-bottom: var(--border-width) solid var(--border-strong); border-left: var(--border-width) solid var(--border-strong); border-bottom-left-radius: var(--radius); content: ""; }
+.agent-mark { display: grid; flex: none; place-items: center; width: var(--icon-size); height: var(--icon-size); color: var(--agent-mark-color); background: var(--agent-mark-bg); border-radius: var(--radius-circle); box-shadow: 0 0 0 var(--border-width) var(--border); }
+.agent-mark svg { width: var(--agent-mark-glyph-size); height: var(--agent-mark-glyph-size); }
+.detail-property-labels { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-height: var(--detail-property-row-height); margin-left: calc(-1 * var(--space-8)); }
+.detail-property-labels > .detail-property-action { margin-left: 0; }
+.detail-property-labels > .detail-label-edit { justify-content: center; width: var(--space-24); height: var(--space-24); padding: 0; }
 
 /* These overrides apply only to issue composers, leaving other modal forms intact. */
 .issue-composer { width: min(var(--composer-width), calc(100vw - var(--space-32))); }
@@ -52,14 +56,11 @@
 
 @media (max-width: 1024px) {
   .detail-content { grid-template-columns: minmax(0, 1fr); max-width: var(--content-max-width); }
-  .detail-properties { grid-column: 1; grid-row: 2; padding-top: 0; }
-  .detail-properties > h2 { position: absolute; width: var(--space-1); height: var(--space-1); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .detail-properties { grid-column: 1; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-16); padding-top: 0; }
+  .detail-properties > .detail-property-group:first-child { grid-column: 1 / -1; }
+  .detail-properties h2 { position: absolute; width: var(--space-1); height: var(--space-1); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .detail-property-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-16); }
   .detail-main { grid-row: 3; }
-  .detail-primary-properties { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-16); }
-  .detail-properties .detail-linked-properties { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-16); margin-top: var(--space-12); }
-  .detail-property-labels { margin-top: var(--space-12); }
-  .detail-property-labels-heading { margin-bottom: var(--space-4); }
-  .detail-properties .detail-property-dates { padding-top: var(--space-8); margin-top: var(--space-12); gap: var(--space-4); }
 }
 
 @media (max-width: 760px) {
@@ -73,11 +74,11 @@
 .assignee-control > .icon { flex-shrink: 0; color: var(--text-3); }
 .assignee-control select { flex: 1; min-width: 0; max-width: 100%; padding: var(--space-4); font: inherit; color: inherit; background: transparent; border: 0; border-radius: var(--radius); }
 .assignee-control select:hover { background: var(--hover); }
+.person-avatar { display: grid; flex: none; place-items: center; width: var(--icon-size); height: var(--icon-size); color: var(--text-2); background: var(--button-bg); border-radius: var(--radius-circle); font-size: var(--font-size-9); font-weight: var(--weight-medium); line-height: 1; }
 .assignment-history ol { padding-left: var(--space-6); }
 .assignment-history li { margin-bottom: var(--space-3); }
 .assignment-history p { margin-bottom: var(--space-1); overflow-wrap: anywhere; }
 .assignment-history time { color: var(--text-3); font-size: var(--font-size-12); }
-.detail-properties .delegation-link { padding: 0; text-align: left; font: inherit; }
 .delegation-history ol { list-style: none; padding: 0; }
 .delegation-history li { margin-bottom: var(--space-16); padding: var(--space-12); border: var(--border-width) solid var(--border); border-radius: var(--radius); min-width: 0; }
 .delegation-history h3 { margin: 0 0 var(--space-8); overflow-wrap: anywhere; }

@@ -1,6 +1,6 @@
 import { AssigneeSelect } from "./Assignee";
 import { codingAgentName, personName } from "./shared";
-import { Box, CalendarDays, Clock, CornerUpLeft, Tag, Users, X } from "lucide-react";
+import { Box, CornerUpLeft, Plus, Tag, Users, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -10,6 +10,8 @@ import { LabelPicker } from "./Labels";
 import { Catalog } from "./useLabels";
 import { IssueProjectSelect } from "./Dialogs";
 import { LabelBadge } from "./shared";
+import { AgentMark } from "./AgentMark";
+import { EntityEmoji } from "./EmojiPicker";
 
 import { useResource } from "./useResource";
 import { useRequestScope } from "./useRequestScope";
@@ -89,22 +91,9 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
     { label: "Related", issues: issue.related },
   ].filter((group) => group.issues.length > 0);
 
-  const properties = (
-    <>
-      <dl className="detail-primary-properties">
-        <div><dt className="detail-property-term">Status</dt><dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd></div>
-        <div><dt className="detail-property-term">Priority</dt><dd><PrioritySelect priority={issue.priority} label={`Change priority for ${identifier}`} disabled={savingPriority} onChange={(next) => void changePriority(next)} /></dd></div>
-        <div><dt className="detail-property-term">Assignee</dt><dd><AssigneeSelect key={identifier} team={issueTeamKey(identifier)} value={issue.assignee?.subject ?? ""} current={issue.assignee} disabled={savingAssignee} onChange={(value) => void changeAssignee(value)} label={`Change assignee for ${identifier}`} /></dd></div>
-        <div><dt className="detail-property-term">Team</dt><dd><Users className="icon" /><span>{teams.find((team) => team.key === issueTeamKey(issue.identifier))?.name ?? issueTeamKey(issue.identifier)} ({issueTeamKey(issue.identifier)})</span></dd></div>
-        <div><dt className="detail-property-term">Type</dt><dd><Tag className="icon" />{issue.type || <span className="none">No type</span>}</dd></div>
-      </dl>
-      <dl className="detail-linked-properties">
-        <div><dt>Delegated by</dt><dd>{issue.delegations.length > 0 ? <button className="ghost delegation-link" onClick={() => delegationHistory.current!.scrollIntoView({ block: "start" })}>{Array.from(new Set(issue.delegations.map((entry) => codingAgentName(entry.agent)))).join(", ")} · {issue.delegations.length} {issue.delegations.length === 1 ? "execution" : "executions"}</button> : <span className="none">No agent</span>}</dd></div>
-        <div><dt>Project</dt><dd><Box className="icon" />{issue.project_id !== null ? <NavLink to={pagePath(`/project/${issue.project_id}`)}>{issue.project}</NavLink> : <span className="none">No project</span>}</dd></div>
-        <div><dt>Parent</dt><dd><CornerUpLeft className="icon" />{issue.parent ? <NavLink to={pagePath(`/issue/${issue.parent}`)}>{issue.parent}</NavLink> : <span className="none">None</span>}</dd></div>
-      </dl>
-    </>
-  );
+  const teamKey = issueTeamKey(issue.identifier);
+  const team = teams.find((item) => item.key === teamKey);
+  const agents = Array.from(new Set(issue.delegations.map((entry) => entry.agent)));
 
   return (
     <div className="detail">
@@ -112,16 +101,39 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
         {loadError && <RequestError message={loadError} />}
         <header className="detail-heading"><h1>{issue.title}</h1></header>
         <section className="detail-properties" aria-label="Properties">
-          <h2>Properties</h2>
-          {properties}
-          <div className="detail-property-labels">
-            <div className="detail-property-labels-heading"><h3>Labels</h3><button className="ghost" onClick={() => setLabelsOpen(true)}>Edit labels</button></div>
-            <div className="detail-property-labels-values">{issue.labels.length > 0 ? issue.labels.map((label) => <LabelBadge key={label.id} label={label} />) : <span className="none">No labels</span>}</div>
+          <div className="detail-property-group">
+            <h2>Properties</h2>
+            <dl className="detail-property-list">
+              <div><dt className="detail-property-term">Status</dt><dd><StatusSelect issue={issue} onChange={(status) => void changeStatus(status)} /></dd></div>
+              <div><dt className="detail-property-term">Priority</dt><dd><PrioritySelect priority={issue.priority} label={`Change priority for ${identifier}`} disabled={savingPriority} emptyLabel="Set priority" onChange={(next) => void changePriority(next)} /></dd></div>
+              <div>
+                <dt className="detail-property-term">Assignee</dt>
+                <dd><AssigneeSelect key={identifier} team={teamKey} value={issue.assignee?.subject ?? ""} current={issue.assignee} disabled={savingAssignee} onChange={(value) => void changeAssignee(value)} label={`Change assignee for ${identifier}`} /></dd>
+                {agents.length > 0 && <dd className="detail-property-child"><button className="delegation-link" onClick={() => delegationHistory.current!.scrollIntoView({ block: "start" })}>{agents.map((agent) => <AgentMark key={agent} agent={agent} />)}<span>{agents.map(codingAgentName).join(", ")} · {issue.delegations.length} {issue.delegations.length === 1 ? "execution" : "executions"}</span></button></dd>}
+              </div>
+              <div><dt className="detail-property-term">Team</dt><dd className="detail-property-row" title={`${team?.name ?? teamKey} (${teamKey})`}><EntityEmoji emoji={team?.emoji ?? ""} teamKey={teamKey} /><span>{team?.name ?? teamKey}</span></dd></div>
+              <div><dt className="detail-property-term">Type</dt><dd className="detail-property-row"><Tag className="icon" />{issue.type ? <span>{issue.type}</span> : <span className="none">No type</span>}</dd></div>
+            </dl>
           </div>
-          <dl className="detail-property-dates">
-            <div><dt><CalendarDays className="icon" />Created</dt><dd><time dateTime={issue.created_at}>{timestamp(issue.created_at)}</time></dd></div>
-            <div><dt><Clock className="icon" />Updated</dt><dd><time dateTime={issue.updated_at}>{timestamp(issue.updated_at)}</time></dd></div>
-          </dl>
+          <div className="detail-property-group">
+            <h3>Labels</h3>
+            <div className="detail-property-labels">
+              {issue.labels.map((label) => <LabelBadge key={label.id} label={label} />)}
+              {issue.labels.length > 0
+                ? <button className="detail-property-action detail-label-edit" aria-label="Edit labels" title="Edit labels" onClick={() => setLabelsOpen(true)}><Plus className="icon" /></button>
+                : <button className="detail-property-action" onClick={() => setLabelsOpen(true)}><Plus className="icon" /><span>Add label</span></button>}
+            </div>
+          </div>
+          <div className="detail-property-group">
+            <h3>Project</h3>
+            {issue.project_id !== null
+              ? <NavLink className="detail-property-action" to={pagePath(`/project/${issue.project_id}`)}><EntityEmoji emoji={issue.project_emoji} /><span>{issue.project}</span></NavLink>
+              : <p className="detail-property-row"><Box className="icon" /><span className="none">No project</span></p>}
+          </div>
+          {issue.parent && <div className="detail-property-group">
+            <h3>Parent</h3>
+            <NavLink className="detail-property-action" to={pagePath(`/issue/${issue.parent}`)}><CornerUpLeft className="icon" /><span>{issue.parent}</span></NavLink>
+          </div>}
         </section>
         <article className="detail-main">
           <MarkdownText text={issue.description} />

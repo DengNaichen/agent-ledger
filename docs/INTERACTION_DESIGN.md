@@ -20,7 +20,7 @@ Filter 弹层容纳状态、Team、type、priority 和标签筛选，已应用�
 
 New issue 明确展示 Team 和 Project。Team 任务页预选当前 Team；项目页预选 Project，只有一个关联 Team 时预选该 Team，共享项目要求用户选择。workspace 全部任务没有默认 Team；未选时 Project 与提交禁用。项目页的临时 Team 筛选不替代共享项目的新建选择。Project 可为 No project，候选是当前 Team 关联的未归档项目；切换 Team 保留原 Project、标题、正文与优先级，不兼容时标明原因并禁止提交，用户清空或重选后继续，不自动扩大项目关联。
 
-详情的正文和属性组整体滚动，桌面属性在正文旁，窄屏排列到主内容流，保留所有属性、标签和日期。详情展示只读 Team 名称与 key，Project 链接使用稳定 id。Edit 中 Team 只读，修改请求不含 Team；Project 可改为同一 Team 的活动项目或 No project。编辑器单独读取该 Team 的含归档项目目录，只允许保留当前归档 Project，不允许新加入其它归档项目。项目目录加载中或失败时禁用保存，Retry projects 保留其它草稿；Service 在提交时再次校验兼容性与归档边界。
+详情的正文和属性组整体滚动，桌面属性在正文旁，窄屏排列到主内容流，保留所有属性和标签；详情不显示创建/更新时间。详情展示只读 Team 名称（title 含 key），Project 链接使用稳定 id。Edit 中 Team 只读，修改请求不含 Team；Project 可改为同一 Team 的活动项目或 No project。编辑器单独读取该 Team 的含归档项目目录，只允许保留当前归档 Project，不允许新加入其它归档项目。项目目录加载中或失败时禁用保存，Retry projects 保留其它草稿；Service 在提交时再次校验兼容性与归档边界。
 
 创建和编辑以 project_id 提交，成功后显示 Created/Updated 与 View issue 链接，并重读当前范围；不匹配当前范围与筛选的票不强插列表。详情编辑与快捷字段、评论、标签共用同票写入队列，写入开始使先前详情读取失效；编辑成功应用返回字段并重读详情，不重读无关目录。新建和编辑的保存期间禁用可改字段、提交和关闭，失败保留草稿，取消不发送写入；离开范围后已发出的请求可能完成，但卸载后的回调不再更新新范围。
 
@@ -68,7 +68,7 @@ priority 独立于 status/type/标签。列表、看板及详情的选择器逐�
 
 ## Agent 接票展示
 
-详情属性 `Delegated by` 展示已登记的 Codex/Claude 及执行记录数量，按钮滚动到 `Agent executions`。历史显示宿主、session ID、可选子 Agent ID/profile、可信记录操作者和开始时间；长 ID 换行且可选择复制，窄屏不横向撑开页面。不同参与者均保留，不把最新子 Agent 覆盖成人类负责人；没有记录时显示 No agent。不提供网页接票按钮、实时 running 标记或排他锁。窗口重新获得焦点沿用详情刷新，读取失败不伪造记录。
+详情属性中，已登记的 Codex/Claude 显示为 Assignee 下方的子行，带对应 agent 标志及执行记录数量，按钮滚动到 `Agent executions`。历史显示宿主、session ID、可选子 Agent ID/profile、可信记录操作者和开始时间；长 ID 换行且可选择复制，窄屏不横向撑开页面。不同参与者均保留，不把最新子 Agent 覆盖成人类负责人；没有记录时不显示子行。不提供网页接票按钮、实时 running 标记或排他锁。窗口重新获得焦点沿用详情刷新，读取失败不伪造记录。
 
 ## 修改时验证
 

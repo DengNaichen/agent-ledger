@@ -12,8 +12,9 @@
 | 文字与边界 | `--text`、`--text-2`、`--text-3`、`--muted`、`--faint`；`--border`/`--border-strong` 与 `--link`/`--link-underline` |
 | 操作与反馈 | `--accent`/`--accent-hover` 配 `--accent-text`；`--success`、`--error-text`/`--error-bg`/`--error-border`；`--pr-open`/`--pr-merged`/`--pr-closed` 各有 border token |
 | 弹窗与代码 | `--dialog-bg`、`--backdrop`、`--shadow-dialog`、`--shadow-card`、`--code-bg` |
+| Agent 标志 | `--agent-mark-bg`/`--agent-mark-color`：属性栏 agent 标志的白色圆底与深色标志，明暗主题相同 |
 | 间距与字体 | `--space-*` 是现有像素间距尺度；`--space-prose-*` 是随正文大小变化的 em 间距；`--font-size-*`、`--weight-*`、`--line-*`、`--tracking-*`、`--font-ui`、`--mono`、`--font-features`、`--font-optical-heading` 控制字体 |
-| 形状与尺寸 | `--radius*`、`--border-width`、`--focus-width`、`--icon-size`/`--icon-stroke`、`--status-icon-size`；`--sidebar-width`、`--board-column-width`、`--detail-properties-width`、`--content-max-width`、`--dialog-width`、`--composer-width` 等表达组件尺寸 |
+| 形状与尺寸 | `--radius*`、`--border-width`、`--focus-width`、`--icon-size`/`--icon-stroke`、`--status-icon-size`；`--sidebar-width`、`--board-column-width`、`--detail-properties-width`、`--detail-property-row-height`、`--agent-mark-glyph-size`、`--content-max-width`、`--dialog-width`、`--composer-width` 等表达组件尺寸 |
 | 侧栏角色 | `--sidebar-font-*`/`--sidebar-line-height`、`--sidebar-caption-size`、`--sidebar-row-height`/`--sidebar-identity-*`、`--sidebar-icon-size`/`--sidebar-emoji-size`/`--sidebar-avatar-size`、`--sidebar-inset`/`--sidebar-*-gap`/`--sidebar-child-inset`、`--sidebar-radius`、`--sidebar-*-color`、`--sidebar-hover`/`--sidebar-selected`/`--sidebar-selected-hover`；在 `app.css` 引用基础 token，由 `navigation.css` 统一消费 |
 | 其他共享值 | `--opacity-disabled`、`--duration-fast`、`--font-code-relative`、`--code-tab-size`、`--scrollbar-thumb`；列表三种控件共用 `--list-control-size`，日期列用 `--list-date-width` |
 
@@ -24,7 +25,7 @@ light 使用浅色画布、白色面板、深色文字和靛蓝操作色；状�
 允许保留的字面量边界：
 
 - `0`、百分比、viewport 单位、`auto`/`none`/`transparent`/`currentColor`、Grid 列位置与 flex 比例表达布局结构；旋转角度表达箭头几何。
-- 状态和优先级 SVG 的 viewBox、路径、圆心、半径、扇形、虚线和属性尺寸分别是 14×14 和 16×16 几何；实际显示尺寸由 CSS token 控制。lucide 路径由库管理。
+- 状态和优先级 SVG 的 viewBox、路径、圆心、半径、扇形、虚线和属性尺寸分别是 14×14 和 16×16 几何；实际显示尺寸由 CSS token 控制。lucide 路径由库管理；agent 标志的 24×24 viewBox 与路径按来源图标包原样复制。
 - CSS media 条件保留 `1024px` 和 `760px`：原生 custom property 不能用于 media 条件。不能为 token 整理改变断点或引入另一套预处理系统。
 - `LabelBadge` 的 `label.color` 与标签编辑器的初始颜色是业务数据，不随主题改写。新增组件颜色不属于此例外。
 - `web/index.html` 的两条 `theme-color` meta 分别用带 media 的 `#f5f6f8` 和 `#08090a`，必须与两个 `--bg` 同步；meta content 不能直接引用 CSS var。这是 HTML 平台边界，其他消费点不可照此复制色值。
@@ -50,6 +51,8 @@ icon_tool='/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Conte
 标签使用 `shared.tsx` 的 `LabelBadge`：颜色仅用于小圆点，文字沿用主题 token；长名称截断，title 显示完整名称和描述，归档标记单独展示。管理页和选择器样式集中在 `app.css` 的标签区块。
 
 界面图标来自 `lucide-react`（ISC 许可）。组件写 `className="icon"`，尺寸和描边由 `.icon` 统一设为 16px、1.5，不在组件上传 `size` 或 `strokeWidth`。现有对应：`List` 是全部 issue 和列表视图，`Columns2` 是看板视图，`Box` 是 Project，`ChevronDown` 是分组折叠，`Search` 是搜索，`Tag` 是 type 筛选，`X` 是清除筛选和关闭弹窗。lucide 在没有 accessible name 时自动加 `aria-hidden`；只有图标的按钮在按钮上写 `aria-label`。
+
+详情属性栏用 `AgentMark.tsx` 标出登记执行的 coding agent：Codex 显示 OpenAI 标志，Claude 显示 Anthropic 标志，放在 16px 圆形白底上，外加 `--border` 细边以便在 light 白色面板上可见。路径数据复制自 `@lobehub/icons-static-svg@1.95.1`（MIT）的 `icons/openai.svg` 与 `icons/anthropic.svg`，没有新增依赖；标志属于各自商标所有者，只用于标识 agent，不用于其他界面。人的头像是 16px 圆形首字母（`personName` 首字符），用 `--button-bg` 底和 `--text-2` 字，不按人着色；详情属性与新建弹窗的 Assignee 共用。
 
 状态图标由 `shared.tsx` 的 `StatusIcon` 在 14×14 网格上自绘，按 14px 显示，不用 lucide，也不从其他项目复制代码。形状写在组件里，`statusColors: Record<Status, string>` 指向 `--status-*` 颜色 token。dark 颜色参照 Linear 的状态配色：todo、in_progress、done 按 Linear 截图取色；triage、backlog 采用 AL-32 指定的颜色；in_review、canceled 的取值没有找到公开来源核实；agent_ready 在 Linear 没有对应状态，用自定的紫色。
 
@@ -102,6 +105,6 @@ Workspace 分组的 Settings 链接直达设置页。Settings 沿用主面板，
 
 看板横向滚动，各状态列内的卡片独立纵向滚动；列宽默认 320px，并按窄视口收缩。卡片使用 8px 圆角和间距，顶部是淡化的编号，状态在标题旁，优先级、Project、标签及 type 位于下方；没有常驻拖动符号，整张卡片仍可拖动。
 
-详情的标题、正文和属性组共用同一画布及纵向滚动区域，属性没有通高边界或独立滚动。桌面属性置于正文右侧，1024px 以下移入主内容流，窄屏保留属性、标签及日期。列表最右侧日期来自 `created_at`，悬停显示完整创建时间；标签/type 徽章带彩色圆点，Project 徽章显示项目 emoji，空 emoji 使用青色 Box。桌面列表徽章高 24px，长名称截断并保留 title。列表在 1024px 以下将元信息和创建日期换到第二行，元信息可换行；760px 以下页面切换单列，侧栏目的地收进可展开 Navigation，列表/看板保留 Project 元信息。任务新建与编辑使用最大 720px 的 `.issue-composer`：标题和说明直接排列，归属及其它属性以可换行的紧凑控件展示；其它弹窗保留共享 `.issue-dialog` 尺寸。
+详情的标题、正文和属性组共用同一画布及纵向滚动区域，属性没有通高边界或独立滚动。属性栏参照 Linear 的详情侧栏，依次是 Properties（Status、Priority、Assignee、Team、Type）、Labels、Project，以及有父票时的 Parent；分组只用 muted 12px 小标题和 24px 间距，没有分隔线，也不显示创建/更新时间。每行是 16px 图标槽、8px 间距加文字，行高 `--detail-property-row-height`（32px），14px 状态图标在槽内左右各留 1px，值文字起点一致。可点击的行（状态、优先级、Assignee、agent 行、Project/Parent 链接）和标签行都比图标槽向左外扩 8px，点击区域左边缘对齐，hover 显示 `--hover`；Assignee 保留原生 select，去掉系统箭头，头像叠在 select 左侧内距上，整行可点。可操作的空值用 muted 操作提示（Set priority、Add label），只读空值写 No type、No project，未指派为 muted Unassigned。登记过的 agent 作为 Assignee 的子行，用 `--border-strong` 的 L 形连线从负责人图标中线连到 agent 标志，点击滚动到执行记录。Team 只显示 emoji（无则 key 缩写）和名称，完整的“名称 (KEY)”放在 title。桌面属性置于正文右侧；1024px 以下移入主内容流，Properties 排成两列（Assignee 与 agent 子行同一格），Labels、Project、Parent 两列换行。列表最右侧日期来自 `created_at`，悬停显示完整创建时间；标签/type 徽章带彩色圆点，Project 徽章显示项目 emoji，空 emoji 使用青色 Box。桌面列表徽章高 24px，长名称截断并保留 title。列表在 1024px 以下将元信息和创建日期换到第二行，元信息可换行；760px 以下页面切换单列，侧栏目的地收进可展开 Navigation，列表/看板保留 Project 元信息。任务新建与编辑使用最大 720px 的 `.issue-composer`：标题和说明直接排列，归属及其它属性以可换行的紧凑控件展示；其它弹窗保留共享 `.issue-dialog` 尺寸。
 
 最小 body 宽度为 320px。改变断点或共享尺寸时检查两侧布局、长标题、Markdown 表格/代码横向滚动与焦点可见性，按 [验证](VALIDATION.md) 分别报告构建与人工结果。
