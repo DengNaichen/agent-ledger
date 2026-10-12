@@ -40,12 +40,38 @@ func TestWorkspaceAuthorizationBrowser(t *testing.T) {
 	if _, err = scoped.CreateTeam(admin, app.CreateTeam{Key: "AL", Name: "InfTask"}); err != nil {
 		t.Fatal(err)
 	}
+	if os.Getenv("INFTASK_TEAM_BROWSER") == "1" {
+		invite, err := scoped.ResetInvite(admin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, subject := range []string{"user-2", "user-3"} {
+			ctx := app.WithIdentity(context.Background(), app.Identity{Subject: subject, Name: subject})
+			if _, err := root.JoinWorkspace(ctx, invite); err != nil {
+				t.Fatal(err)
+			}
+		}
+		owner := app.WithIdentity(context.Background(), app.Identity{Subject: "user-2", Name: "user-2"})
+		if _, err := scoped.CreateTeam(owner, app.CreateTeam{Key: "SEC", Name: "Sensitive", Private: true}); err != nil {
+			t.Fatal(err)
+		}
+		project, err := scoped.CreateProject(owner, "Shared project", "Visible shell", "AL", "SEC")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := scoped.Create(owner, app.CreateIssue{Team: "SEC", Title: "Confidential task", ProjectID: new(project.ID)}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := scoped.Create(owner, app.CreateIssue{Team: "AL", Title: "Public task", ProjectID: new(project.ID)}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	h := f.auth.Handler(httpapi.New(root, webui.Handler(), mcpserver.Handler(root)))
 	server := httptest.NewServer(h)
 	defer server.Close()
 	f.auth.cfg.PublicURL = server.URL
 	cookies := map[string]string{}
-	for _, user := range []string{"user-1", "user-2"} {
+	for _, user := range []string{"user-1", "user-2", "user-3"} {
 		f.token = f.sign(map[string]any{"sub": user, "name": user, "client_id": "harnesskit", "type": "access", "exp": time.Now().Add(time.Hour).Unix()})
 		f.identity = Identity{Subject: user, Name: user, Email: user + "@example.test"}
 		c, state := begin(t, f, "/auth/login?return_to=%2F")

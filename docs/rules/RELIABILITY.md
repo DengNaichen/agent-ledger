@@ -4,7 +4,7 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 9 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 10 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
@@ -21,6 +21,8 @@
 - 迁移 8 新建 `project_teams` 和 Team 反查索引、workspace 插入检查触发器；按已有任务（含已关闭任务）的 Project/Team 集合回填，不重建原表，不改 id、identifier、引用、编号或时间。历史空项目没有关联，保留待归属。从版本 7 升级前备份为 `before-migration-8.db`。旧版程序不维护此关联，不能用旧版继续业务写入；回滚需停服务并恢复升级前备份，此后的写入会丢失。后续重建 `projects` 或 `teams` 时，应先移除引用它们的 `project_teams_workspace`，重建后恢复触发器；模拟重建测试覆盖该依赖。
 
 - 迁移 9 新建 `users`、`workspace_members` 和 `workspace_invites`，不回填任意人的成员身份，不改业务数据。从版本 8 升级前保存 `before-migration-9.db`；已有工作区按 [开发](../DEVELOPMENT.md#初始化已有工作区的管理员) 显式指定初始 Admin。新库直接创建同样的表。旧二进制不会执行成员检查，不能在云端直接回滚到旧二进制继续服务；恢复升级前备份也会移除这些授权状态，必须停服务并评估访问边界。
+
+- 迁移 10 追加 `teams.private`（默认 false），新建 `team_members` 和 workspace 成员一致性插入触发器。保留工作区成员、原任务、团队编号、Project 和关联；不自动生成团队成员或 owner。版本 9 升级前备份 `before-migration-10.db`，新库/升级库结构一致。旧二进制不实施私有团队过滤，不能回滚旧二进制继续云端服务。
 
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 

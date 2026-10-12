@@ -169,7 +169,7 @@ func validatePriority(priority *int) error {
 // issueColumns starts with the internal id, which other tables reference.
 const issueColumns = `id, identifier, title, status, type,
 	(SELECT name FROM projects WHERE projects.id = issues.project_id),
-	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id),
+	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id AND p.team_id IN (` + visibleTeamIDs + `)),
 	updated_at, description, created_at, priority, project_id,
 	COALESCE((SELECT emoji FROM projects WHERE projects.id = issues.project_id), '')`
 
@@ -188,7 +188,8 @@ func (s *Service) teamID(ctx context.Context, key string) (sql.NullInt64, error)
 	if key == "" {
 		return id, nil
 	}
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM teams WHERE workspace_id = ? AND key = ?`, s.workspace, key).Scan(&id)
+	query, args := viewerSQL(ctx, `SELECT id FROM teams WHERE workspace_id = ? AND key = ? AND id IN (`+visibleTeamIDs+`)`, s.workspace, key)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return id, ErrTeamNotFound
 	}
@@ -200,7 +201,8 @@ func (s *Service) issueID(ctx context.Context, identifier string) (sql.NullInt64
 	if identifier == "" {
 		return id, nil
 	}
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(&id)
+	query, args := viewerSQL(ctx, `SELECT id FROM issues WHERE workspace_id = ? AND identifier = ? AND team_id IN (`+visibleTeamIDs+`)`, s.workspace, identifier)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return id, ErrNotFound
 	}
@@ -208,7 +210,8 @@ func (s *Service) issueID(ctx context.Context, identifier string) (sql.NullInt64
 }
 
 func (s *Service) list(ctx context.Context, where string, args ...any) ([]Issue, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE `+where, args...)
+	query, args := viewerSQL(ctx, `SELECT `+issueColumns+` FROM issues WHERE team_id IN (`+visibleTeamIDs+`) AND `+where, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +350,8 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	// insert gives the number back.
 	var teamID int64
 	var number int
-	err = tx.QueryRowContext(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE workspace_id = ? AND key = ? RETURNING id, next_number - 1`, s.workspace, input.Team).Scan(&teamID, &number)
+	query, args := viewerSQL(ctx, `UPDATE teams SET next_number = next_number + 1 WHERE workspace_id = ? AND key = ? AND id IN (`+visibleTeamIDs+`) RETURNING id, next_number - 1`, s.workspace, input.Team)
+	err = tx.QueryRowContext(ctx, query, args...).Scan(&teamID, &number)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, ErrTeamNotFound
 	}
@@ -389,7 +393,8 @@ func (s *Service) Get(ctx context.Context, identifier string) (Issue, error) {
 
 // get also returns the issue's id, which other tables reference.
 func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, error) {
-	issue, id, err := scanIssue(s.db.QueryRowContext(ctx, `SELECT `+issueColumns+` FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier))
+	query, args := viewerSQL(ctx, `SELECT `+issueColumns+` FROM issues WHERE workspace_id = ? AND identifier = ? AND team_id IN (`+visibleTeamIDs+`)`, s.workspace, identifier)
+	issue, id, err := scanIssue(s.db.QueryRowContext(ctx, query, args...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Issue{}, 0, ErrNotFound
 	}
@@ -402,6 +407,9 @@ func (s *Service) get(ctx context.Context, identifier string) (Issue, int64, err
 
 func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) {
 	if err := s.checkAccess(ctx); err != nil {
+		return Issue{}, err
+	}
+	if _, err := s.issueID(ctx, input.Identifier); err != nil {
 		return Issue{}, err
 	}
 	if err := validatePriority(input.Priority); err != nil {

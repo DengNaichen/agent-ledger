@@ -14,6 +14,7 @@ const timestamp = (value: string) => new Date(value).toLocaleString(undefined, {
 
 export function IssueDetail({ catalog, teams, onSaved, identifier, setError, editing, closeEditor }: { catalog: Catalog; teams: Team[]; onSaved: (issue: Issue) => Promise<void>; identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
   const [issue, setIssue] = useState<IssueDetails | null>(null);
+  const [readError, setReadError] = useState("");
   const [comment, setComment] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
@@ -25,9 +26,13 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
     const version = ++loadVersion.current;
     try {
       const loaded = await api<IssueDetails>(apiPath(`/issues/${identifier}`));
-      if (mounted.current && version === loadVersion.current) setIssue(loaded);
+      if (mounted.current && version === loadVersion.current) { setIssue(loaded); setReadError(""); }
     } catch (cause) {
-      if (mounted.current && version === loadVersion.current) setError((cause as Error).message);
+      if (mounted.current && version === loadVersion.current) {
+        const message = (cause as Error).message;
+        setReadError(message);
+        if (message === "issue not found" || message === "workspace access denied") setIssue(null);
+      }
     }
   }
 
@@ -76,7 +81,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
     }
   }
 
-  if (!issue) return <p className="empty">Loading…</p>;
+  if (!issue) return readError ? <div className="scope-message"><RequestError message={readError} /><button className="button" onClick={() => void loadIssue()}>Retry</button></div> : <p className="empty">Loading…</p>;
 
   const relations = [
     { label: "Blocks", issues: issue.blocks },
@@ -102,6 +107,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   return (
     <div className="detail">
       <div className="detail-content">
+        {readError && <RequestError message={readError} />}
         <header className="detail-heading"><h1>{issue.title}</h1></header>
         <section className="detail-properties" aria-label="Properties">
           <h2>Properties</h2>

@@ -138,12 +138,12 @@ func New(service *app.Service) *mcp.Server {
 			teams, err := service.ListTeams(ctx)
 			return nil, teamsOutput{Teams: teams}, err
 		})
-	addTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. start_number makes numbering begin above numbers the team already used elsewhere, such as a team imported from another tracker. Optional emoji chooses a Unicode emoji icon. A key cannot be changed, and teams cannot be renamed or deleted."},
+	addTool(server, &mcp.Tool{Name: "create_team", Description: "Create a team whose issues are numbered <key>-1, <key>-2, and so on. key is 2 to 6 uppercase letters or digits starting with a letter; name is required. start_number makes numbering begin above numbers the team already used elsewhere, such as a team imported from another tracker. Optional emoji chooses a Unicode emoji icon. The creator joins as owner. Optional private restricts content to team members. A key cannot be changed; team deletion is unavailable."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.CreateTeam) (*mcp.CallToolResult, app.Team, error) {
 			team, err := service.CreateTeam(ctx, input)
 			return nil, team, err
 		})
-	addTool(server, &mcp.Tool{Name: "update_team", Description: "Update a team display name or emoji by key; omitted fields are unchanged and empty emoji clears it. Name must be nonempty. Key and numbering cannot be changed."},
+	addTool(server, &mcp.Tool{Name: "update_team", Description: "Update a team display name or emoji by key; omitted fields are unchanged and empty emoji clears it. Name must be nonempty. Only owners or administrators can change private visibility. Key and numbering cannot be changed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input app.UpdateTeam) (*mcp.CallToolResult, app.Team, error) {
 			team, err := service.UpdateTeam(ctx, input)
 			return nil, team, err
@@ -169,6 +169,7 @@ func New(service *app.Service) *mcp.Server {
 			return nil, project, err
 		})
 	addLabelTools(server, service)
+	addTeamAccessTools(server, service)
 	return server
 }
 

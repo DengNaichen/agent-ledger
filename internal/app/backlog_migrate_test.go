@@ -91,6 +91,12 @@ func TestMigrateBacklog(t *testing.T) {
 	// migration 6 appends author, and the entity icon migration appends
 	// emoji to teams and projects, empty for every existing record.
 	after := snapshot(service.db)
+	for i, row := range after["teams"] {
+		if row[len(row)-1] != int64(0) {
+			t.Fatal("existing team became private")
+		}
+		after["teams"][i] = row[:len(row)-1]
+	}
 	for table, added := range map[string]any{"issues": int64(0), "comments": "", "teams": "", "projects": ""} {
 		for i, row := range after[table] {
 			if row[len(row)-1] != added {

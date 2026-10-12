@@ -194,7 +194,15 @@ func (g *GitHubSync) link(ctx context.Context, s *Service, repo string, pull git
 	if !g.linkback || linkbackPostedAt != nil || pull.State != "open" {
 		return nil
 	}
-	body, _ := json.Marshal(map[string]string{"body": fmt.Sprintf("**%s · %s**\n\n<details>\n\n%s\n\n</details>", issue.Identifier, issue.Title, issue.Description)})
+	var private bool
+	if err := s.db.QueryRowContext(ctx, `SELECT t.private FROM issues i JOIN teams t ON t.id=i.team_id WHERE i.workspace_id=? AND i.identifier=?`, s.workspace, identifier).Scan(&private); err != nil {
+		return err
+	}
+	content := fmt.Sprintf("**%s · %s**\n\n<details>\n\n%s\n\n</details>", issue.Identifier, issue.Title, issue.Description)
+	if private {
+		content = fmt.Sprintf("**%s**", issue.Identifier)
+	}
+	body, _ := json.Marshal(map[string]string{"body": content})
 	if err := g.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/issues/%d/comments", repo, pull.Number), bytes.NewReader(body), &struct{}{}); err != nil {
 		return err
 	}

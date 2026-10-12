@@ -45,10 +45,11 @@ func (s *Service) ListProjects(ctx context.Context, includeArchived bool, teamFi
 	if _, err := s.teamID(ctx, team); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji,t.key FROM projects p
- LEFT JOIN project_teams pt ON pt.project_id=p.id LEFT JOIN teams t ON t.id=pt.team_id
- WHERE p.workspace_id=? AND (? OR NOT p.archived) AND (?='' OR EXISTS(SELECT 1 FROM project_teams f JOIN teams ft ON ft.id=f.team_id WHERE f.project_id=p.id AND ft.key=?))
+	query, args := viewerSQL(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji,t.key FROM projects p
+ LEFT JOIN project_teams pt ON pt.project_id=p.id LEFT JOIN teams t ON t.id=pt.team_id AND t.id IN (`+visibleTeamIDs+`)
+ WHERE p.workspace_id=? AND `+visibleProject+` AND (? OR NOT p.archived) AND (?='' OR EXISTS(SELECT 1 FROM project_teams f JOIN teams ft ON ft.id=f.team_id WHERE f.project_id=p.id AND ft.key=?))
  ORDER BY p.name,t.key`, s.workspace, includeArchived, team, team)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,8 @@ func (s *Service) GetProject(ctx context.Context, ref ProjectRef) (Project, erro
 		return Project{}, ErrProjectReference
 	}
 	var p Project
-	err := s.db.QueryRowContext(ctx, `SELECT id,name,description,archived,emoji FROM projects WHERE workspace_id=? AND ((?<>0 AND id=?) OR (?=0 AND name=?))`, s.workspace, ref.ID, ref.ID, ref.ID, ref.Name).Scan(&p.ID, &p.Name, &p.Description, &p.Archived, &p.Emoji)
+	query, args := viewerSQL(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji FROM projects p WHERE p.workspace_id=? AND ((?<>0 AND p.id=?) OR (?=0 AND p.name=?)) AND `+visibleProject, s.workspace, ref.ID, ref.ID, ref.ID, ref.Name)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Archived, &p.Emoji)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, ErrProjectNotFound
 	}
@@ -90,7 +92,8 @@ func (s *Service) GetProject(ctx context.Context, ref ProjectRef) (Project, erro
 		return Project{}, ErrProjectReference
 	}
 	p.Teams = []string{}
-	rows, err := s.db.QueryContext(ctx, `SELECT t.key FROM project_teams pt JOIN teams t ON t.id=pt.team_id WHERE pt.project_id=? ORDER BY t.key`, p.ID)
+	query, args = viewerSQL(ctx, `SELECT t.key FROM project_teams pt JOIN teams t ON t.id=pt.team_id WHERE pt.project_id=? AND t.id IN (`+visibleTeamIDs+`) ORDER BY t.key`, p.ID)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return Project{}, err
 	}
@@ -112,7 +115,8 @@ func (s *Service) replaceProjectTeams(ctx context.Context, tx *sql.Tx, id int64,
 	ids := []int64{}
 	for _, key := range keys {
 		var team int64
-		err := tx.QueryRowContext(ctx, `SELECT id FROM teams WHERE workspace_id=? AND key=?`, s.workspace, key).Scan(&team)
+		query, args := viewerSQL(ctx, `SELECT id FROM teams WHERE workspace_id=? AND key=? AND id IN (`+visibleTeamIDs+`)`, s.workspace, key)
+		err := tx.QueryRowContext(ctx, query, args...).Scan(&team)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrTeamNotFound
 		}
@@ -122,6 +126,25 @@ func (s *Service) replaceProjectTeams(ctx context.Context, tx *sql.Tx, id int64,
 		if !slices.Contains(ids, team) {
 			ids = append(ids, team)
 		}
+	}
+	// A public collaborator only replaces the associations visible to them.
+	query, args := viewerSQL(ctx, `SELECT team_id FROM project_teams WHERE project_id=? AND team_id NOT IN (`+visibleTeamIDs+`)`, id)
+	hidden, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	for hidden.Next() {
+		var team int64
+		if err := hidden.Scan(&team); err != nil {
+			hidden.Close()
+			return err
+		}
+		ids = append(ids, team)
+	}
+	err = hidden.Err()
+	hidden.Close()
+	if err != nil {
+		return err
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT team_id FROM issues WHERE project_id=?`, id)
 	if err != nil {

@@ -66,7 +66,7 @@ export type IssueDetails = Issue & {
 
 export type Project = { id: number; teams: string[]; name: string; description: string; archived: boolean; emoji: string };
 
-export type Team = { key: string; name: string; next_number: number; emoji: string };
+export type Team = { private: boolean; joined: boolean; accessible: boolean; can_manage: boolean; membership_enabled: boolean; key: string; name: string; next_number: number; emoji: string };
 
 export type Workspace = { slug: string; name: string };
 
