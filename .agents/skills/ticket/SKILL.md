@@ -18,6 +18,7 @@ Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: 
 ## Agent participation (repository dogfooding)
 
 - After reading a ticket, a Claude/Codex main agent or subagent starting work calls `delegate_issue` with only `identifier`. The repository `PreToolUse` hook supplies the current agent/session/subagent/hostname context; never guess or manually generate it.
+- A human `assignee` is required before every delegation, including repeated calls. If missing, first assign an authorized human using `list_assignees` and `update_issue`; do not substitute the Agent session or silently invent a responsible person. Clearing the assignee preserves existing delegation history but prevents further calls until someone is assigned.
 - This is independent of status. Register even when the ticket is already `in_progress`; then follow the normal status workflow. Comments, edits, and status changes do not register participation.
 - Each subagent calls for the ticket it actually takes. Shared parent session IDs do not replace the host-provided subagent ID. Repeated calls from the same execution identity are idempotent.
 - These hooks are repository-local, not part of the distributed `inftask` plugin. They require Node 22+ and a trusted hook configuration; see [development](../../../docs/DEVELOPMENT.md#仓库内-agent-接票).

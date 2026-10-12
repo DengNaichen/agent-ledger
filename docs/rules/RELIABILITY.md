@@ -52,7 +52,7 @@ GitHub 同步每轮顺序处理仓库，某仓库失败（包括绑定的 worksp
 
 linkback 先发送 GitHub 评论，再记录本地时间戳。远端成功但响应丢失或本地记录失败时，下轮可能再次评论；当前不保证恰好一次。改变此流程要明确部分成功状态，不能以本地事务声称外部副作用可回滚。
 
-Agent 接票只追加一条来源记录，独立于业务状态，使用单语句 `INSERT ... ON CONFLICT DO NOTHING`；同一 issue/agent/session_id/agent_id/hostname 的并发或重复请求保留首次记录。详情按审计 id 排序，不根据客户端时间或 session ID 推断接手顺序。记录不提供进程状态、租约或排他性。
+Agent 接票只追加一条来源记录，独立于业务状态；在同一事务内检查任务的人类 assignee 非空，再执行 `INSERT ... ON CONFLICT DO NOTHING`，避免校验与写入之间被清空负责人。同一 issue/agent/session_id/agent_id/hostname 的并发或重复请求保留首次记录，但每次调用仍须有负责人。清空负责人不删除历史。详情按审计 id 排序，不根据客户端时间或 session ID 推断接手顺序。记录不提供进程状态、租约或排他性。
 
 ## 备份与恢复
 
