@@ -23,9 +23,10 @@
 .detail-properties .assignee-control select { appearance: none; max-width: 100%; height: var(--detail-property-row-height); padding: 0 var(--space-8) 0 calc(var(--space-8) + var(--icon-size) + var(--space-8)); color: var(--text-2); text-overflow: ellipsis; }
 .detail-properties .assignee-control select:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: calc(-1 * var(--focus-width)); }
 .detail-properties .assignee-empty select { color: var(--muted); }
-.detail-property-child .delegation-link { position: relative; padding-left: calc(var(--space-8) + var(--icon-size) + var(--space-8)); }
-/* The elbow runs from the assignee icon's centre to the agent mark. */
-.detail-property-child .delegation-link::before { position: absolute; top: calc((var(--icon-size) - var(--detail-property-row-height)) / 2); left: calc(var(--space-8) + var(--icon-size) / 2); width: calc(var(--icon-size) / 2 + var(--space-4)); height: var(--detail-property-row-height); border-bottom: var(--border-width) solid var(--border-strong); border-left: var(--border-width) solid var(--border-strong); border-bottom-left-radius: var(--radius); content: ""; }
+/* The agent mark sits under the assignee name, so its hit area starts one inset
+   before the mark and the elbow from the assignee icon stays outside it. */
+.detail-property-child .delegation-link { position: relative; max-width: calc(100% - var(--icon-size)); margin-left: var(--icon-size); }
+.detail-property-child .delegation-link::before { position: absolute; top: calc((var(--icon-size) - var(--detail-property-row-height)) / 2); left: calc(-1 * var(--icon-size) / 2); width: calc(var(--icon-size) / 2 + var(--space-4)); height: calc(var(--detail-property-row-height) - var(--icon-size) / 2); border-bottom: var(--border-width) solid var(--border-strong); border-left: var(--border-width) solid var(--border-strong); border-bottom-left-radius: var(--radius); content: ""; }
 .agent-mark { display: grid; flex: none; place-items: center; width: var(--icon-size); height: var(--icon-size); color: var(--agent-mark-color); background: var(--agent-mark-bg); border-radius: var(--radius-circle); box-shadow: 0 0 0 var(--border-width) var(--border); }
 .agent-mark svg { width: var(--agent-mark-glyph-size); height: var(--agent-mark-glyph-size); }
 .detail-property-labels { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-height: var(--detail-property-row-height); margin-left: calc(-1 * var(--space-8)); }

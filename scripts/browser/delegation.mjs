@@ -73,14 +73,16 @@ try {
       const offset = (element, left) => element.getBoundingClientRect().left + left - element.closest('.detail-property-list > div, .detail-property-group').getBoundingClientRect().left;
       const contentOffset = (element) => { const style = getComputedStyle(element); return offset(element, parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth)); };
       const values = [...document.querySelectorAll('.detail-property-list > div > dd:first-of-type')].map((dd) => contentOffset(dd.querySelector('select') || dd.querySelector('button > span:last-child, dd > span:last-child')));
-      const targets = ['.detail-properties .status-control', '.detail-properties .priority-control', '.detail-properties .assignee-control select', '.detail-properties .delegation-link', '.detail-property-labels > :first-child'];
+      const targets = ['.detail-properties .status-control', '.detail-properties .priority-control', '.detail-properties .assignee-control select', '.detail-property-labels > :first-child'];
       const hits = targets.map((selector) => offset(document.querySelector(selector), 0));
-      return { values, hits };
+      const mark = offset(document.querySelector('.delegation-link .agent-mark'), 0);
+      return { values, hits, mark };
     })()`);
     const spread = (list) => Math.max(...list) - Math.min(...list);
     assert.equal(edges.values.length, 5, "Properties must list status, priority, assignee, team and type");
     assert(spread(edges.values) <= 1, `Property values start at offsets ${edges.values.join(", ")}`);
     assert(spread(edges.hits) <= 1, `Property hit areas start at offsets ${edges.hits.join(", ")}`);
+    assert(Math.abs(edges.mark - edges.values[2]) <= 1, `Agent mark starts at ${edges.mark}, assignee name at ${edges.values[2]}`);
     assert(await evaluate("document.querySelector('.delegation-history').innerText.includes('Subagent')"));
     await screenshot(`delegation-detail-${width}`);
     await evaluate("document.querySelector('.delegation-link').click()");
@@ -98,7 +100,7 @@ try {
     assert(!(await evaluate("document.documentElement.scrollWidth > innerWidth")), "Page overflow");
     assert(!(await evaluate("[...document.querySelectorAll('.delegation-history dd')].some(e => e.scrollWidth > e.clientWidth + 1)")), "Metadata overflow");
   }
-  console.log("PASS: real detail, aligned property values and hit areas, agent row under assignee, main/child history, agent row jump, selectable full session ID, desktop/390px without overflow");
+  console.log("PASS: real detail, aligned property values and hit areas, agent mark under the assignee name, main/child history, agent row jump, selectable full session ID, desktop/390px without overflow");
 } finally {
   socket?.close();
   browser.kill();

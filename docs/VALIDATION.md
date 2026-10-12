@@ -57,7 +57,7 @@ npm --prefix web run test -- IssueDetail.test.tsx
 
 覆盖显式接票与状态/assignee 分离、主/子身份和并发去重、可信 actor、私有团队/workspace/停用、非法输入、存储失败、新旧库结构与升级备份、MCP 严格输入和 REST 详情。hook 合同执行实际仓库 command（含稀疏 PATH、空格路径），只用虚构主/子事件，不联网；不能把它当成真实宿主触发证据。真实两端 smoke 使用隔离客户端配置、临时库和 loopback MCP，记录实际 `PreToolUse` session/agent ID，不复制维护者凭据或向正式实例造数。先用自己的临时服务创建一张测试票，再运行 `node scripts/probe-delegation-hosts.mjs http://127.0.0.1:<端口> <测试票号> <仓库外输出目录>`；需要 PATH 上的 Claude Code/Codex。脚本使用本地模拟模型 API 触发真实主/子 Agent 工具与 hook，不调用真实模型；只在临时 Codex 进程中绕过审核来测试链路，不修改用户信任或审批配置。各工具的日常客户端审批仍由宿主决定。
 
-在同一临时票上先准备主/子和长 ID 记录，再运行 `node scripts/browser/delegation.mjs http://127.0.0.1:<端口> <测试票号> <仓库外截图目录>`，检查真实详情的属性值文字与点击区域在各自属性格内左对齐（相差不超过 1px）、agent 行位于 Assignee 下、点击 agent 行滚动、主/子记录、长 ID 选择和 390px 无溢出；截图与点击结果分别报告。测试票的正文要足够长，详情能纵向滚动，否则滚动检查会超时；造数后的 AL-2 满足。分发插件本票不改，不能宣称插件已获得 hooks。
+在同一临时票上先准备主/子和长 ID 记录，再运行 `node scripts/browser/delegation.mjs http://127.0.0.1:<端口> <测试票号> <仓库外截图目录>`，检查真实详情的属性值文字与点击区域在各自属性格内左对齐（相差不超过 1px）、agent 行位于 Assignee 下且标志与负责人名字对齐、点击 agent 行滚动、主/子记录、长 ID 选择和 390px 无溢出；截图与点击结果分别报告。测试票的正文要足够长，详情能纵向滚动，否则滚动检查会超时；造数后的 AL-2 满足。分发插件本票不改，不能宣称插件已获得 hooks。
 
 ## Skill 校验
 
