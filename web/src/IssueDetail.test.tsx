@@ -150,6 +150,19 @@ it("lays out properties as aligned Linear-style rows", async () => {
   expect(within(properties).getByRole("button", { name: "Add label" })).toBeTruthy();
 });
 
+it.each(["spec", ""])("hides the type row while preserving labels (type=%s)", async (type) => {
+  const label = { id: 1, name: "spec", color: "#6366f1", description: "", group_id: null, archived: false };
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({ ...fixtureIssue, type, labels: [label] }))));
+  render(<IssueDetail {...props} />);
+  const properties = await screen.findByRole("region", { name: "Properties" });
+  const primary = properties.querySelector(".detail-property-list")!;
+  expect(primary.textContent).not.toMatch(/Type|No type|spec/);
+  expect(within(properties).getByText("Team")).toBeTruthy();
+  expect(within(properties).getByText("spec")).toBeTruthy();
+  expect(within(properties).getByRole("heading", { name: "Labels" })).toBeTruthy();
+  expect(within(properties).getByRole("button", { name: "Edit labels" })).toBeTruthy();
+});
+
 it("renders delegation metadata as text, not HTML", async () => {
   const text = "<img src=x onerror=alert(1)>";
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({

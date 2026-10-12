@@ -1,6 +1,6 @@
 import { AssigneeSelect } from "./Assignee";
 import { codingAgentName, personName } from "./shared";
-import { Box, CornerUpLeft, Plus, Tag, Users, X } from "lucide-react";
+import { Box, CornerUpLeft, Plus, Users, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -112,7 +112,6 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
                 {agents.length > 0 && <dd className="detail-property-child"><button className="delegation-link" onClick={() => delegationHistory.current!.scrollIntoView({ block: "start" })}>{agents.map((agent) => <AgentMark key={agent} agent={agent} />)}<span>{agents.map(codingAgentName).join(", ")} · {issue.delegations.length} {issue.delegations.length === 1 ? "execution" : "executions"}</span></button></dd>}
               </div>
               <div><dt className="detail-property-term">Team</dt><dd className="detail-property-row" title={`${team?.name ?? teamKey} (${teamKey})`}><EntityEmoji emoji={team?.emoji ?? ""} teamKey={teamKey} /><span>{team?.name ?? teamKey}</span></dd></div>
-              <div><dt className="detail-property-term">Type</dt><dd className="detail-property-row"><Tag className="icon" />{issue.type ? <span>{issue.type}</span> : <span className="none">No type</span>}</dd></div>
             </dl>
           </div>
           <div className="detail-property-group">
