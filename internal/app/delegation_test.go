@@ -16,6 +16,79 @@ func delegationContext() *ExecutionContext {
 	return &ExecutionContext{Agent: "codex", SessionID: "parent-session", Hostname: "test-host"}
 }
 
+func TestIssueDelegationRequiresAssignee(t *testing.T) {
+	_, s, admin, member := accessFixture(t)
+	if _, err := s.CreateTeam(admin, CreateTeam{Key: "AL", Name: "Alpha"}); err != nil {
+		t.Fatal(err)
+	}
+	issue, err := s.Create(admin, CreateIssue{Team: "AL", Title: "Unassigned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputs := []DelegateIssue{
+		{Identifier: issue.Identifier, ClientContext: delegationContext()},
+		{Identifier: issue.Identifier, ClientContext: delegationContext()},
+	}
+	inputs[1].ClientContext.AgentID = "child"
+	assertRejected := func() {
+		t.Helper()
+		before, err := s.Details(admin, issue.Identifier)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, input := range inputs {
+			t.Run("unassigned/"+input.ClientContext.AgentID+"/"+input.ClientContext.SessionID, func(t *testing.T) {
+				_, err := s.Delegate(member, input)
+				if !errors.Is(err, ErrDelegationRequiresAssignee) {
+					t.Fatalf("expected assignee prerequisite, got %v", err)
+				}
+			})
+		}
+		after, err := s.Details(admin, issue.Identifier)
+		if err != nil || !reflect.DeepEqual(before, after) {
+			t.Fatal("rejected delegation changed issue or history", after, err)
+		}
+	}
+	assertRejected()
+	assignee := "admin"
+	if _, err = s.Update(admin, UpdateIssue{Identifier: issue.Identifier, Assignee: &assignee}); err != nil {
+		t.Fatal(err)
+	}
+	first := make([]Delegation, len(inputs))
+	for i, input := range inputs {
+		first[i], err = s.Delegate(member, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	assignee = ""
+	if _, err = s.Update(admin, UpdateIssue{Identifier: issue.Identifier, Assignee: &assignee}); err != nil {
+		t.Fatal(err)
+	}
+	assertRejected() // Even existing execution identities must have an assignee.
+	for _, input := range inputs {
+		input.ClientContext.SessionID = "new-session"
+	}
+	assertRejected()
+	for _, input := range inputs {
+		input.ClientContext.SessionID = "parent-session"
+	}
+	assignee = "member"
+	if _, err = s.Update(admin, UpdateIssue{Identifier: issue.Identifier, Assignee: &assignee}); err != nil {
+		t.Fatal(err)
+	}
+	for i, input := range inputs {
+		duplicate, err := s.Delegate(admin, input)
+		if err != nil || !reflect.DeepEqual(first[i], duplicate) {
+			t.Fatal("reassignment changed original delegation", duplicate, err)
+		}
+	}
+	detail, err := s.Details(admin, issue.Identifier)
+	if err != nil || len(detail.Delegations) != len(first) {
+		t.Fatal("delegation history was lost", detail, err)
+	}
+}
+
 func TestIssueDelegationLifecycle(t *testing.T) {
 	_, s, admin, member := accessFixture(t)
 	if _, err := s.CreateTeam(admin, CreateTeam{Key: "AL", Name: "Alpha"}); err != nil {
@@ -71,14 +144,10 @@ func TestIssueDelegationLifecycle(t *testing.T) {
 }
 
 func TestIssueDelegationInvalidContext(t *testing.T) {
-	root, err := Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
-	s := inWorkspace(t, root, "default")
+	root, s, admin, _ := accessFixture(t)
+	s = s.ForRequests(false)
 	alTeam(t, s)
-	issue, err := s.Create(context.Background(), CreateIssue{Team: "AL", Title: "Work"})
+	issue, err := s.Create(admin, CreateIssue{Team: "AL", Title: "Work", Assignee: "admin"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +200,7 @@ func TestIssueDelegationAuthorization(t *testing.T) {
 	if _, err := s.CreateTeam(admin, CreateTeam{Key: "SEC", Name: "Secret", Private: true}); err != nil {
 		t.Fatal(err)
 	}
-	secret, err := s.Create(admin, CreateIssue{Team: "SEC", Title: "Secret"})
+	secret, err := s.Create(admin, CreateIssue{Team: "SEC", Title: "Secret", Assignee: "admin"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,14 +247,10 @@ func TestIssueDelegationAuthorization(t *testing.T) {
 }
 
 func TestIssueDelegationConcurrent(t *testing.T) {
-	root, err := Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
-	s := inWorkspace(t, root, "default")
+	_, s, admin, _ := accessFixture(t)
+	s = s.ForRequests(false)
 	alTeam(t, s)
-	issue, err := s.Create(context.Background(), CreateIssue{Team: "AL", Title: "Work"})
+	issue, err := s.Create(admin, CreateIssue{Team: "AL", Title: "Work", Assignee: "admin"})
 	if err != nil {
 		t.Fatal(err)
 	}

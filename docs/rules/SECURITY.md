@@ -51,6 +51,8 @@ GitHub 内部同步仍可处理私有团队，但启用 linkback 时只发送任
 
 `delegate_issue` 复用现有活动成员和任务团队访问，不建立 Agent 独立授权。可信 actor 来自请求上下文，客户端只提供有界的执行来源；输入未知 actor 字段被拒绝。来源不是密码学证明，客户端可以自报，因此不能用 session/agent/hostname 扩大访问权。详情来源信息与任务共用可见性边界。
 
+Service 要求每次委派时任务已有非空人类 assignee，主/子 Agent 和重复调用都遵守；先检查访问边界，再检查负责人，避免泄露不可见任务的归属。此条件不要求调用者等于负责人，不重新校验历史负责人的分配资格，也不自动分配或授予额外权限。清空负责人只阻止后续委派，已有来源记录仍按任务权限可读。
+
 仓库 `PreToolUse` 只匹配已知 InfTask 服务的 `delegate_issue`，保留业务参数并整体覆盖 `client_context`，不读取 token、环境凭据、transcript 或本地会话文件，不自行发请求。缺宿主 session 时拒绝，不输出原始 hook JSON；第三方和其他工具 no-op。明确允许的 hook 决策只针对这一接票操作，服务端仍重新检查权限。记录会外发机器 hostname、session ID 和可选子 Agent ID/profile 到所连接工作区，不能把它们当成无数据外发的纯本地操作。不要在展示或日志中把来源当成身份认证；页面以普通文本展示，不插入 raw HTML。
 
 ## 负责人和审计

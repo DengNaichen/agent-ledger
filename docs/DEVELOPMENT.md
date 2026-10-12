@@ -55,6 +55,8 @@ go run ./cmd/inftask -data "$(mktemp -d)/dev.db" -addr 127.0.0.1:8791
 
 本仓库的 `.codex/hooks.json` 与 `.claude/settings.json` 在 `delegate_issue` 执行前调用 `scripts/delegate-hook.mjs`。需要 Node 22+；`scripts/run-delegate-hook` 保留原 PATH 优先级，再追加已有的常见工具目录，不读取 shell profile、不安装工具。Codex 先信任仓库配置层，再按客户端提示信任该 hook，不在真实配置中绕过信任。工具调用仍须通过宿主的 MCP 审批；hook 的 allow 不替代 Codex 的日常审批策略。
 
+委派前先指定人类 assignee；Service 对每次调用（包括重复登记）检查这一前置条件，未分配时返回 `assign a human assignee before delegating this issue`。清空负责人保留已有来源历史，重新分配后可继续委派。临时 host smoke 的测试票也必须先通过本地 `bootstrap-access` 初始化测试成员，再指定该成员为负责人；不使用维护者身份或真实库造数。
+
 只适配 MCP 名称 `inftask`、`inftask-cloud`、`inftask_cloud` 与 Claude 插件的 `plugin_inftask_inftask` 工具前缀；自定义其他名称不会注入。这不是插件分发：`plugins/inftask/` 和 marketplace 保持原样。仓库主/子 Agent 按 [ticket skill](../.agents/skills/ticket/SKILL.md#agent-participation-repository-dogfooding) 只提供票号；hook 整体替换 `client_context`，不依赖 status、Git remote 或是否为 root agent。
 
 模型端新增工具 schema 需重连 MCP 后加载。生产实例尚未部署该工具时不能宣称接票记录成功；既有任务流程仍可使用。开发和 host smoke 指向隔离 loopback MCP，不向正式实例写入测试委派。hook 不读取 MCP token 或 transcript，不自行联网；元数据随客户端已有认证连接发往当前 InfTask workspace。

@@ -9,6 +9,7 @@ import (
 )
 
 var ErrInvalidDelegation = newError(KindInvalid, "valid agent session context is required; use the repository delegate hook")
+var ErrDelegationRequiresAssignee = newError(KindInvalid, "assign a human assignee before delegating this issue")
 
 // ExecutionContext is client-reported provenance, never an authorization identity.
 type ExecutionContext struct {
@@ -67,15 +68,31 @@ func (s *Service) Delegate(ctx context.Context, input DelegateIssue) (Delegation
 	if !id.Valid {
 		return Delegation{}, ErrNotFound
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Delegation{}, err
+	}
+	defer tx.Rollback()
+	var assigned bool
+	if err = tx.QueryRowContext(ctx, `SELECT assignee_subject IS NOT NULL FROM issues WHERE id=?`, id).Scan(&assigned); err != nil {
+		return Delegation{}, err
+	}
+	if !assigned {
+		return Delegation{}, ErrDelegationRequiresAssignee
+	}
 	c := input.ClientContext
-	_, err = s.db.ExecContext(ctx, `INSERT INTO issue_delegations(issue_id,agent,session_id,agent_id,agent_type,hostname,actor_subject,created_at)
+	_, err = tx.ExecContext(ctx, `INSERT INTO issue_delegations(issue_id,agent,session_id,agent_id,agent_type,hostname,actor_subject,created_at)
  VALUES(?,?,?,?,?,?,NULLIF(?,''),?) ON CONFLICT(issue_id,agent,session_id,agent_id,hostname) DO NOTHING`,
 		id, c.Agent, c.SessionID, c.AgentID, c.AgentType, c.Hostname, requestIdentity(ctx).Subject, s.now().UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return Delegation{}, err
 	}
-	return scanDelegation(s.db.QueryRowContext(ctx, delegationColumns+` WHERE d.issue_id=? AND d.agent=? AND d.session_id=? AND d.agent_id=? AND d.hostname=?`,
+	d, err := scanDelegation(tx.QueryRowContext(ctx, delegationColumns+` WHERE d.issue_id=? AND d.agent=? AND d.session_id=? AND d.agent_id=? AND d.hostname=?`,
 		id, c.Agent, c.SessionID, c.AgentID, c.Hostname))
+	if err != nil {
+		return Delegation{}, err
+	}
+	return d, tx.Commit()
 }
 
 const delegationColumns = `SELECT d.id,d.agent,d.session_id,d.agent_id,d.agent_type,d.hostname,d.created_at,
