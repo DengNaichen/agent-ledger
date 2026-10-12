@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, apiPath, ModalDialog, navigate, RequestError, Workspace, workspaceSlug } from "./shared";
 import { WorkspaceAccess } from "./WorkspaceAccess";
 
+type WorkspaceList = { workspaces: Workspace[] };
+
 export function WorkspaceMenu() {
   const slug = workspaceSlug();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -23,7 +25,8 @@ export function WorkspaceMenu() {
     api<WorkspaceAccess>(apiPath("/access")).then((access) => {
       if (active) setCanRename(!access.enabled || access.role === "admin");
     }, () => { if (active) setCanRename(false); });
-    api<{ workspaces: Workspace[] }>("/api/workspaces").then(({ workspaces }) => {
+    api<WorkspaceList>("/api/workspaces").then(({ workspaces }) => {
+
       if (active) setWorkspaces(workspaces);
     }, (cause: Error) => {
       if (active) setError(cause.message);
@@ -31,7 +34,7 @@ export function WorkspaceMenu() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [open]);
+  }, [open, dialog]);
 
   function showDialog(kind: "create" | "rename") {
     setOpen(false);

@@ -9,9 +9,9 @@ go vet ./...
 make test
 ```
 
-`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，然后运行 `go test ./...`。前端 build 包含 TypeScript 严格类型检查和 Vite 打包，不包含组件测试或浏览器交互测试。仓库没有前端 test/lint script，本地成功不等于已配置自动 Hook。
+`go vet ./...` 不需要先构建前端，原因见 [开发](DEVELOPMENT.md)。`make test` 先构建前端，再运行 Hooks lint、前端单次组件测试和 `go test ./...`。前端 build 只证明 TypeScript 严格类型检查与 Vite 打包；测试独立执行，本地成功不等于已配置自动 Hook。
 
-GitHub Actions（`.github/workflows/ci.yml`）在目标为 `main` 的 pull request 和 push 到 `main` 时，于 `ubuntu-latest` 上安装前端依赖并运行 `go vet ./...` 与 `make test`，结果与本地同一组命令。它不覆盖浏览器 UI 检查和真实 UC、GitHub 集成；是否要求 CI 通过才能合并由分支保护决定，仓库目前未设置。
+GitHub Actions（`.github/workflows/ci.yml`）在目标为 `main` 的 pull request 和 push 到 `main` 时，于 `ubuntu-latest` 上安装前端依赖并运行 `go vet ./...` 与 `make test`，结果与本地同一组命令。它运行 Vitest + React Testing Library 的 jsdom 行为测试，不覆盖真实浏览器布局及 UC、GitHub 集成；是否要求 CI 通过才能合并由分支保护决定，仓库目前未设置。
 
 `git diff --name-only origin/main...HEAD` 列出的文件全部是 `.md` 时，推送前不需要 `go vet ./...` 和 `make test`，改做文档检查：相对链接和路径都存在，文中命令与 Makefile、package manifest 和源码一致。改了 `.agents/skills/` 下的 skill 时，再做 [skill 校验](#skill-校验)。
 
@@ -34,6 +34,17 @@ GitHub Actions（`.github/workflows/ci.yml`）在目标为 `main` 的 pull reque
 | UI、导航、共享外观 | `npm --prefix web run build`，另加 [UI 检查](#ui-检查) | 编译/打包与实际操作分别报告 |
 
 新增测试围绕真实可发生的输入与边界；数据库不变量需要真实隔离 SQLite，不能由 mock 成功推出迁移正确。文档改动检查相对链接、路径、命令与源码的一致性，不为可逆低影响文字编辑添加实现镜像测试。
+
+## 前端定向检查
+
+- `npm --prefix web run typecheck`：TypeScript 严格类型检查。
+- `npm --prefix web run lint`：ESLint 的 `rules-of-hooks`、`exhaustive-deps`，零 warning；使用 Babel 的 TypeScript parser 保留现有 TypeScript 7，不引入第二套 TypeScript 编译器。暂未启用 React Compiler 诊断或全量风格规则。
+- `npm --prefix web run test`：Vitest 单次运行；`npm --prefix web run test:watch` 是本地 watch 入口。复用 Vite plugin，环境为 jsdom，测试用虚构 fetch 响应，不连接数据库或正式实例。
+- `npm --prefix web run test -- IssueDetail.test.tsx`：评论后续草稿、失败保留、旧读取覆盖、跨字段写入、focus 延后刷新和离开页面取消未发出的排队写入。
+- `npm --prefix web run test -- useIssues.test.tsx App.test.tsx`：列表查询隔离、失败回滚、批量标签顺序、设置目录边界、搜索不重读目录、导航保留外壳与重置页面状态。
+- `npm --prefix web run build`：检查输出中独立的 `IssuePage`、`IssuesPage`、`ProjectsPage`、`LabelsPage`、`SettingsPage` chunk。bundle 大小不是浏览器耗时证据。
+
+组件测试不证明虚拟列表几何、原生 dialog、拖动或菜单焦点；仍需下方浏览器验收。
 
 ## Skill 校验
 

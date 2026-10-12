@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, apiPath, ModalDialog, Project, RequestError, Team } from "./shared";
 
-export function ProjectDialog({ project, initialTeam, teams, onClose, onSaved }: { project?: Project; initialTeam: string; teams: Team[]; onClose: () => void; onSaved: (project: Project) => Promise<void> }) {
+export function ProjectDialog({ project, initialTeam, teams, onClose, onSaved }: { project?: Project; initialTeam?: string; teams: Team[]; onClose: () => void; onSaved: (project: Project) => Promise<void> }) {
   const [name, setName] = useState(project?.name ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [selected, setSelected] = useState(project?.teams ?? (initialTeam ? [initialTeam] : []));

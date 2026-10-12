@@ -1,12 +1,16 @@
 import { Box, CalendarDays, Clock, CornerUpLeft, Tag, Users, X } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, ModalDialog, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect, Project, Team, issueTeamKey } from "./shared";
 
-import { Catalog, LabelPicker } from "./Labels";
+import { LabelPicker } from "./Labels";
+import { Catalog } from "./useLabels";
 import { IssueProjectSelect } from "./Dialogs";
 import { LabelBadge } from "./shared";
+
+import { useResource } from "./useResource";
+import { useRequestScope } from "./useRequestScope";
 
 const remarkPlugins = [remarkGfm];
 
@@ -18,65 +22,51 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
   const [posting, setPosting] = useState(false);
-  const loadVersion = useRef(0);
-  const mounted = useRef(true);
+  const requests = useRequestScope(identifier);
+  const path = apiPath(`/issues/${identifier}`);
+  const [loadError, setLoadError] = useState("");
+  const commentRevision = useRef(0);
 
-  async function loadIssue() {
-    const version = ++loadVersion.current;
-    try {
-      const loaded = await api<IssueDetails>(apiPath(`/issues/${identifier}`));
-      if (mounted.current && version === loadVersion.current) setIssue(loaded);
-    } catch (cause) {
-      if (mounted.current && version === loadVersion.current) setError((cause as Error).message);
-    }
-  }
+  const loadIssue = useCallback(async () => {
+    await requests.read(() => api<IssueDetails>(path), (loaded) => {
+      setIssue(loaded); setLoadError("");
+    }, (cause) => setLoadError(cause.message));
+  }, [path, requests]);
 
   useEffect(() => {
-    mounted.current = true;
-    const load = () => void loadIssue();
-    load();
+    void loadIssue();
+    const load = () => { void loadIssue(); };
     window.addEventListener("focus", load);
-    return () => { mounted.current = false; ++loadVersion.current; window.removeEventListener("focus", load); };
-  }, [identifier]);
+    return () => window.removeEventListener("focus", load);
+  }, [loadIssue]);
 
   async function changeStatus(status: Status) {
-    try {
-      const updated = await api<Issue>(apiPath(`/issues/${identifier}/status`), "PATCH", { status });
-      setIssue((current) => ({ ...current!, ...updated }));
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+    await requests.write(identifier, () => api<Issue>(`${path}/status`, "PATCH", { status }),
+      (updated) => setIssue((current) => ({ ...current!, ...updated })), (cause) => setError(cause.message));
   }
 
   async function changePriority(priority: Priority) {
     setSavingPriority(true);
     setError("");
-    try {
-      const updated = await api<Issue>(apiPath(`/issues/${identifier}`), "PATCH", { priority });
-      setIssue((current) => ({ ...current!, ...updated }));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSavingPriority(false);
-    }
+    await requests.write(identifier, () => api<Issue>(path, "PATCH", { priority }), (updated) => {
+      setIssue((current) => ({ ...current!, ...updated })); setSavingPriority(false);
+    }, (cause) => { setError(cause.message); setSavingPriority(false); });
   }
 
   async function postComment(event: FormEvent) {
     event.preventDefault();
+    if (posting) return;
+    const submittedRevision = commentRevision.current;
     setPosting(true);
     setError("");
-    try {
-      const added = await api<Comment>(apiPath(`/issues/${identifier}/comments`), "POST", { body: comment });
+    await requests.write(identifier, () => api<Comment>(`${path}/comments`, "POST", { body: comment }), (added) => {
       setIssue((current) => ({ ...current!, comments: [...current!.comments, added] }));
-      setComment("");
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
+      if (commentRevision.current === submittedRevision) setComment("");
       setPosting(false);
-    }
+    }, (cause) => { setError(cause.message); setPosting(false); });
   }
 
-  if (!issue) return <p className="empty">Loading…</p>;
+  if (!issue) return loadError ? <div className="scope-message"><RequestError message={loadError} /><button className="button" onClick={() => void loadIssue()}>Retry</button></div> : <p className="empty">Loading…</p>;
 
   const relations = [
     { label: "Blocks", issues: issue.blocks },
@@ -102,6 +92,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   return (
     <div className="detail">
       <div className="detail-content">
+        {loadError && <RequestError message={loadError} />}
         <header className="detail-heading"><h1>{issue.title}</h1></header>
         <section className="detail-properties" aria-label="Properties">
           <h2>Properties</h2>
@@ -177,16 +168,15 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
               </article>
             ))}
             <form className="comment-form" onSubmit={postComment}>
-              <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Leave a comment… (Markdown)" aria-label="Comment" required />
+              <textarea rows={3} value={comment} onChange={(event) => { commentRevision.current++; setComment(event.target.value); }} placeholder="Leave a comment… (Markdown)" aria-label="Comment" required />
               <button type="submit" className="button primary" disabled={posting}>{posting ? "Posting…" : "Comment"}</button>
             </form>
           </section>
         </article>
       </div>
 
-      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={loadIssue} />}
-      {editing && <IssueEditor issue={issue} teams={teams} onClose={closeEditor} onSave={async (updated) => {
-        ++loadVersion.current;
+      {labelsOpen && <LabelPicker identifiers={[identifier]} current={issue.labels} catalog={catalog} onClose={() => setLabelsOpen(false)} onChanged={loadIssue} write={(save, success, failure) => requests.write(identifier, save, success, failure)} />}
+      {editing && <IssueEditor issue={issue} teams={teams} onClose={closeEditor} write={(save, success, failure) => requests.write(identifier, save, success, failure)} onSave={async (updated) => {
         setIssue((current) => ({ ...current!, ...updated }));
         closeEditor();
         await Promise.all([loadIssue(), onSaved(updated)]);
@@ -214,33 +204,11 @@ function IssueRows({ issues }: { issues: IssueSummary[] }) {
   );
 }
 
-function IssueEditor({ issue, teams, onClose, onSave }: { issue: Issue; teams: Team[]; onClose: () => void; onSave: (issue: Issue) => Promise<void> }) {
+function IssueEditor({ issue, teams, onClose, onSave, write }: { issue: Issue; teams: Team[]; onClose: () => void; onSave: (issue: Issue) => Promise<void>; write: (save: () => Promise<Issue>, success: (issue: Issue) => void, failure: (cause: Error) => void) => Promise<boolean> }) {
   const team = issueTeamKey(issue.identifier);
   const [projectID, setProjectID] = useState(issue.project_id ?? 0);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
-  const [projectError, setProjectError] = useState("");
-  const mounted = useRef(true);
-  const projectVersion = useRef(0);
-
-  async function loadProjects() {
-    const version = ++projectVersion.current;
-    setLoadingProjects(true);
-    setProjectError("");
-    try {
-      const data = await api<{ projects: Project[] }>(apiPath(`/projects?include_archived=true&team=${encodeURIComponent(team)}`));
-      if (mounted.current && version === projectVersion.current) setProjects(data.projects);
-    } catch (cause) {
-      if (mounted.current && version === projectVersion.current) setProjectError((cause as Error).message);
-    } finally {
-      if (mounted.current && version === projectVersion.current) setLoadingProjects(false);
-    }
-  }
-  useEffect(() => {
-    mounted.current = true;
-    void loadProjects();
-    return () => { mounted.current = false; ++projectVersion.current; };
-  }, []);
+  const { data, loading: loadingProjects, error: projectError, reload: loadProjects } = useResource<{ projects: Project[] }>(apiPath(`/projects?include_archived=true&team=${encodeURIComponent(team)}`), { projects: [] });
+  const projects = data.projects;
   const [title, setTitle] = useState(issue.title);
   const [description, setDescription] = useState(issue.description);
   const [status, setStatus] = useState(issue.status);
@@ -252,14 +220,10 @@ function IssueEditor({ issue, teams, onClose, onSave }: { issue: Issue; teams: T
     event.preventDefault();
     setSaving(true);
     setError("");
-    try {
-      const updated = await api<Issue>(apiPath(`/issues/${issue.identifier}`), "PATCH", { title, description, status, priority, project_id: projectID });
-      if (mounted.current) await onSave(updated);
-    } catch (cause) {
-      if (mounted.current) setError((cause as Error).message);
-    } finally {
-      if (mounted.current) setSaving(false);
-    }
+    const path = apiPath(`/issues/${issue.identifier}`);
+    await write(() => api<Issue>(path, "PATCH", { title, description, status, priority, project_id: projectID }),
+      (updated) => { void onSave(updated); },
+      (cause) => { setError(cause.message); setSaving(false); });
   }
 
   return (

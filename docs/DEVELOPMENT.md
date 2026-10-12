@@ -2,14 +2,14 @@
 
 ## 工具和构建
 
-在工作树根目录运行命令。Go 版本由 `go.mod` 的 `go 1.26.0` 指定；前端使用 npm 和 `web/package-lock.json`，仓库未单独固定 Node 版本。安装所用 Node 必须满足锁定前端依赖的 engines 要求。新工作树先安装前端依赖：
+在工作树根目录运行命令。Go 版本由 `go.mod` 的 `go 1.26.0` 指定；前端使用 npm 和 `web/package-lock.json`，Node 范围由 `web/package.json` 的 engines 指定（`^22.22.2 || ^24.15.0 || >=26`），CI 沿用 Node 22 的最新修订。安装所用 Node 必须满足锁定依赖的 engines 要求。新工作树先安装前端依赖：
 
 ```sh
 npm --prefix web ci
 make build
 ```
 
-`make build` 先执行 `tsc --noEmit && vite build`，生成 `internal/web/dist/app`，再构建根目录二进制 `inftask`。`internal/web/dist/.gitkeep` 受 Git 跟踪，`//go:embed all:dist` 没构建前端时也有匹配，所以 `go vet ./...`、`go build ./...` 和 `go test ./...` 不依赖前端构建；这样构建的服务只有 API 和 MCP 可用，页面返回 404。Vite 只清空 `dist/app`，构建后 `git status` 保持干净。不要修改生成的 dist 或删除 `.gitkeep`，也不要把二进制或 node_modules 提交。
+`make build` 先执行 `tsc --noEmit && vite build`，生成 `internal/web/dist/app`，再构建根目录二进制 `inftask`。`internal/web/dist/.gitkeep` 受 Git 跟踪，`//go:embed all:dist` 没构建前端时也有匹配，所以 `go vet ./...`、`go build ./...` 和 `go test ./...` 不依赖前端构建；这样构建的服务只有 API 和 MCP 可用，页面返回 404。Vite 只清空 `dist/app`，构建输出不进入 Git。前端独立检查入口为 `npm --prefix web run typecheck`、`npm --prefix web run lint`、`npm --prefix web run test`；`make test` 统一执行构建、Hooks lint、组件测试和 Go 测试。不要修改生成的 dist 或删除 `.gitkeep`，也不要把二进制或 node_modules 提交。
 
 ## 隔离运行
 

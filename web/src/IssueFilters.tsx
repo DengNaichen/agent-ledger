@@ -2,7 +2,8 @@ import * as Popover from "@radix-ui/react-popover";
 import { Columns2, List, ListFilter, Search, SlidersHorizontal, Tag, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { ViewMode } from "./IssueViews";
-import { Catalog, emptyLabelFilter, LabelFilter, LabelFilterValue } from "./Labels";
+import { LabelFilter } from "./Labels";
+import { Catalog, emptyLabelFilter, LabelFilterValue } from "./useLabels";
 import { columns, IssueSort, issueTypes, priorities, Priority, Status, StatusIcon, PriorityIcon, Team } from "./shared";
 
 // Filter and display preferences share a compact toolbar above the results.
