@@ -6,10 +6,12 @@ import { TeamAccess } from "./TeamAccess";
 import { MembersSettings } from "./WorkspaceAccess";
 import { api, apiPath, RequestError, Team } from "./shared";
 
+type TeamDirectory = { teams: Team[] };
+
 export function SettingsPage({ teams, loading, onSaved }: { teams: Team[]; loading: boolean; onSaved: (team: Team) => void }) {
   const [directory, setDirectory] = useState<Team[] | null>(null);
   const [directoryError, setDirectoryError] = useState("");
-  useEffect(() => { let active = true; api<{ teams: Team[] }>(apiPath("/team-directory")).then((result) => { if (active) setDirectory(result.teams); }, (cause: Error) => { if (active) setDirectoryError(cause.message); }); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; api<TeamDirectory>(apiPath("/team-directory")).then((result) => { if (active) setDirectory(result.teams); }, (cause: Error) => { if (active) setDirectoryError(cause.message); }); return () => { active = false; }; }, []);
   const entries = directory ?? teams;
   return <><PageHeader actions={<NavLink to={pagePath("/")}>Back to issues</NavLink>}><span>Settings</span></PageHeader><div className="settings-page">
     <MembersSettings />

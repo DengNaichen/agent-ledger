@@ -3,6 +3,8 @@ import { api, apiPath, NavLink, pagePath, RequestError, Team } from "./shared";
 
 type Member = { workspace_admin: boolean; subject: string; name: string; email: string; role: string; status: string };
 
+type MemberDirectory = { members: Member[] };
+
 export function TeamAccess({ team, onChanged }: { team: Team; onChanged: () => void }) {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -18,10 +20,10 @@ export function TeamAccess({ team, onChanged }: { team: Team; onChanged: () => v
     let active = true;
     void (async () => {
       try {
-        const result = await api<{ members: Member[] }>(apiPath(path + "/members"));
+        const result = await api<MemberDirectory>(apiPath(path + "/members"));
         if (active) setMembers(result.members);
         if (team.can_manage) {
-          const workspace = await api<{ members: Member[] }>(apiPath("/members"));
+          const workspace = await api<MemberDirectory>(apiPath("/members"));
           if (active) setCandidates(workspace.members.filter((item) => item.status === "active" && !result.members.some((member) => member.subject === item.subject)));
         }
       } catch (cause) { if (active) setError((cause as Error).message); }
