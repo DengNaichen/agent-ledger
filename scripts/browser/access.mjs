@@ -88,6 +88,22 @@ try {
   await wait(`document.querySelectorAll('.member-row').length === 2`, "member directory");
   if (await evaluate(`!!document.querySelector('.members-settings select') || !!document.querySelector('.invite-settings')`)) throw new Error("Member sees admin controls");
   await screenshot("member");
+  await evaluate(`document.querySelector('.workspace-trigger').click()`);
+  await wait(`[...document.querySelectorAll('button')].some(e => e.textContent.trim() === 'Rename workspace…' && e.disabled)`, "member rename disabled");
+  await click("Create workspace…");
+  await wait(`!!document.querySelector('dialog input[placeholder="my-workspace"]')`, "create workspace dialog");
+  await evaluate(`(() => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    for (const [selector,value] of [['input[placeholder="my-workspace"]','beta'],['input[placeholder="Workspace name"]','Second workspace']]) {
+      const input=document.querySelector('dialog '+selector);set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+  })()`);
+  await click("Create workspace");
+  await wait(`location.pathname === '/beta/' && document.body.innerText.includes('Second workspace')`, "created workspace");
+  await evaluate(`document.querySelector('.workspace-trigger').click()`);
+  await wait(`document.querySelectorAll('.workspace-option').length >= 4`, "workspace switcher");
+  await evaluate(`[...document.querySelectorAll('.workspace-option')].find(e => e.textContent.includes('Access test')).click()`);
+  await wait(`location.pathname === '/alpha/' && !!document.querySelector('.workspace-trigger')`, "workspace switch");
   await login("user-1", "/alpha/settings");
   await wait(`document.querySelectorAll('.member-row').length === 2`, "updated admin directory");
   await evaluate(`document.querySelectorAll('.member-row')[1].querySelector('button').click()`);
@@ -105,7 +121,7 @@ try {
   if (await evaluate(`document.documentElement.scrollWidth > innerWidth`)) throw new Error("Narrow screen overflow");
   await page("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
   await screenshot("admin-dark");
-  console.log("PASS: invite rotation/join, last-admin error, member controls, suspension/restoration, promotion, narrow layout");
+  console.log("PASS: invite rotation/join, last-admin error, member controls, workspace creation/switch, suspension/restoration, promotion, narrow layout");
 } finally {
   socket?.close(); browser.kill(); await exited; fs.rmSync(profile, { recursive: true, force: true });
   fs.writeFileSync(fixturePath + ".done", "done");
