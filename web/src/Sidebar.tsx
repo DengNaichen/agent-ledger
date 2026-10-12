@@ -24,7 +24,7 @@ export function Sidebar({ route, visit, teams, onCreateTeam }: {
         <NavLink className={`nav-item ${route.kind === "labels" ? "active" : ""}`} to={pagePath("/labels")}><Tag className="icon" /><span className="nav-label">Labels</span></NavLink>
         <NavLink className={`nav-item ${route.kind === "settings" ? "active" : ""}`} to={pagePath("/settings")}><Settings className="icon" /><span className="nav-label">Settings</span></NavLink>
         <div className="sidebar-label sidebar-heading"><span>Teams</span><button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={onCreateTeam}><Plus className="icon" /></button></div>
-        {teams.map((item) => <TeamNavigation key={item.key} team={item} route={route} />)}
+        {teams.filter((item) => !item.membership_enabled || item.joined || ("team" in route && route.team === item.key)).map((item) => <TeamNavigation key={item.key} team={item} route={route} />)}
       </nav>
       <Session />
     </aside>

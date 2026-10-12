@@ -342,6 +342,19 @@ CREATE TABLE IF NOT EXISTS workspace_invites (
  digest BLOB NOT NULL UNIQUE
 );
 `,
+	// Team membership and private visibility; existing teams remain public.
+	`ALTER TABLE teams ADD COLUMN private BOOLEAN NOT NULL DEFAULT FALSE CHECK(private IN (0,1));
+
+CREATE TABLE IF NOT EXISTS team_members (
+ team_id INTEGER NOT NULL REFERENCES teams(id),
+ subject TEXT NOT NULL REFERENCES users(subject),
+ role TEXT NOT NULL CHECK(role IN ('member','owner')),
+ PRIMARY KEY(team_id,subject)
+);
+CREATE TRIGGER IF NOT EXISTS team_members_workspace BEFORE INSERT ON team_members
+WHEN NOT EXISTS(SELECT 1 FROM workspace_members m JOIN teams t ON t.workspace_id=m.workspace_id WHERE t.id=NEW.team_id AND m.subject=NEW.subject)
+BEGIN SELECT RAISE(ABORT, 'team member must belong to workspace'); END;
+`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

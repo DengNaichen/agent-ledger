@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS teams (
     name TEXT NOT NULL,
     next_number INTEGER NOT NULL,
     emoji TEXT NOT NULL DEFAULT '',
+    private BOOLEAN NOT NULL DEFAULT FALSE CHECK(private IN (0,1)),
     UNIQUE (workspace_id, key)
 );
 
@@ -175,3 +176,13 @@ CREATE TABLE IF NOT EXISTS workspace_invites (
  workspace_id INTEGER PRIMARY KEY REFERENCES workspaces(id),
  digest BLOB NOT NULL UNIQUE
 );
+
+CREATE TABLE IF NOT EXISTS team_members (
+ team_id INTEGER NOT NULL REFERENCES teams(id),
+ subject TEXT NOT NULL REFERENCES users(subject),
+ role TEXT NOT NULL CHECK(role IN ('member','owner')),
+ PRIMARY KEY(team_id,subject)
+);
+CREATE TRIGGER IF NOT EXISTS team_members_workspace BEFORE INSERT ON team_members
+WHEN NOT EXISTS(SELECT 1 FROM workspace_members m JOIN teams t ON t.workspace_id=m.workspace_id WHERE t.id=NEW.team_id AND m.subject=NEW.subject)
+BEGIN SELECT RAISE(ABORT, 'team member must belong to workspace'); END;

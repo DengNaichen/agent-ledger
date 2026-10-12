@@ -213,7 +213,8 @@ func (s *Service) ChangeIssueLabels(ctx context.Context, input ChangeIssueLabels
 	}
 	for _, identifier := range input.Identifiers {
 		var issueID int64
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM issues WHERE workspace_id = ? AND identifier = ?`, s.workspace, identifier).Scan(&issueID); errors.Is(err, sql.ErrNoRows) {
+		query, args := viewerSQL(ctx, `SELECT id FROM issues WHERE workspace_id = ? AND identifier = ? AND team_id IN (`+visibleTeamIDs+`)`, s.workspace, identifier)
+		if err := tx.QueryRowContext(ctx, query, args...).Scan(&issueID); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
@@ -278,6 +279,14 @@ func (s *Service) MergeLabels(ctx context.Context, input MergeLabels) error {
 	}
 	if source.GroupID != target.GroupID || target.Archived {
 		return fmt.Errorf("%w: target must be active and in the same group", ErrInvalidLabel)
+	}
+	query, args := viewerSQL(ctx, `SELECT EXISTS(SELECT 1 FROM issue_labels il JOIN issues i ON i.id=il.issue_id WHERE il.label_id=? AND i.team_id NOT IN (`+visibleTeamIDs+`))`, source.ID)
+	var hidden bool
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&hidden); err != nil {
+		return err
+	}
+	if hidden {
+		return ErrAccessDenied
 	}
 	// Remove the source associations before inserting the replacement to respect exclusivity.
 	rows, err := tx.QueryContext(ctx, `SELECT issue_id FROM issue_labels WHERE label_id = ?`, source.ID)

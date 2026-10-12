@@ -126,7 +126,7 @@ func TestMigrateEntityEmoji(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reconstruct the previously delivered schema, without the new columns.
-	old := strings.ReplaceAll(schema, "    emoji TEXT NOT NULL DEFAULT '',\n", "")
+	old := strings.ReplaceAll(strings.ReplaceAll(schema, "    private BOOLEAN NOT NULL DEFAULT FALSE CHECK(private IN (0,1)),\n", ""), "    emoji TEXT NOT NULL DEFAULT '',\n", "")
 	if _, err := db.Exec(old); err != nil {
 		t.Fatal(err)
 	}

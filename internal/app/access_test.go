@@ -212,7 +212,7 @@ func TestWorkspaceAccessUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Recreate the previous shape, preserving real issue data.
-	if _, err = s.db.Exec(fmt.Sprintf(`DROP TABLE workspace_invites; DROP TABLE workspace_members; DROP TABLE users; PRAGMA user_version=%d`, len(migrations)-1)); err != nil {
+	if _, err = s.db.Exec(fmt.Sprintf(`DROP TRIGGER team_members_workspace; DROP TABLE team_members; ALTER TABLE teams DROP COLUMN private; DROP TABLE workspace_invites; DROP TABLE workspace_members; DROP TABLE users; PRAGMA user_version=%d`, 8)); err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
@@ -229,7 +229,7 @@ func TestWorkspaceAccessUpgrade(t *testing.T) {
 	if !reflect.DeepEqual(structure(t, s.db), structure(t, fresh.db)) {
 		t.Fatal("fresh and upgraded schemas differ")
 	}
-	if _, err = os.Stat(filepath.Join(dir, "backups", fmt.Sprintf("before-migration-%d.db", len(migrations)))); err != nil {
+	if _, err = os.Stat(filepath.Join(dir, "backups", "before-migration-9.db")); err != nil {
 		t.Fatal(err)
 	}
 	admin := WithIdentity(context.Background(), Identity{Subject: "initial"})

@@ -200,6 +200,26 @@ func TestGitHubSyncContinuesPastFailingRepository(t *testing.T) {
 	}
 }
 
+func TestPrivateTeamGitHubLinkback(t *testing.T) {
+	fake := &fakeGitHub{pulls: map[string][]map[string]any{"owner/app": {pull(11, "al-1-work", "Work", "open", "2026-10-01T12:00:00Z")}}}
+	service, sync := newTestSync(t, fake, "owner/app")
+	ctx := context.Background()
+	if _, err := service.UpdateTeam(ctx, UpdateTeam{Key: "AL", Private: new(true)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Create(ctx, CreateIssue{Team: "AL", Title: "Confidential title", Description: "Confidential body", Status: new(StatusInProgress)}); err != nil {
+		t.Fatal(err)
+	}
+	sync.syncAll(ctx)
+	if len(fake.comments) != 1 || fake.comments[0] != "owner/app#11 **AL-1**" {
+		t.Fatal(fake.comments)
+	}
+	issue, err := service.Get(ctx, "AL-1")
+	if err != nil || issue.Status != StatusInReview {
+		t.Fatal(issue, err)
+	}
+}
+
 func TestGitHubNotificationsCoalesce(t *testing.T) {
 	g := NewGitHubSync(&Service{}, []GitHubRepo{{Workspace: "default", Repo: "team/repo"}}, "", false)
 	if g.Notify("other/repo") || len(g.wake) != 0 {

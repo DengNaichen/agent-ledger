@@ -75,6 +75,7 @@ export function IssueProjectSelect({ projects, team, value, onChange, disabled, 
 }
 
 export function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (team: Team) => void }) {
+  const [privateTeam, setPrivateTeam] = useState(false);
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("");
@@ -90,7 +91,7 @@ export function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; o
     setSaving(true);
     setError("");
     try {
-      const created = await api<Team>(apiPath("/teams"), "POST", { key, name, emoji, start_number: startNumber ? Number(startNumber) : undefined });
+      const created = await api<Team>(apiPath("/teams"), "POST", { key, name, emoji, private: privateTeam, start_number: startNumber ? Number(startNumber) : undefined });
       if (mounted.current) onCreate(created);
     } catch (cause) {
       setError((cause as Error).message);
@@ -111,6 +112,7 @@ export function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; o
         <label>Name<input disabled={saving} value={name} onChange={(event) => setName(event.target.value)} placeholder="Team name" required /></label>
         <label>Start number<input disabled={saving} type="number" min={1} step={1} value={startNumber} onChange={(event) => setStartNumber(event.target.value)} placeholder="1" /></label>
         <p className="dialog-hint">Issues are numbered {key || "KEY"}-{startNumber || "1"}, {key || "KEY"}-{startNumber ? Number(startNumber) + 1 : "2"}, and so on. Set a start number above numbers the team already used elsewhere. The key cannot be changed later.</p>
+        <label><input type="checkbox" checked={privateTeam} onChange={(event) => setPrivateTeam(event.target.checked)} disabled={saving} />Make team private</label>
         {error && <RequestError message={error} />}
         <footer>
           <button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>

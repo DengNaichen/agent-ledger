@@ -2,14 +2,20 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { PageHeader } from "./PageHeader";
 import { NavLink, pagePath } from "./shared";
 import { EmojiPicker } from "./EmojiPicker";
+import { TeamAccess } from "./TeamAccess";
 import { MembersSettings } from "./WorkspaceAccess";
 import { api, apiPath, RequestError, Team } from "./shared";
 
 export function SettingsPage({ teams, loading, onSaved }: { teams: Team[]; loading: boolean; onSaved: (team: Team) => void }) {
+  const [directory, setDirectory] = useState<Team[] | null>(null);
+  const [directoryError, setDirectoryError] = useState("");
+  useEffect(() => { let active = true; api<{ teams: Team[] }>(apiPath("/team-directory")).then((result) => { if (active) setDirectory(result.teams); }, (cause: Error) => { if (active) setDirectoryError(cause.message); }); return () => { active = false; }; }, []);
+  const entries = directory ?? teams;
   return <><PageHeader actions={<NavLink to={pagePath("/")}>Back to issues</NavLink>}><span>Settings</span></PageHeader><div className="settings-page">
     <MembersSettings />
     <header className="settings-heading"><h1>Teams</h1><p>Manage team names and icons in this workspace.</p></header>
-    {teams.length === 0 ? <p className="empty">{loading ? "Loading teams…" : "No teams yet. Use + beside Teams to create one."}</p> : teams.map((team) => <TeamSettings key={team.key} team={team} onSaved={onSaved} />)}
+    {directoryError && <RequestError message={directoryError} />}
+    {entries.length === 0 ? <p className="empty">{loading ? "Loading teams…" : "No teams yet. Use + beside Teams to create one."}</p> : entries.map((team) => <TeamSettings key={team.key} team={team} onSaved={(updated) => { setDirectory((items) => (items ?? teams).map((item) => item.key === updated.key ? updated : item)); onSaved(updated); }} />)}
   </div></>;
 }
 
@@ -54,6 +60,7 @@ function TeamSettings({ team, onSaved }: { team: Team; onSaved: (team: Team) => 
       {error && <RequestError message={error} />}
       <footer><span role="status">{saved ? "Changes saved." : dirty ? "Unsaved changes" : ""}</span><button type="button" className="button" disabled={saving || !dirty} onClick={() => { setDraft(null); setError(""); setSaved(false); }}>Reset</button><button type="submit" className="button primary" disabled={saving || !dirty || !value.name.trim()}>{saving ? "Saving…" : "Save changes"}</button></footer>
     </form>
+    {team.membership_enabled && <TeamAccess team={team} onChanged={() => window.location.reload()} />}
   </section>;
 }
 

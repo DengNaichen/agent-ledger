@@ -133,6 +133,9 @@ func TestMigrateProjectTeams(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.db.Exec(`ALTER TABLE teams DROP COLUMN private`); err != nil {
+		t.Fatal(err)
+	}
 	backups := t.TempDir()
 	if err := migrate(s.db, backups, migrations); err != nil {
 		t.Fatal(err)

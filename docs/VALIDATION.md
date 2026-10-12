@@ -143,3 +143,23 @@ node scripts/browser/access.mjs <临时目录>/fixture.json <临时目录>/scree
 ```
 
 脚本在真实嵌入页面、临时数据库、伪 UC 的两个真实登录 Cookie 上操作：最后 Admin 错误、重置链接、无效/有效邀请接受、Member 隐藏管理按钮、停用/恢复和提升角色；检查 390px 无横向溢出，保存桌面错误态、Member、窄屏和深色截图。脚本结束写 `.done` 让 fixture 退出，fixture 最长等待十分钟。重复运行使用新的临时目录；fixture JSON 含临时凭据，不提交、不用于正式实例。
+
+## 私有团队权限
+
+`TestPrivateTeamAccess` 先在原实现上添加，以 JSON 输入 private=true 创建团队；原实现忽略此字段，未加入用户可读列表/Get/Details，观察到真实 FAIL 后才实现过滤。
+
+```sh
+go test ./internal/app -run 'TestPrivateTeamAccess|TestTeamMembership|TestPrivateProjectVisibility|TestTeamAccessUpgrade|TestPrivateTeamGitHubLinkback' -count=1
+go test ./internal/ucauth -run TestPrivateTeamAuthorization -count=1
+```
+
+后者使用真实伪 UC bearer 与 MCP SDK 会话，同时验证 REST 与 MCP 在管理员加入前、确认加入后和退出后的结果。其余测试覆盖可见性矩阵、Project 隐藏关联保留、父子关系、limit 前过滤、不可见写入/批量回滚、旧数据与成员升级保留、新旧 schema 一致，以及 GitHub 不外发私有标题/说明。
+
+使用新的临时目录，先构建页面，在两个终端启动/验证：
+
+```sh
+INFTASK_TEAM_BROWSER=1 INFTASK_ACCESS_BROWSER=<临时目录>/fixture.json go test ./internal/ucauth -run TestWorkspaceAuthorizationBrowser -count=1 -timeout=11m
+node scripts/browser/access.mjs <临时目录>/fixture.json <截图目录> teams
+```
+
+三个伪 UC Cookie 分别代表 Admin、私有团队 owner 和普通 Member；覆盖公开加入/退出、私有直达拒绝、owner 添加成员、成员退出、管理员确认加入、转公开，以及 390px 截图。环境与凭据清理要求同上，不验证真实 UC 或生产部署。
