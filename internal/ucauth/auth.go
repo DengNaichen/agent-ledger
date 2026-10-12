@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/DengNaichen/inftask/internal/app"
 	"io"
 	"net/http"
 	"net/url"
@@ -126,18 +127,18 @@ func (a *Auth) protect(next http.Handler) http.Handler {
 		if header := r.Header.Get("Authorization"); header != "" {
 			fields := strings.Fields(header)
 			if len(fields) == 2 && strings.EqualFold(fields[0], "Bearer") {
-				if _, err := a.verifier.VerifyToken(fields[1]); err == nil {
-					next.ServeHTTP(w, r)
+				if user, err := a.verifier.VerifyToken(fields[1]); err == nil {
+					next.ServeHTTP(w, r.WithContext(app.WithIdentity(r.Context(), app.Identity{Subject: user.Subject, Name: user.Name, Email: user.Email})))
 					return
 				}
 			}
 		} else if !mcpPath.MatchString(r.URL.Path) {
-			if _, err := a.current(r); err == nil {
+			if user, err := a.current(r); err == nil {
 				if unsafe(r.Method) && r.Header.Get("Origin") != a.cfg.PublicURL {
 					fail(w, 403, "origin_forbidden")
 					return
 				}
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r.WithContext(app.WithIdentity(r.Context(), app.Identity{Subject: user.Subject, Name: user.Name, Email: user.Email})))
 				return
 			} else if errors.Is(err, errSessionUnavailable) {
 				fail(w, 503, "temporarily_unavailable")

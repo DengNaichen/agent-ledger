@@ -16,6 +16,7 @@ const (
 	KindNotFound
 	KindInvalid
 	KindConflict
+	KindForbidden
 )
 
 // kindError is an error of a Kind. Each Err variable is a distinct pointer, so

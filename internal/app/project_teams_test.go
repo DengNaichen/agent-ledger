@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -118,7 +117,7 @@ func TestMigrateProjectTeams(t *testing.T) {
 	if _, err := s.db.Exec(`DROP TABLE IF EXISTS project_teams; INSERT INTO projects(workspace_id,name,description,emoji) VALUES (1,'Used','Outcome','🚀'),(1,'Empty','',''); INSERT INTO issues(workspace_id,identifier,team_id,number,title,status,project_id,created_at,updated_at) VALUES (1,'AL-9',1,9,'Keep','done',1,'created','updated'); UPDATE teams SET next_number=10;`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, len(migrations)-1)); err != nil {
+	if _, err := s.db.Exec(`PRAGMA user_version = 7`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(`INSERT INTO teams(id,workspace_id,key,name,next_number) VALUES(2,1,'BB','B',8);
@@ -146,7 +145,7 @@ func TestMigrateProjectTeams(t *testing.T) {
 	if !reflect.DeepEqual(structure(t, s.db), structure(t, fresh.db)) {
 		t.Fatal("fresh and upgraded schemas differ")
 	}
-	if _, err := os.Stat(filepath.Join(backups, fmt.Sprintf("before-migration-%d.db", len(migrations)))); err != nil {
+	if _, err := os.Stat(filepath.Join(backups, "before-migration-8.db")); err != nil {
 		t.Fatal(err)
 	}
 	var integrity string
