@@ -25,6 +25,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "import-linear" {
 		os.Exit(importLinear(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "bootstrap-access" {
+		os.Exit(bootstrapAccess(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	data := flag.String("data", "inftask.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8787", "HTTP listen address")
 	var repos []app.GitHubRepo
@@ -55,7 +58,8 @@ func main() {
 	defer service.Close()
 
 	go backupDaily(ctx, service)
-	handler := httpapi.New(service, webui.Handler(), mcpserver.Handler(service))
+	requests := service.ForRequests(auth != nil)
+	handler := httpapi.New(requests, webui.Handler(), mcpserver.Handler(requests))
 	if auth != nil {
 		handler = auth.Handler(handler)
 	}

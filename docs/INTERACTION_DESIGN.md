@@ -4,7 +4,7 @@
 
 `shared.tsx` 用 History API 和 popstate 导航；页面都在 `/<slug>/` 下，路径第一段选 workspace，详情路径是 `/<slug>/issue/<identifier>`，Go 静态处理器提供直达路由回退。`/` 读取 workspace 列表，用 `replaceState` 换成按 slug 排序的第一个 `/<slug>/`；没有 workspace 时显示用 `POST /api/workspaces` 创建的提示。不存在的 slug 显示接口返回的 workspace not found 错误。`App.tsx` 的 `WorkspaceView` 持有当前路径、列表/看板及排序偏好；`ScopeView` 每次 History 导航重新挂载，将筛选、批量选择、折叠与弹窗留在当前目的地。刷新恢复 URL 范围，但不恢复临时筛选或视图偏好。
 
-左上角 `WorkspaceMenu.tsx` 显示当前 workspace 名称与箭头，菜单按 slug 列出全部 workspace、标记当前项，提供 Create workspace… 与 Rename workspace…。切换及创建成功都进入对应 `/<slug>/`，组件重新挂载并重置原 workspace 的筛选、选择和视图；浏览器前进后退按 URL 恢复 workspace。创建填 slug 和名称，改名只填名称；保存期间禁用输入和关闭，浏览器导航离开不会取消已发送的写入，但旧响应不会再导航或更新弹窗。成功后显示服务端返回的名称，失败保留输入并显示 role=alert。菜单重新打开时重读列表，加载失败可关闭重开；菜单及弹窗支持 Tab/Enter 和 Escape，关闭后焦点回到左上角入口。窄屏保留该入口。
+左上角 `WorkspaceMenu.tsx` 显示当前 workspace 名称与箭头，菜单按 slug 列出当前用户有权访问的 workspace、标记当前项，提供 Create workspace… 与 Rename workspace…；云端改名只向 Admin 启用。切换及创建成功都进入对应 `/<slug>/`，组件重新挂载并重置原 workspace 的筛选、选择和视图；浏览器前进后退按 URL 恢复 workspace。创建填 slug 和名称，改名只填名称；保存期间禁用输入和关闭，浏览器导航离开不会取消已发送的写入，但旧响应不会再导航或更新弹窗。成功后显示服务端返回的名称，失败保留输入并显示 role=alert。菜单重新打开时重读列表，加载失败可关闭重开；菜单及弹窗支持 Tab/Enter 和 Escape，关闭后焦点回到左上角入口。窄屏保留该入口。
 
 Sidebar 的 Workspace 有 All issues、All projects、Labels 与 Settings；每个 Team 有 Issues、Projects，Team emoji 只作展示。点击 Team 标题行（含右侧箭头）展开/收起自己的子导航，不改变 URL；各 Team 默认展开并独立折叠，状态只保存在当前 Sidebar 挂载期间。标题是带 aria-expanded、aria-controls 的原生按钮，支持 Tab、Enter、Space；收起后的子链接不进入 Tab 顺序。Settings 直接进入正式页面，不经过浮窗菜单。侧栏不再显示状态或局部结果数；状态筛选收进内容区的 Filter，当前结果数留在任务工具栏。窄屏用 Navigation 按钮展开同一组目的地，选择后收起。Teams 旁的 “+” 沿用 Create team 弹窗，成功后进入新 Team 的 Issues 范围，失败保留输入并显示 role=alert。
 
@@ -76,3 +76,9 @@ priority 独立于 status/type/标签。列表、看板及详情的选择器逐�
 ## 云端登录会话
 
 启用 UC 时，未登录的页面访问跳到 UC，成功后回到原始相对路径；API 过期返回 401 而不是登录 HTML。侧栏底部显示账户入口，弹层内展示当前用户及 Sign out；退出失败保留页面并显示错误，成功进入已退出页。API 报会话过期时不卸载编辑器，在新标签页重新登录，返回时按既有 focus 刷新规则加载；不保证跨刷新保留草稿。
+
+## 工作区成员与邀请
+
+Settings → Members 显示成员目录、角色和停用状态；Admin 可调整角色、Suspend/Restore 并生成邀请，Member 只读目录。操作等待服务端成功后更新，失败显示 role=alert；不能移除最后一个活动 Admin。修改自己的成员权限成功后刷新页面以重新读取访问权。无 UC 的本地开发隐藏成员管理。
+
+邀请链接在生成成功后显示，只读输入框可全选复制；再次生成使旧链接失效，页面不会在刷新后重显旧 token。`/auth/join?token=...` 先通过 UC 登录，再主动 Accept invitation；成功进入工作区，失败保留页面并显示原因。根目录没有可访问工作区时提供创建入口，并提示向管理员索取邀请，不显示内部 API 操作说明。

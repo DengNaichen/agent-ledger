@@ -4,7 +4,9 @@
 
 `cmd/inftask/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务；第一个参数是 `import-linear` 时改为运行 `cmd/inftask/import.go` 的一次性导入，它调用 `internal/app/linear.go` 的 `ImportLinear`，不启动服务。配置 UC 时由 `internal/ucauth` 包裹页面、REST 和 MCP，承接网页会话与 MCP OAuth；单独挂载验签的 webhook 入口。`internal/httpapi` 挂载 `/api`、每个 workspace 的 `/w/<slug>/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
 
-workspace 只做分组：team、Project、标签和 PR 记录各属于一个 workspace，没有成员和权限。`/api/workspaces` 列出、新建和改名 workspace；其余 REST 路由在 `/api/w/<slug>/` 下，`httpapi` 先用 `Service.InWorkspace` 按路径里的 slug 取得只读写该 workspace 的 Service，slug 不存在时返回 404。MCP 每个请求同样按路径绑定 workspace，工具参数不含 workspace。`Service` 的查询都带 `workspace_id`，parent、关系、Project 和标签只能指向同一 workspace 的记录，别的 workspace 的记录按不存在处理；标签与所属组的 workspace 一致由复合外键保证。
+workspace 是云端成员访问边界：team、Project、标签和 PR 记录各属于一个 workspace。UC 将验证过的 sub/name/email 写入请求上下文；`app/access.go` 维护用户、Admin/Member 成员及 active/suspended 状态。`/api/workspaces` 只列当前用户的活动成员工作区；新建者成为 Admin，改名要求 Admin。其余 REST 路由在 `/api/w/<slug>/` 下，`Service.InWorkspace` 绑定范围并检查成员，slug 不存在返回 404，无访问权返回 403。MCP 每个请求按同一规则绑定，业务方法也重新检查，不能靠缓存的 Service 绕过停用。任务、团队、项目和标签在工作区内仍向所有活动成员开放。
+
+`main.go` 向 HTTP/MCP 传 `Service.ForRequests(auth != nil)`；云端缺身份拒绝访问，原始 Service 留给后台同步与本地 CLI。无 UC 的 loopback 开发保留业务操作，但不开放云端成员管理。`users.subject` 来自 UC，不接受请求正文指定操作者。邀请以随机 token 的摘要存储、可重置复用，只加入 Member；成员变更的最后一个活动 Admin 检查与更新在同一事务。已有工作区通过 `bootstrap-access` 显式初始化，见 [开发](DEVELOPMENT.md#初始化已有工作区的管理员)。业务查询继续带 `workspace_id`，跨 workspace 的引用按不存在处理。
 
 `internal/app/service.go` 只持有 `Service` 及其单连接 SQLite 的打开和关闭；模型、输入校验和业务操作按领域放在 `workspace.go`、`issue.go`、`project.go`、`team.go`，导出的错误集中在 `errors.go` 并各带类别（找不到、输入非法、冲突），HTTP 按类别选状态码。建票在同一事务里把 team 的 `next_number` 加一并插入 issue。Service 直接执行 SQL，没有 repository 或 mock 分层。`schema.sql` 描述当前表结构，`migrate.go` 处理已有数据库；SQLite 是持久状态来源，浏览器状态只是页面副本。
 
@@ -42,6 +44,6 @@ REST 提供项目 POST、GET、PATCH，当前名称入口为 `/projects/{name}`�
 
 `internal/app/github.go` 轮询配置的 GitHub repository，每个仓库由 `-github-repo <slug>=<owner>/<name>` 绑定一个 workspace，每轮按该 workspace 当时的 team key 从 PR 分支名和标题识别 issue identifier，记录 PR（带 workspace）并自动推进状态；PR 描述不参与匹配。启用 linkback 时还会向 GitHub 评论写入 ticket 内容，见 [安全边界](rules/SECURITY.md)。同步游标和 PR 记录持久化在 SQLite，不能视作纯浏览器功能。`POST /webhooks/github` 只验签并通知同一个串行 worker 读取最新状态；重复通知合并，轮询仍补漏。
 
-云端仍为单实例 SQLite；workspace 只分组，所有登录用户都能看到并修改全部 workspace，没有 tenant 隔离。UC 凭据通过配置注入，网页会话由 `internal/ucauth/sessions.go` 在数据库旁的加密 `.sessions` 文件中原子持久化，access 到期时按需向 UC 续期；登录流程和 MCP 短期授权码仍在进程内存中，重启后失效；部署入口见 [开发](DEVELOPMENT.md#云端团队部署)。
+云端仍为单实例 SQLite，工作区成员权限在应用层实施，不提供独立数据库隔离。UC 凭据通过配置注入，网页会话由 `internal/ucauth/sessions.go` 在数据库旁的加密 `.sessions` 文件中原子持久化，access 到期时按需向 UC 续期；登录流程和 MCP 短期授权码仍在进程内存中，重启后失效；部署入口见 [开发](DEVELOPMENT.md#云端团队部署)。
 
 选择检查见 [验证](VALIDATION.md)，本地启动与构建顺序见 [开发](DEVELOPMENT.md)。

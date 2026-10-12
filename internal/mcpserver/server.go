@@ -67,6 +67,10 @@ func Handler(service *app.Service) http.Handler {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		if app.KindOf(err) == app.KindForbidden {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
 		if err != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return

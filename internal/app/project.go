@@ -35,6 +35,9 @@ type UpdateProject struct {
 }
 
 func (s *Service) ListProjects(ctx context.Context, includeArchived bool, teamFilter ...string) ([]Project, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return nil, err
+	}
 	team := ""
 	if len(teamFilter) > 0 {
 		team = teamFilter[0]
@@ -69,6 +72,9 @@ func (s *Service) ListProjects(ctx context.Context, includeArchived bool, teamFi
 }
 
 func (s *Service) GetProject(ctx context.Context, ref ProjectRef) (Project, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Project{}, err
+	}
 	if ref.ID < 0 || (ref.ID == 0 && ref.Name == "") {
 		return Project{}, ErrProjectReference
 	}
@@ -149,6 +155,9 @@ func (s *Service) replaceProjectTeams(ctx context.Context, tx *sql.Tx, id int64,
 }
 
 func (s *Service) CreateProject(ctx context.Context, name, description string, teams ...string) (Project, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Project{}, err
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Project{}, ErrInvalidName
@@ -179,6 +188,9 @@ func (s *Service) CreateProject(ctx context.Context, name, description string, t
 }
 
 func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Project, error) {
+	if err := s.checkAccess(ctx); err != nil {
+		return Project{}, err
+	}
 	if input.NewName != nil {
 		name := strings.TrimSpace(*input.NewName)
 		if name == "" {

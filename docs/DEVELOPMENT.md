@@ -82,7 +82,19 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.dengnaichen.in
 
 ## 云端团队部署
 
-第一版是一个进程、一份 SQLite、一个共享看板。所有通过配置的 InfOne UC 登录的用户都能看到全部 workspace，并有现有全部操作权限；不复用 HarnessKit workspace membership。网页登录与远程 MCP 参考 `go-backend/backend/internal/transport/httpapi/web_auth.go`、`mcp_oauth.go`，但使用 InfTask 独立的 cookie 和进程内状态。部署平台与域名由运维提供。
+云端是一个进程、一份 SQLite。InfOne UC 负责确认人的身份，InfTask 自己保存工作区成员和 Admin/Member 角色，不复用 HarnessKit workspace membership。UC 登录成功不自动加入已有 workspace；通过 Settings → Members 中管理员生成的邀请链接加入。成员被停用后，即使 UC token 或网页登录仍有效，后续工作区请求也返回 403。
+
+### 初始化已有工作区的管理员
+
+升级先停止业务写入、备份数据库，再用新二进制显式指定已有工作区与已核实的 UC `sub`。`sub` 可由对应用户已登录的 `/auth/session` 响应核实，不能用 email 或 display name 替代：
+
+```sh
+./inftask bootstrap-access -data <已有数据库路径> -workspace default -subject <已核实的UC-sub>
+```
+
+命令会先执行迁移，并且只允许给没有任何成员的已有工作区添加一个 Admin；工作区不存在、已初始化或缺参数均失败，不覆盖成员。每个已有工作区分别初始化。升级后尚未初始化的工作区对云端用户不可访问；不要以“首个登录用户”推断管理员。新建工作区在创建事务内授予创建者 Admin。
+
+完成初始化再启动服务，由该管理员打开 Settings → Members 生成邀请并手动分享；每次生成新链接都会让旧链接失效。受邀者登录 UC 后点击 Accept invitation 成为 Member，被停用者须由管理员恢复。此命令是部署步骤，不由常规开发测试或发布脚本自动选择身份执行。
 
 ### 服务端配置
 

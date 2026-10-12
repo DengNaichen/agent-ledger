@@ -1,13 +1,15 @@
 import * as Popover from "@radix-ui/react-popover";
 import { Check, ChevronDown, Plus, Pencil, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, ModalDialog, navigate, RequestError, Workspace, workspaceSlug } from "./shared";
+import { api, apiPath, ModalDialog, navigate, RequestError, Workspace, workspaceSlug } from "./shared";
+import { WorkspaceAccess } from "./WorkspaceAccess";
 
 export function WorkspaceMenu() {
   const slug = workspaceSlug();
   const trigger = useRef<HTMLButtonElement>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [open, setOpen] = useState(false);
+  const [canRename, setCanRename] = useState(false);
   const [dialog, setDialog] = useState<"create" | "rename" | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -18,6 +20,9 @@ export function WorkspaceMenu() {
     let active = true;
     setLoading(true);
     setError("");
+    api<WorkspaceAccess>(apiPath("/access")).then((access) => {
+      if (active) setCanRename(!access.enabled || access.role === "admin");
+    }, () => { if (active) setCanRename(false); });
     api<{ workspaces: Workspace[] }>("/api/workspaces").then(({ workspaces }) => {
       if (active) setWorkspaces(workspaces);
     }, (cause: Error) => {
@@ -54,7 +59,7 @@ export function WorkspaceMenu() {
           </div>
           <div className="workspace-actions">
             <button type="button" className="workspace-option" onClick={() => showDialog("create")}><Plus className="icon" />Create workspace…</button>
-            <button type="button" className="workspace-option" disabled={!current} onClick={() => showDialog("rename")}><Pencil className="icon" />Rename workspace…</button>
+            <button type="button" className="workspace-option" disabled={!current || !canRename} onClick={() => showDialog("rename")}><Pencil className="icon" />Rename workspace…</button>
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -67,7 +72,7 @@ export function WorkspaceMenu() {
   </>;
 }
 
-function WorkspaceDialog({ workspace, onClose, onSaved }: { workspace?: Workspace; onClose: () => void; onSaved: (workspace: Workspace) => void }) {
+export function WorkspaceDialog({ workspace, onClose, onSaved }: { workspace?: Workspace; onClose: () => void; onSaved: (workspace: Workspace) => void }) {
   const [slug, setSlug] = useState("");
   const [name, setName] = useState(workspace?.name ?? "");
   const [saving, setSaving] = useState(false);

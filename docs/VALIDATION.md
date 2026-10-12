@@ -110,3 +110,25 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
 - 检查搜索提交/清除、排序、状态筛选及批选全部查询结果；停止自己的临时服务，核对优先级失败保留原值和状态失败回滚，再重启验证恢复。
 
 虚拟列表的未挂载行不参与浏览器页内查找；全范围检索使用应用 Search。以上是浏览器验收流程，不由 `make test` 自动覆盖。
+## 工作区成员权限
+
+AL-62 的 Red 是新增 `TestWorkspaceAuthorizationHTTP` 后先运行旧实现，两个未加入工作区的 UC 用户仍能列出和读取已有工作区，必须观察到 `--- FAIL`；在未包含该测试的旧提交直接 `-run` 会得到无测试的假绿。
+
+```sh
+go test ./internal/app -run 'TestWorkspaceAccess|TestWorkspaceMembership|TestWorkspaceInvite|TestWorkspaceAccessUpgrade' -count=1
+go test ./internal/ucauth ./internal/httpapi ./internal/mcpserver -run 'TestWorkspaceAuthorization|TestIdentity' -count=1
+go test ./cmd/inftask -run TestBootstrapAccess -count=1
+```
+
+覆盖 Service 操作的即时成员检查、并发降级保留最后一个 Admin、邀请轮换/重复接受/停用、REST/MCP 同一身份与撤权、Cookie 传递身份、缺中间件身份拒绝、旧库数据/备份/新旧结构一致与显式初始化。真实 UC 和生产部署不在这些测试范围内。
+
+浏览器验收需要先 `npm --prefix web run build`、Node 22+ 与 Chrome，使用前述 `CHROME_PATH` 可选路径。以下两个终端使用同一临时目录：
+
+```sh
+# 终端一：先用 mktemp -d 创建目录，将路径作为 <临时目录>；服务随机选择 loopback 端口。
+INFTASK_ACCESS_BROWSER=<临时目录>/fixture.json go test ./internal/ucauth -run TestWorkspaceAuthorizationBrowser -count=1 -timeout=11m
+# 终端二：等 fixture.json 出现再执行。
+node scripts/browser/access.mjs <临时目录>/fixture.json <临时目录>/screenshots
+```
+
+脚本在真实嵌入页面、临时数据库、伪 UC 的两个真实登录 Cookie 上操作：最后 Admin 错误、重置链接、无效/有效邀请接受、Member 隐藏管理按钮、停用/恢复和提升角色；检查 390px 无横向溢出，保存桌面错误态、Member、窄屏和深色截图。脚本结束写 `.done` 让 fixture 退出，fixture 最长等待十分钟。重复运行使用新的临时目录；fixture JSON 含临时凭据，不提交、不用于正式实例。

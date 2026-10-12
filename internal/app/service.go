@@ -18,10 +18,11 @@ var schema string
 // reads and writes one workspace; Open returns one that manages workspaces,
 // backups, and GitHub sync.
 type Service struct {
-	db        *sql.DB
-	backupDir string
-	now       func() time.Time
-	workspace int64
+	db              *sql.DB
+	backupDir       string
+	now             func() time.Time
+	workspace       int64
+	requireIdentity bool
 }
 
 func Open(path string) (*Service, error) {

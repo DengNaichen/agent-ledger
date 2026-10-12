@@ -322,6 +322,26 @@ CREATE TRIGGER IF NOT EXISTS project_teams_workspace BEFORE INSERT ON project_te
 WHEN (SELECT workspace_id FROM projects WHERE id=NEW.project_id) <> (SELECT workspace_id FROM teams WHERE id=NEW.team_id)
 BEGIN SELECT RAISE(ABORT, 'project and team must belong to the same workspace'); END;
 INSERT INTO project_teams(project_id,team_id) SELECT DISTINCT project_id,team_id FROM issues WHERE project_id IS NOT NULL;`,
+	// Workspace membership; existing workspaces require explicit bootstrap.
+	`
+CREATE TABLE IF NOT EXISTS users (
+ subject TEXT PRIMARY KEY NOT NULL,
+ name TEXT NOT NULL,
+ email TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workspace_members (
+ workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+ subject TEXT NOT NULL REFERENCES users(subject),
+ role TEXT NOT NULL CHECK(role IN ('admin','member')),
+ status TEXT NOT NULL CHECK(status IN ('active','suspended')),
+ PRIMARY KEY(workspace_id,subject)
+);
+CREATE INDEX IF NOT EXISTS workspace_members_subject_idx ON workspace_members(subject,workspace_id);
+CREATE TABLE IF NOT EXISTS workspace_invites (
+ workspace_id INTEGER PRIMARY KEY REFERENCES workspaces(id),
+ digest BLOB NOT NULL UNIQUE
+);
+`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

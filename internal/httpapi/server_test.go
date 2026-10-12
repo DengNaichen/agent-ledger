@@ -44,7 +44,8 @@ func openService(t *testing.T) (*app.Service, *app.Service) {
 func TestRejectsCrossSiteBrowserRequests(t *testing.T) {
 	reached := false
 	mcp := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { reached = true })
-	handler := New(nil, http.NotFoundHandler(), mcp)
+	service, _ := openService(t)
+	handler := New(service, http.NotFoundHandler(), mcp)
 
 	for _, tc := range []struct {
 		site string
