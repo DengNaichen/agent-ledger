@@ -1,16 +1,18 @@
 import { Box, ChevronDown, ChevronRight, List, Menu, Plus, Settings, Tag } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { EntityEmoji } from "./EmojiPicker";
 import { Session } from "./Session";
 import { WorkspaceMenu } from "./WorkspaceMenu";
 import { NavLink, pagePath, Team, WorkspaceRoute } from "./shared";
 
-export function Sidebar({ route, teams, onCreateTeam }: {
+export function Sidebar({ route, visit, teams, onCreateTeam }: {
   route: WorkspaceRoute;
+  visit: number;
   teams: Team[];
   onCreateTeam: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  useEffect(() => setExpanded(false), [visit]);
   const active = (kind: "issues" | "projects", team = "") => route.kind === kind && route.team === team;
   return (
     <aside className="sidebar scope-sidebar">

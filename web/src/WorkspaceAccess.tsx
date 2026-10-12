@@ -5,6 +5,8 @@ import { Session } from "./Session";
 export type WorkspaceAccess = { enabled: boolean; role: string; subject: string };
 type Member = { subject: string; name: string; email: string; role: "admin" | "member"; status: "active" | "suspended" };
 
+type MemberList = { members: Member[] };
+
 export function MembersSettings() {
   const [access, setAccess] = useState<WorkspaceAccess | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -21,7 +23,7 @@ export function MembersSettings() {
         if (!mounted.current) return;
         setAccess(value);
         if (value.enabled) {
-          const result = await api<{ members: Member[] }>(apiPath("/members"));
+          const result = await api<MemberList>(apiPath("/members"));
           if (mounted.current) setMembers(result.members);
         }
       } catch (cause) { if (mounted.current) setError((cause as Error).message); }

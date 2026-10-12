@@ -1,14 +1,16 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { PageHeader } from "./PageHeader";
+import { NavLink, pagePath } from "./shared";
 import { EmojiPicker } from "./EmojiPicker";
 import { MembersSettings } from "./WorkspaceAccess";
 import { api, apiPath, RequestError, Team } from "./shared";
 
 export function SettingsPage({ teams, loading, onSaved }: { teams: Team[]; loading: boolean; onSaved: (team: Team) => void }) {
-  return <div className="settings-page">
+  return <><PageHeader actions={<NavLink to={pagePath("/")}>Back to issues</NavLink>}><span>Settings</span></PageHeader><div className="settings-page">
     <MembersSettings />
     <header className="settings-heading"><h1>Teams</h1><p>Manage team names and icons in this workspace.</p></header>
     {teams.length === 0 ? <p className="empty">{loading ? "Loading teams…" : "No teams yet. Use + beside Teams to create one."}</p> : teams.map((team) => <TeamSettings key={team.key} team={team} onSaved={onSaved} />)}
-  </div>;
+  </div></>;
 }
 
 function TeamSettings({ team, onSaved }: { team: Team; onSaved: (team: Team) => void }) {
@@ -54,3 +56,5 @@ function TeamSettings({ team, onSaved }: { team: Team; onSaved: (team: Team) => 
     </form>
   </section>;
 }
+
+export default SettingsPage;

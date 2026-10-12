@@ -44,6 +44,7 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
     }
     return [...samples.values()];
   }, [grouped]);
+  const layoutKey = visibleColumns.map(({ status }) => `${status}:${grouped[status].length}:${isCollapsed(status)}`).join("|");
   const row = (issue: IssueSummary) => <IssueControls issue={issue} view={view} selected={selected.has(issue.identifier)} saving={saving.has(issue.identifier)} handlers={handlers} />;
 
   return view === "board" ? (
@@ -109,7 +110,7 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
               {loading && <p className="list-empty">Loading…</p>}
               {!loading && grouped[column.status].length === 0 && <p className="list-empty">No issues</p>}
               {grouped[column.status].length > 50 ? (
-                <VirtualIssueRows issues={grouped[column.status]} scroll={scroll} selected={selected} saving={saving} handlers={handlers} />
+                <VirtualIssueRows layoutKey={layoutKey} issues={grouped[column.status]} scroll={scroll} selected={selected} saving={saving} handlers={handlers} />
               ) : grouped[column.status].map((issue) => (
                 <article className={`list-row ${selected.has(issue.identifier) ? "is-selected" : ""}`} key={issue.identifier}>
                   {row(issue)}
@@ -168,8 +169,9 @@ const labelDate = new Intl.DateTimeFormat();
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 // Natural grid flow and spacers preserve group height and sticky boundaries.
-function VirtualIssueRows({ issues, scroll, selected, saving, handlers }: {
+function VirtualIssueRows({ issues, scroll, selected, saving, handlers, layoutKey }: {
   issues: IssueSummary[];
+  layoutKey: string;
   scroll: HTMLElement | null;
   selected: Set<string>;
   saving: Set<string>;
@@ -198,7 +200,7 @@ function VirtualIssueRows({ issues, scroll, selected, saving, handlers }: {
   // A filter can insert/remove preceding groups without resizing this group.
   useLayoutEffect(() => {
     if (scroll) setMargin(container.current!.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop);
-  });
+  }, [scroll, layoutKey]);
   useLayoutEffect(() => {
     // On Board → List the child commits before the parent's scroll ref.
     if (!scroll) return;

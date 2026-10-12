@@ -82,12 +82,16 @@ export function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; o
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+
   async function create(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError("");
     try {
-      onCreate(await api<Team>(apiPath("/teams"), "POST", { key, name, emoji, start_number: startNumber ? Number(startNumber) : undefined }));
+      const created = await api<Team>(apiPath("/teams"), "POST", { key, name, emoji, start_number: startNumber ? Number(startNumber) : undefined });
+      if (mounted.current) onCreate(created);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -96,20 +100,20 @@ export function CreateTeamDialog({ onClose, onCreate }: { onClose: () => void; o
   }
 
   return (
-    <ModalDialog className="issue-dialog" aria-labelledby="new-team-title" onClose={onClose}>
+    <ModalDialog className="issue-dialog" aria-labelledby="new-team-title" onClose={() => { if (!saving) onClose(); }}>
       <form onSubmit={create}>
         <header>
           <h2 id="new-team-title">Create team</h2>
-          <button type="button" className="ghost" aria-label="Close" onClick={onClose}><X className="icon" /></button>
+          <button type="button" className="ghost" aria-label="Close" disabled={saving} onClick={onClose}><X className="icon" /></button>
         </header>
-        <label>Key<input value={key} onChange={(event) => setKey(event.target.value.toUpperCase())} placeholder="TOK" pattern="[A-Z][A-Z0-9]{1,5}" maxLength={6} required /></label>
+        <label>Key<input disabled={saving} value={key} onChange={(event) => setKey(event.target.value.toUpperCase())} placeholder="TOK" pattern="[A-Z][A-Z0-9]{1,5}" maxLength={6} required /></label>
         <div className="dialog-priority"><span>Emoji</span><EmojiPicker value={emoji} teamKey={key || "TE"} label="New team emoji" onChange={setEmoji} disabled={saving} /></div>
-        <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Team name" required /></label>
-        <label>Start number<input type="number" min={1} step={1} value={startNumber} onChange={(event) => setStartNumber(event.target.value)} placeholder="1" /></label>
+        <label>Name<input disabled={saving} value={name} onChange={(event) => setName(event.target.value)} placeholder="Team name" required /></label>
+        <label>Start number<input disabled={saving} type="number" min={1} step={1} value={startNumber} onChange={(event) => setStartNumber(event.target.value)} placeholder="1" /></label>
         <p className="dialog-hint">Issues are numbered {key || "KEY"}-{startNumber || "1"}, {key || "KEY"}-{startNumber ? Number(startNumber) + 1 : "2"}, and so on. Set a start number above numbers the team already used elsewhere. The key cannot be changed later.</p>
         {error && <RequestError message={error} />}
         <footer>
-          <button type="button" className="button" onClick={onClose}>Cancel</button>
+          <button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>
           <button type="submit" className="button primary" disabled={saving}>{saving ? "Creating…" : "Create team"}</button>
         </footer>
       </form>

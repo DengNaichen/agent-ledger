@@ -1,122 +1,73 @@
-import { useEffect, useRef, useState } from "react";
-import { LabelFilterValue } from "./Labels";
-import { api, apiPath, Issue, IssueSummary, Priority, Project, Status, Team, WorkspaceRoute } from "./shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { LabelFilterValue } from "./useLabels";
+import { api, apiPath, Issue, IssueSummary, Priority, Status } from "./shared";
+import { useRequestScope } from "./useRequestScope";
 
-export type IssueQuery = { archivedProjects: boolean; team: string; type: string; query: string; priority: Priority | ""; labelFilter: LabelFilterValue };
+type IssueList = { issues: IssueSummary[] };
 
-// A ScopeView owns this hook and unmounts on navigation. Reads and writes also
-// track the local query so an earlier filter cannot restore its issue snapshot.
-export function useIssues(route: WorkspaceRoute, { archivedProjects, team, type, query, priority, labelFilter }: IssueQuery, setError: (message: string) => void) {
+export type IssueQuery = { projectID?: number; team: string; type: string; query: string; priority: Priority | ""; labelFilter: LabelFilterValue };
+
+export function useIssues({ projectID, team, type, query, priority, labelFilter }: IssueQuery, setError: (message: string) => void) {
+  const confirmedStatuses = useRef(new Map<string, Status>());
   const [issues, setIssues] = useState<IssueSummary[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [savingPriorities, setSavingPriorities] = useState<string[]>([]);
-  const loadVersion = useRef(0);
-  const mounted = useRef(true);
-  const queryKey = JSON.stringify({ archivedProjects, team, type, query, priority, labelFilter });
-  const currentQuery = useRef(queryKey);
-  currentQuery.current = queryKey;
-  const current = () => mounted.current && currentQuery.current === queryKey;
+  const params = new URLSearchParams({ query, label_mode: labelFilter.mode });
+  if (projectID !== undefined) params.set("project_id", String(projectID));
+  if (team) params.set("team", team);
+  if (type) params.set("type", type);
+  if (priority !== "") params.set("priority", String(priority));
+  labelFilter.labels.forEach((id) => params.append("label_id", String(id)));
+  labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
+  const path = apiPath(`/issues?${params}`);
+  // The write queue belongs to the mounted page, across changes to its filters.
+  const requests = useRequestScope(apiPath("/issues"));
+  const queryScope = useRequestScope(path);
 
-  useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; ++loadVersion.current; };
-  }, []);
-  useEffect(() => {
-    const load = () => void loadIssues();
-    load();
-    window.addEventListener("focus", load);
-    return () => { window.removeEventListener("focus", load); ++loadVersion.current; };
-  }, [archivedProjects, team, type, query, labelFilter, priority]);
-
-  async function loadIssues() {
-    if (!current()) return;
-    const version = ++loadVersion.current;
+  const loadIssues = useCallback(async () => {
+    if (!queryScope.isActive()) return;
     setLoading(true);
-    setLoadError("");
-    const params = new URLSearchParams({ query });
-    if (route.kind === "project") params.set("project_id", String(route.id));
-    if (priority !== "") params.set("priority", String(priority));
-    if (team) params.set("team", team);
-    if (type) params.set("type", type);
-    params.set("label_mode", labelFilter.mode);
-    labelFilter.labels.forEach((id) => params.append("label_id", String(id)));
-    labelFilter.groups.forEach((id) => params.append("label_group_id", String(id)));
-    const latest = () => current() && version === loadVersion.current;
-    try {
-      const [projectData, teamData] = await Promise.all([
-        api<{ projects: Project[] }>(apiPath(archivedProjects ? "/projects?include_archived=true" : "/projects")),
-        api<{ teams: Team[] }>(apiPath("/teams")),
-      ]);
-      if (!latest()) return;
-      setProjects(projectData.projects);
-      setTeams(teamData.teams);
-      if ((route.kind === "issues" || route.kind === "projects") && route.team && !teamData.teams.some((item) => item.key === route.team)) throw new Error("Team not found.");
-      const project = route.kind === "project" ? await api<Project>(apiPath(`/projects/by-id/${route.id}`)) : null;
-      if (!latest()) return;
-      setActiveProject(project);
-      const issueData = route.kind === "issues" || route.kind === "project" ? await api<{ issues: IssueSummary[] }>(apiPath(`/issues?${params}`)) : { issues: [] };
-      if (latest()) {
-        setIssues(issueData.issues);
-        setError("");
-      }
-    } catch (cause) {
-      if (latest()) setLoadError((cause as Error).message);
-    } finally {
-      if (latest()) setLoading(false);
-    }
-  }
-
-  async function insertIssue(_issue: IssueSummary) {
-    // The server applies the full scope and filters to the created issue.
-    if (current()) await loadIssues();
-  }
-
-  async function changeProjectEmoji(item: Project, emoji: string) {
-    const updated = await api<Project>(apiPath(`/projects/by-id/${item.id}`), "PATCH", { emoji });
-    if (!current()) return;
-    setActiveProject((project) => project?.id === item.id ? updated : project);
-    setProjects((items) => items.map((project) => project.id === item.id ? updated : project));
+    await requests.read(
+      () => api<IssueList>(path),
+      (data) => { if (!queryScope.isActive()) return; data.issues.forEach((issue) => confirmedStatuses.current.set(issue.identifier, issue.status)); setIssues(data.issues); setLoadError(""); setLoading(false); },
+      (cause) => { if (!queryScope.isActive()) return; setLoadError(cause.message); setLoading(false); },
+    );
+  }, [path, queryScope, requests]);
+  useEffect(() => {
+    // Changing a filter invalidates reads for the previous query as well.
+    requests.invalidate();
     void loadIssues();
-  }
-
-  function replaceTeam(updated: Team) {
-    if (!current()) return;
-    setTeams((items) => items.map((team) => team.key === updated.key ? updated : team));
-    void loadIssues();
-  }
+    const load = () => { void loadIssues(); };
+    window.addEventListener("focus", load);
+    return () => { requests.invalidate(); window.removeEventListener("focus", load); };
+  }, [loadIssues, requests]);
 
   async function moveIssue(identifier: string, status: Status) {
-    const previous = issues.find((issue) => issue.identifier === identifier)!;
+    const previous = issues.find((issue) => issue.identifier === identifier)?.status;
     setIssues((items) => items.map((issue) => issue.identifier === identifier ? { ...issue, status } : issue));
-    try {
-      const updated = await api<Issue>(apiPath(`/issues/${identifier}/status`), "PATCH", { status });
-      if (current()) setIssues((items) => items.map((issue) => issue.identifier === identifier ? updated : issue));
-    } catch (cause) {
-      if (current()) {
-        setIssues((items) => items.map((issue) => issue.identifier === identifier ? previous : issue));
-        setError((cause as Error).message);
-      }
-    }
+    const url = apiPath(`/issues/${identifier}/status`);
+    await requests.write(identifier, () => api<Issue>(url, "PATCH", { status }),
+      (updated) => { confirmedStatuses.current.set(identifier, updated.status); if (queryScope.isActive()) setIssues((items) => items.map((issue) => issue.identifier === identifier ? updated : issue)); },
+      (cause) => {
+        if (!queryScope.isActive()) return;
+        const restored = confirmedStatuses.current.get(identifier) ?? previous;
+        if (restored) setIssues((items) => items.map((issue) => issue.identifier === identifier ? { ...issue, status: restored } : issue));
+        setError(cause.message);
+      });
+    await loadIssues();
   }
 
   async function changePriority(identifier: string, next: Priority) {
     setSavingPriorities((items) => [...items, identifier]);
     setError("");
-    try {
-      const updated = await api<Issue>(apiPath(`/issues/${identifier}`), "PATCH", { priority: next });
-      if (!current()) return;
-      setIssues((items) => items.map((issue) => issue.identifier === identifier ? updated : issue));
-      if (priority !== "" && updated.priority !== priority) await loadIssues();
-    } catch (cause) {
-      if (current()) setError((cause as Error).message);
-    } finally {
-      if (mounted.current) setSavingPriorities((items) => items.filter((id) => id !== identifier));
-    }
+    const url = apiPath(`/issues/${identifier}`);
+    await requests.write(identifier, () => api<Issue>(url, "PATCH", { priority: next }),
+      (updated) => { confirmedStatuses.current.set(identifier, updated.status); if (queryScope.isActive()) setIssues((items) => items.map((issue) => issue.identifier === identifier ? updated : issue)); },
+      (cause) => { if (queryScope.isActive()) setError(cause.message); });
+    setSavingPriorities((items) => items.filter((id) => id !== identifier));
+    await loadIssues();
   }
 
-  return { issues, projects, activeProject, teams, loading, loadError, savingPriorities, loadIssues, insertIssue, replaceTeam, changeProjectEmoji, moveIssue, changePriority };
+  return { issues, loading, loadError, savingPriorities, loadIssues, moveIssue, changePriority, writeLabels: requests.write };
 }
