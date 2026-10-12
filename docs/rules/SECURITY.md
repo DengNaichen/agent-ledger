@@ -25,7 +25,7 @@ HTTP 将未分类内部错误返回为通用 `internal server error`；MCP 使�
 
 ## UC 云端认证
 
-`internal/ucauth` 参考 HarnessKit 的 confidential OAuth 接入方式。验证过的 subject/name/email 经请求上下文进入 Service；客户端正文不能选择操作者。成员表决定工作区访问权，只有 active 成员能读写业务数据，Admin 管理角色、停用/恢复、邀请及改名。所有公开团队业务向活动 Member 开放；当前没有 Guest、私有团队或 Agent 独立授权。临时共用 HarnessKit client 时，其符合条件的 UC access token 可用于认证，但仍须通过 InfTask 成员检查。
+`internal/ucauth` 参考 HarnessKit 的 confidential OAuth 接入方式。验证过的 subject/name/email 经请求上下文进入 Service；客户端正文不能选择操作者。成员表决定工作区访问权，只有 active 成员能读写业务数据，Admin 管理角色、停用/恢复、邀请及改名。所有公开团队业务向活动 Member 开放；私有团队另按显式团队成员限制；当前没有 Guest 或 Agent 独立授权。临时共用 HarnessKit client 时，其符合条件的 UC access token 可用于认证，但仍须通过 InfTask 成员检查。
 
 HTTP/MCP 使用 `ForRequests(true)` 的 Service，缺少可信身份时拒绝；后台 GitHub 同步保留原始内部 Service，不将外部请求的缺身份解释为系统权限。每次业务方法检查成员状态；停用使之后的请求失效，不取消已经通过检查的在途操作。最后一个活动 Admin 的保护在成员更新事务中实施。已有工作区只允许本地 `bootstrap-access` 显式初始化，不能由任意已登录用户认领。
 
@@ -38,3 +38,11 @@ API bearer 与 MCP bearer 都验证配置公钥的 RS256/ES256 签名、非空 s
 每个 workspace 的 `/w/<slug>/mcp` 是一个受保护资源，元数据在 `/.well-known/oauth-protected-resource/w/<slug>/mcp`；该路径只检查 slug 的形状，不查询 workspace 是否存在。MCP OAuth 仅接受固定 public client `inftask`、本站 `/w/<slug>/mcp` 形状的 resource、loopback callback 和 S256 PKCE；授权码只能用授权时的 resource 兑换，grant 仅可消费一次，2 分钟到期。由于 UC token 不带 resource audience，一个 workspace 授权得到的 token 也可用于认证其他 workspace 的请求；是否可访问由 InfTask 成员表决定，resource 本身不构成隔离。登录 flow 和 grant 各最多 256 个，网页 session 最多 4096 个，过期条目在创建时清理。密钥、上游响应正文和 token 不写日志或错误响应。网页会话文件用专用派生密钥和 AES-GCM 加密，权限 0600；MCP token 仍由宿主管理。会话文件损坏或密钥不匹配时启动失败，不回退到匿名或无认证模式。
 
 公开的 `/api/health` 不返回业务数据。公开的 webhook 校验原始 body 的 `X-Hub-Signature-256`，上限 1 MiB，只对已配置仓库的 PR 通知调度同步，同步只写入该仓库绑定的 workspace；不依据 payload 修改业务数据。重复通知最多合并为一个待处理刷新，读取最新 GitHub 状态，轮询补漏；不承诺 delivery 恰好处理一次。webhook 不隐含启用 linkback。
+
+## 私有团队
+
+公开团队允许所有活动 workspace 成员协作。私有团队任务的列表、直达、写入、评论、链接、父子关系、关联任务与 Project 目录统一过滤；管理员必须主动确认加入才能访问内容。Admin 的设置目录发现权限只暴露团队元数据，不返回真实编号进度或私有任务。非成员不可借 ID、名称、parent、Project、批量标签或 limit 绕过。
+
+团队创建者及转为 private 的人自动加入为 owner。Owner 与 Workspace Admin 管理成员及可见性；没有最后 owner 限制。私有成员退出后需被 owner/Admin 再添加，Admin 可再次显式确认加入。工作区停用优先于团队成员身份。
+
+GitHub 内部同步仍可处理私有团队，但启用 linkback 时只发送任务 identifier，不发送私有标题或说明。当前没有公共任务链接配置，因此不拼接外部 issue URL。转私有不撤回已经发送到 GitHub 的旧评论；启用 linkback 的管理员须考虑此前外发的内容。

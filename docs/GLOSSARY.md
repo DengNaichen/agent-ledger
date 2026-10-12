@@ -3,7 +3,9 @@
 | 术语 | 在本项目中的含义与边界 |
 | --- | --- |
 | workspace | 一组 team、Project 和标签，也是云端成员访问边界。由不能修改的 slug 命名：页面在 `/<slug>/`，REST 在 `/api/w/<slug>/`，MCP 在 `/w/<slug>/mcp`。不能删除。不是 Git 工作树或 HarnessKit 的 workspace membership。 |
-| Admin / Member | 工作区内的人类角色，采用 Linear 的基础成员模型。Admin 管理邀请、成员角色、停用/恢复和工作区改名；Member 可协作处理当前公开团队的业务数据。新建者为 Admin；已有工作区显式初始化。Guest、Team owner、私有团队、assignee 与 Agent 授权尚未实现。 |
+| Admin / Member | 工作区内的人类角色，采用 Linear 的基础成员模型。Admin 管理邀请、成员角色、停用/恢复和工作区改名；Member 可协作处理当前公开团队的业务数据。新建者为 Admin；已有工作区显式初始化。Guest、assignee 与 Agent 授权尚未实现。 |
+| Team owner | 团队管理角色，创建团队或将其转为私有的人默认成为 owner；Workspace Admin 有团队管理能力，但读私有任务仍须显式加入。团队可以没有 owner，不应用工作区的最后 Admin 保护。 |
+| private team | 只有显式团队成员能读写其中任务；普通成员不可发现未加入的私有团队。Admin 可在设置目录发现并管理，确认加入后才有内容访问权。公开团队允许未加入的工作区成员协作。 |
 | suspended | 某人在某个工作区被停用，保留历史记录；后续 REST/MCP 请求失去访问权，邀请不能自行恢复。由活动 Admin 恢复，不能移除最后一个活动 Admin。 |
 | Issue / ticket | 同一工作记录，标识符由服务端生成，形如 `<team key>-<number>`，编号由所属 team 依次分配，只在所属 workspace 内唯一。不能推测下一个编号。 |
 | team | 有自己票号前缀（key）和独立编号的 issue 归属，如本仓库的 `AL`。建票必须指定 team，没有默认值；key 在 workspace 内唯一，建好后不能改，显示名称可改，team 不能删除或换 workspace，票不能换 team。状态所有 workspace 共用，Project 显式关联同一 workspace 的一个或多个 team。不是 GitHub team 或 UC 用户组。 |

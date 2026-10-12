@@ -107,3 +107,16 @@ it("does not send queued writes after leaving the detail", async () => {
   await act(async () => status.resolve(json({ ...fixtureIssue, status: "done" })));
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
+
+
+it("clears previously loaded private content after access is revoked", async () => {
+  let revoked = false;
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(revoked ? json({ error: "issue not found" }, 404) : json(fixtureIssue))));
+  render(<IssueDetail {...props} />);
+  await screen.findByText("Fixture issue");
+  revoked = true;
+  fireEvent(window, new Event("focus"));
+  await screen.findByText("issue not found");
+  expect(screen.queryByText("Fixture issue")).toBeNull();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+});

@@ -30,7 +30,10 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   const loadIssue = useCallback(async () => {
     await requests.read(() => api<IssueDetails>(path), (loaded) => {
       setIssue(loaded); setLoadError("");
-    }, (cause) => setLoadError(cause.message));
+    }, (cause) => {
+      setLoadError(cause.message);
+      if (cause.message === "issue not found" || cause.message === "workspace access denied") setIssue(null);
+    });
   }, [path, requests]);
 
   useEffect(() => {

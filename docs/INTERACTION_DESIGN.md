@@ -82,3 +82,9 @@ priority 独立于 status/type/标签。列表、看板及详情的选择器逐�
 Settings → Members 显示成员目录、角色和停用状态；Admin 可调整角色、Suspend/Restore 并生成邀请，Member 只读目录。操作等待服务端成功后更新，失败显示 role=alert；不能移除最后一个活动 Admin。修改自己的成员权限成功后刷新页面以重新读取访问权。无 UC 的本地开发隐藏成员管理。
 
 邀请链接在生成成功后显示，只读输入框可全选复制；再次生成使旧链接失效，页面不会在刷新后重显旧 token。`/auth/join?token=...` 先通过 UC 登录，再主动 Accept invitation；成功进入工作区，失败保留页面并显示原因。根目录没有可访问工作区时提供创建入口，并提示向管理员索取邀请，不显示内部 API 操作说明。
+
+## 团队访问
+
+创建团队可选 Make team private，创建者成为 owner。Settings 展示可发现的团队，公开团队可直接 Join/Leave；加入决定侧栏常驻，未加入仍可通过 View issues 浏览公开任务。普通成员只看到已加入的私有团队，Admin 在目录可看到全部私有团队但不能直接 View issues，须点击 Join team 并确认访问提示。
+
+Owner/Admin 可改可见性、添加工作区活动成员、升降 owner 和移除成员。私有团队普通成员可 Leave，退出后团队消失，不能自行加入。Workspace Admin 的有效 owner 来自工作区角色，团队页不能将其降级。写入等待成功后刷新权限与目录，失败保留选择并显示错误；窄屏控件换行。详情直达读取失败保留自身错误与 Retry，不被其它目录加载清空；失去资源访问时移除旧详情内容。

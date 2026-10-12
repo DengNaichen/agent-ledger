@@ -4,7 +4,7 @@
 
 `cmd/inftask/main.go` 解析启动参数，打开 `app.Service`，启动备份与可选 GitHub 轮询，并组装 HTTP 服务；第一个参数是 `import-linear` 时改为运行 `cmd/inftask/import.go` 的一次性导入，它调用 `internal/app/linear.go` 的 `ImportLinear`，不启动服务。配置 UC 时由 `internal/ucauth` 包裹页面、REST 和 MCP，承接网页会话与 MCP OAuth；单独挂载验签的 webhook 入口。`internal/httpapi` 挂载 `/api`、每个 workspace 的 `/w/<slug>/mcp` 和静态页面；HTTP 与 `internal/mcpserver` 均调用 `internal/app`，业务层不依赖传输层。
 
-workspace 是云端成员访问边界：team、Project、标签和 PR 记录各属于一个 workspace。UC 将验证过的 sub/name/email 写入请求上下文；`app/access.go` 维护用户、Admin/Member 成员及 active/suspended 状态。`/api/workspaces` 只列当前用户的活动成员工作区；新建者成为 Admin，改名要求 Admin。其余 REST 路由在 `/api/w/<slug>/` 下，`Service.InWorkspace` 绑定范围并检查成员，slug 不存在返回 404，无访问权返回 403。MCP 每个请求按同一规则绑定，业务方法也重新检查，不能靠缓存的 Service 绕过停用。任务、团队、项目和标签在工作区内仍向所有活动成员开放。
+workspace 是云端成员访问边界：team、Project、标签和 PR 记录各属于一个 workspace。UC 将验证过的 sub/name/email 写入请求上下文；`app/access.go` 维护用户、Admin/Member 成员及 active/suspended 状态。`/api/workspaces` 只列当前用户的活动成员工作区；新建者成为 Admin，改名要求 Admin。其余 REST 路由在 `/api/w/<slug>/` 下，`Service.InWorkspace` 绑定范围并检查成员，slug 不存在返回 404，无访问权返回 403。MCP 每个请求按同一规则绑定，业务方法也重新检查，不能靠缓存的 Service 绕过停用。公开团队任务向所有活动成员开放；私有团队任务仅向显式团队成员开放。
 
 `main.go` 向 HTTP/MCP 传 `Service.ForRequests(auth != nil)`；云端缺身份拒绝访问，原始 Service 留给后台同步与本地 CLI。无 UC 的 loopback 开发保留业务操作，但不开放云端成员管理。`users.subject` 来自 UC，不接受请求正文指定操作者。邀请以随机 token 的摘要存储、可重置复用，只加入 Member；成员变更的最后一个活动 Admin 检查与更新在同一事务。已有工作区通过 `bootstrap-access` 显式初始化，见 [开发](DEVELOPMENT.md#初始化已有工作区的管理员)。业务查询继续带 `workspace_id`，跨 workspace 的引用按不存在处理。
 
@@ -53,3 +53,13 @@ REST 提供项目 POST、GET、PATCH，当前名称入口为 `/projects/{name}`�
 云端仍为单实例 SQLite，工作区成员权限在应用层实施，不提供独立数据库隔离。UC 凭据通过配置注入，网页会话由 `internal/ucauth/sessions.go` 在数据库旁的加密 `.sessions` 文件中原子持久化，access 到期时按需向 UC 续期；登录流程和 MCP 短期授权码仍在进程内存中，重启后失效；部署入口见 [开发](DEVELOPMENT.md#云端团队部署)。
 
 选择检查见 [验证](VALIDATION.md)，本地启动与构建顺序见 [开发](DEVELOPMENT.md)。
+
+## 团队成员与私有内容
+
+`team_access.go` 统一团队内容可见性与管理权。`teams.private` 默认 false，`team_members` 保存 member/owner；创建者加入为 owner，历史团队不自动加入用户。成员必须属于团队的 workspace，由 Service 和插入触发器共同约束。
+
+`ListTeams` 只返回可读内容的团队；`TeamDirectory` 为 Admin 额外返回私有团队设置元数据，未加入时不返回真实 next_number。管理员身份不进入内容可见性谓词。`viewerSQL` 对源码中已知的位置参数编号并绑定可信 subject，`visibleTeamIDs` 用于列表、直达、父子/关系、创建引用与批量标签；过滤发生在排序和 limit 之前。不可读任务/团队/Project 按不存在返回。
+
+Project 无关联的历史记录保留可见；有至少一个可见关联团队时可见，返回的 teams 仅含可见关联。更新 teams 只替换调用者可见的部分，保留隐藏关联；不能传入不可访问团队以改变关联。私有任务的 parent 和详情关系也经同一过滤。合并标签若涉及不可见任务则拒绝整个事务，避免通过全局操作修改隐藏关联。
+
+Settings 使用独立 team-directory 提供加入/退出、成员增删、owner 和可见性管理；侧栏显示已加入团队及当前正在浏览的公开团队。本地无 UC 模式仍可访问所有业务数据，不提供云端成员操作。

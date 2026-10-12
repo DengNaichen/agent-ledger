@@ -134,6 +134,14 @@
 .member-identity small, .members-settings p { color: var(--muted); }
 .members-settings p { font-size: var(--font-size-12); margin: var(--space-12) 0; }
 .invite-settings { margin-top: var(--space-24); }
+.team-access { margin-top: var(--space-16); padding: var(--space-16); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); }
+.team-access p { color: var(--muted); font-size: var(--font-size-12); margin: var(--space-12) 0; }
+.team-access-actions, .team-member-add { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.team-access-actions strong { margin-right: auto; }
+.team-member-add { margin-top: var(--space-16); }
+.team-member-add label { min-width: 0; flex: 1; }
+.team-member-add select { display: block; width: 100%; margin-top: var(--space-8); }
+.team-join-confirm { padding: var(--space-12); background: var(--raised); border-radius: var(--radius-md); margin-top: var(--space-12); }
 .invite-settings label { display: block; margin-top: var(--space-12); }
 .invite-settings input { display: block; width: 100%; margin-top: var(--space-8); }
 @media (max-width: 760px) { .member-identity { flex-basis: 100%; } }
