@@ -12,9 +12,9 @@ Sidebar 的 Workspace 有 All issues、All projects、Labels 与 Settings；每�
 
 `ProjectList.tsx` 展示项目列表，默认排除归档，Active projects / Archived projects 可切换活动与归档列表；Team 列表依据 Project 的显式关联过滤，空项目仍展示，历史待归属项目只在全部项目中展示。进入项目不继承来源 Team，内容区提供显式 Team 筛选和可清除 chip。项目名称与说明来自 by-id 查询；归档项目直达可查看已有票，待归属/归档项目禁用新建任务并说明原因。无 Team 时提供创建入口；空项目列表说明没有当前范围的活动项目；失效范围和请求失败显示错误、Retry 与返回全部任务入口。
 
-type、priority、标签、搜索和显式 Team 筛选参与 API 查询，项目范围使用 project_id。搜索按 Enter 提交；状态在列表数据中选择可见列。全部状态且无搜索时默认折叠 Done/Canceled；具体状态或有搜索时展开。切状态、Team 或提交搜索清除折叠覆盖，范围导航重新初始化。折叠组不渲染行，看板不折叠。新建沿用当前状态，Team 与 Project 的默认值按下方归属规则决定。创建成功重读当前范围，筛选决定是否显示新票。
+type、priority、标签、搜索和显式 Team 筛选参与 API 查询，项目范围使用 project_id。搜索按 Enter 提交；状态在列表数据中选择可见列。全部状态且无搜索时默认折叠 Done/Canceled；具体状态或有搜索时展开。切状态、Team 或提交搜索清除折叠覆盖，范围导航重新初始化。折叠组不渲染行，看板不折叠。列表中超过 50 条的展开分组只挂载视口及上下各 8 条缓冲行，按真实行高测量，保留分组吸顶边界；当前获得焦点的行及前后邻行保持挂载，供菜单焦点恢复和 Tab 连续遍历。分组计数、筛选、排序和 Select visible issues 始终基于完整查询结果，不受挂载窗口限制。浏览器自带页内查找只能匹配已挂载行，查找整个范围使用工具栏 Search。新建沿用当前状态，Team 与 Project 的默认值按下方归属规则决定。创建成功重读当前范围，筛选决定是否显示新票。
 
-Filter 弹层容纳状态、Team、type、priority 和标签筛选，已应用条件在工具栏显示可清除 chip；搜索仍按 Enter 提交。Display 弹层容纳 List/Board、排序和 Select visible issues。两个弹层均可用 Tab、Enter 和 Escape 操作；标签筛选的原生 dialog 在 Filter 内打开，Escape 先关闭标签 dialog，焦点回到 Labels 入口，再次 Escape 关闭 Filter。没有选中当前范围条目时不显示批量工具栏；有选择时显示数量、Select visible、Change labels 和 Clear selection。条目复选框默认视觉隐藏但可键盘聚焦，hover/focus、已选中或已有选择时显示，触屏始终显示。
+Filter 弹层容纳状态、Team、type、priority 和标签筛选，已应用条件在工具栏显示可清除 chip；搜索草稿保存在筛选栏内，输入不触发任务行重渲染；仍按 Enter 提交。Display 弹层容纳 List/Board、排序和 Select visible issues。两个弹层均可用 Tab、Enter 和 Escape 操作；标签筛选的原生 dialog 在 Filter 内打开，Escape 先关闭标签 dialog，焦点回到 Labels 入口，再次 Escape 关闭 Filter。没有选中当前范围条目时不显示批量工具栏；有选择时显示数量、Select visible、Change labels 和 Clear selection。条目复选框默认视觉隐藏但可键盘聚焦，hover/focus、已选中或已有选择时显示，触屏始终显示。
 
 ## 任务归属与编辑
 
@@ -44,7 +44,7 @@ Team 的 Settings 表单与当前 Project 页标题提供共用 emoji 选择器�
 
 ## 优先级和排序
 
-priority 独立于 status/type/标签。列表、看板及详情的选择器逐次保存；写入期间禁用该票的优先级控件，服务端成功后才更新显示，失败保留此前值并显示错误。创建与编辑弹窗的优先级属于草稿，提交成功后持久化，失败保留草稿。原生 dialog 内也使用同一 Radix 选择器，支持 Tab、Enter/Space、方向键和 Escape，用 Escape 关闭菜单后焦点回到触发器。
+priority 独立于 status/type/标签。列表、看板及详情的选择器逐次保存；写入期间禁用该票的优先级控件，服务端成功后才更新显示，失败保留此前值并显示错误。创建与编辑弹窗的优先级属于草稿，提交成功后持久化，失败保留草稿。菜单内容仅在打开时挂载；关闭触发器上的字母查找由选项数据处理。原生 dialog 内也使用同一 Radix 选择器，支持 Tab、Enter/Space、方向键和 Escape，用 Escape 关闭菜单后焦点回到触发器。
 
 优先级筛选参与 API 查询，包含显式 No priority。切换筛选清除批量选择；修改后的票不再匹配当前优先级筛选时重读列表。默认排序仅在 Agent ready 分组按 Urgent→High→Medium→Low→No priority，其他状态按最近更新；可全局切换 Last updated 或 Priority，同级按最近更新。筛选和排序只保存在组件内存中，刷新后重置。MCP/REST 的 `status=agent_ready` 默认优先级排序，显式 `sort=updated` 覆盖；其他查询默认更新时间倒序。服务端在 limit 之前排序，同时间按内部 id 倒序。未实现 Linear 的同档手动顺序、全局 P 快捷键和 Urgent 通知。
 

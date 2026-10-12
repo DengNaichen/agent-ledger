@@ -75,7 +75,6 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const [teamFilter, setTeamFilter] = useState("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [type, setType] = useState("");
-  const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<Status, boolean>>>({});
   const [projectDialog, setProjectDialog] = useState<Project | "new" | null>(null);
@@ -115,7 +114,10 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
   const scopeError = route.kind === "invalid" ? "This page does not exist." : loadError;
   const blockingError = !detailIdentifier && !managingLabels && !(managingSettings && teams.length > 0) ? scopeError : "";
   const canCreate = listingIssues && !loading && !scopeError && !activeProject?.archived && (activeProject === null || activeProject.teams.length > 0);
-  const selectedVisible = selected.filter((id) => issues.some((issue) => issue.identifier === id && (filter === "all" || issue.status === filter)));
+  const selectedVisible = useMemo(() => {
+    const visible = new Set(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier));
+    return selected.filter((id) => visible.has(id));
+  }, [selected, issues, filter]);
   function toggleIssue(id: string) { setSelected((ids) => ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]); }
   const visibleCount = visibleColumns.reduce((count, column) => count + grouped[column.status].length, 0);
 
@@ -171,7 +173,7 @@ function ScopeView({ route, view, setView, sort, setSort }: { route: WorkspaceRo
 
         {listingIssues && !scopeError && (
           <IssueFilters filter={filter} setFilter={changeStatusFilter} team={teamFilter} teams={route.kind === "project" && activeProject ? teams.filter((item) => activeProject.teams.includes(item.key)) : []} setTeam={changeTeamFilter}
-            type={type} setType={setType} search={search} setSearch={setSearch} query={query} submitQuery={submitQuery}
+            type={type} setType={setType} query={query} submitQuery={submitQuery}
             priority={priority} setPriority={setPriority} sort={sort} setSort={setSort} labelFilter={labelFilter} setLabelFilter={setLabelFilter}
             catalog={catalog} clearSelection={() => setSelected([])} view={view} setView={setView} visibleCount={visibleCount} selectionDisabled={loading} selectVisible={() => setSelected(issues.filter((issue) => filter === "all" || issue.status === filter).map((issue) => issue.identifier))} />
         )}
