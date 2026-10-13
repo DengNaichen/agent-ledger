@@ -16,6 +16,8 @@ type、priority、标签、搜索和显式 Team 筛选参与 API 查询，项目
 
 Filter 弹层容纳状态、Team、type、priority 和标签筛选，已应用条件在工具栏显示可清除 chip；搜索草稿保存在筛选栏内，输入不触发任务行重渲染；仍按 Enter 提交。Display 弹层容纳 List/Board、排序和 Select visible issues。两个弹层均可用 Tab、Enter 和 Escape 操作；标签筛选的原生 dialog 在 Filter 内打开，Escape 先关闭标签 dialog，焦点回到 Labels 入口，再次 Escape 关闭 Filter。没有选中当前范围条目时不显示批量工具栏；有选择时显示数量、Select visible、Change labels 和 Clear selection。条目复选框默认视觉隐藏但可键盘聚焦，hover/focus、已选中或已有选择时显示，触屏始终显示。
 
+点击或用 Enter/Space 展开、收起状态分组时，以点击前标题的屏幕位置为锚点，在 React 布局提交后、浏览器绘制前补偿列表滚动；定位采用分组自然位置，避免吸顶标题掩盖跳过已展开行的问题。虚拟行随后测量高度时继续保持锚点，下一次滚轮、触摸、指针或键盘操作以及布局切换会释放它。收起后剩余内容不足时允许原生滚动边界限制，标题保持可见，不额外填充空白。
+
 ## 任务归属与编辑
 
 New issue 明确展示 Team 和 Project。Team 任务页预选当前 Team；项目页预选 Project，只有一个关联 Team 时预选该 Team，共享项目要求用户选择。workspace 全部任务没有默认 Team；未选时 Project 与提交禁用。项目页的临时 Team 筛选不替代共享项目的新建选择。Project 可为 No project，候选是当前 Team 关联的未归档项目；切换 Team 保留原 Project、标题、正文与优先级，不兼容时标明原因并禁止提交，用户清空或重选后继续，不自动扩大项目关联。

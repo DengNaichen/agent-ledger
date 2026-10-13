@@ -25,6 +25,7 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
 }) {
   const [dropTarget, setDropTarget] = useState<Status | null>(null);
   const [scroll, setScroll] = useState<HTMLElement | null>(null);
+  const groupAnchor = useRef<{ button: HTMLButtonElement; top: number } | null>(null);
   // Stable handlers delegate to the latest committed scope/query callbacks.
   const latestActions = useRef(actions);
   useLayoutEffect(() => { latestActions.current = actions; });
@@ -45,6 +46,33 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
     return [...samples.values()];
   }, [grouped]);
   const layoutKey = visibleColumns.map(({ status }) => `${status}:${grouped[status].length}:${isCollapsed(status)}`).join("|");
+  useLayoutEffect(() => {
+    const anchor = groupAnchor.current;
+    groupAnchor.current = null;
+    if (anchor && scroll && view === "list") {
+      const header = anchor.button.parentElement!;
+      const group = header.parentElement!;
+      const restore = () => {
+        // Use the natural group start: a sticky header can appear stationary
+        // even after native scroll anchoring has skipped newly expanded rows.
+        const inset = anchor.button.getBoundingClientRect().top - header.getBoundingClientRect().top;
+        scroll.scrollTop += group.getBoundingClientRect().top + inset - anchor.top;
+      };
+      restore();
+      // Newly visible virtual rows can refine their estimates after this
+      // commit. Keep the same anchor through those resizes, until the user
+      // interacts again or the list layout changes. Never delay the first fix.
+      const observer = new ResizeObserver(restore);
+      for (const child of scroll.children) observer.observe(child);
+      const events = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+      const release = () => {
+        observer.disconnect();
+        for (const event of events) scroll.removeEventListener(event, release, true);
+      };
+      for (const event of events) scroll.addEventListener(event, release, { capture: true, passive: true });
+      return release;
+    }
+  }, [layoutKey, scroll, view]);
   const row = (issue: IssueSummary) => <IssueControls issue={issue} view={view} selected={selected.has(issue.identifier)} saving={saving.has(issue.identifier)} handlers={handlers} />;
 
   return view === "board" ? (
@@ -97,7 +125,11 @@ export function IssueViews({ view, visibleColumns, grouped, loading, isCollapsed
       {visibleColumns.map((column) => (
         <section className="list-group" key={column.status}>
           <div className="group-header-wrap">
-            <button type="button" className="group-header" aria-expanded={!isCollapsed(column.status)} aria-controls={`rows-${column.status}`} onClick={() => toggleGroup(column.status)}>
+            <button type="button" className="group-header" aria-expanded={!isCollapsed(column.status)} aria-controls={`rows-${column.status}`} onClick={(event) => {
+              const button = event.currentTarget;
+              groupAnchor.current = { button, top: button.getBoundingClientRect().top };
+              toggleGroup(column.status);
+            }}>
               <ChevronDown className="icon chevron" />
               <StatusIcon status={column.status} />
               <span>{column.label}</span>
