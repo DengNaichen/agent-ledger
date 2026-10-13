@@ -216,3 +216,12 @@ npm --prefix web run test -- IssueDetail.test.tsx
 覆盖评论分离、可信 actor、progress/decision、摘要和正文边界、倒序 cursor 分页（页间新插入）、工作区/私有团队/停用、失败写入、新旧 schema/升级前备份/历史评论作者保留、REST/MCP 严格输入和按票读记录。HTTP Red 在未改实现上请求工作记录入口为 404，新增测试实际失败后才实现。组件检查默认评论、工作记录按需加载、决策正文读取、失败重试、旧页追加、离开页签忽略旧响应和评论草稿保留。
 
 真实浏览器验证使用隔离空库，运行既有 seed 后，经本地 MCP 在 AL-2 写入 decision 和超过 20 条 progress，再运行 `node scripts/browser/work-logs.mjs http://127.0.0.1:<端口> AL-2 <仓库外截图目录>`。脚本检查桌面/1024/760/390px、明暗主题、键盘页签、决策展开、分页、断网读取重试以及评论草稿跨切换/失败保留和成功提交；只写隔离库，不用于正式实例。Chrome、Node 和截图环境同上。
+
+## 依赖 DAG
+
+```sh
+go test ./internal/app -run 'TestRelationDAG|TestImportLinear' -count=1
+go test ./internal/mcpserver -run TestRelationDAG -count=1
+```
+
+AL-75 的 Red：先新增 `TestRelationDAG` 和 `TestRelationDAGSQL`，在未改实现上执行，Service 的 blocks/blocked_by 和 SQL INSERT/UPDATE/批量写入均观察到真实 `--- FAIL`。测试覆盖服务层独立校验、两点与长环、自引用、合法菱形、重复/删除、related 排除、私有中间路径不外泄、直接 SQL UPDATE 和冲突写入策略、旧库升级/备份/结构一致、旧环失败回滚，以及 Linear 导入整体回滚和 MCP 错误。全部使用隔离临时库；不验证生产旧数据是否含环，不改变 parent 的既有语义。

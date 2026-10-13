@@ -396,6 +396,39 @@ CREATE INDEX IF NOT EXISTS issue_delegations_issue_idx ON issue_delegations(issu
 CREATE INDEX IF NOT EXISTS work_logs_issue_idx ON work_logs(issue_id,id);
 CREATE INDEX IF NOT EXISTS work_logs_decisions_idx ON work_logs(issue_id,id) WHERE kind='decision';
 `,
+	// Enforce a DAG for dependencies and reject legacy cycles without deleting edges.
+	`CREATE TRIGGER IF NOT EXISTS relations_blocks_insert AFTER INSERT ON relations
+WHEN NEW.kind = 'blocks'
+BEGIN
+    SELECT RAISE(ABORT, 'dependency cycle is not allowed')
+    WHERE EXISTS (
+        WITH RECURSIVE reachable(id) AS (
+            SELECT NEW.other_id
+            UNION
+            SELECT r.other_id FROM relations r JOIN reachable p ON r.issue_id = p.id
+            WHERE r.kind = 'blocks'
+        )
+        SELECT 1 FROM reachable WHERE id = NEW.issue_id
+    );
+END;
+
+CREATE TRIGGER IF NOT EXISTS relations_blocks_update AFTER UPDATE OF issue_id, kind, other_id ON relations
+WHEN NEW.kind = 'blocks'
+BEGIN
+    SELECT RAISE(ABORT, 'dependency cycle is not allowed')
+    WHERE EXISTS (
+        WITH RECURSIVE reachable(id) AS (
+            SELECT NEW.other_id
+            UNION
+            SELECT r.other_id FROM relations r JOIN reachable p ON r.issue_id = p.id
+            WHERE r.kind = 'blocks'
+        )
+        SELECT 1 FROM reachable WHERE id = NEW.issue_id
+    );
+END;
+
+UPDATE relations SET kind = kind WHERE kind = 'blocks';
+`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

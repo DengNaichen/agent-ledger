@@ -18,7 +18,7 @@
 | type | 可选分类：`spec`、`feature`、`bug`、`improvement`、`chore`；与 status 相互独立。 |
 | label / label group | workspace 内的 issue 标签；普通标签多选，单层标签组内互斥。标签 ID 稳定、名称可改、创建后所属组固定；归档保留关联和筛选，合并转移关联并删除源 ID。与 type、Project 和 status 独立。 |
 | parent / children | 工作归属与子任务。不能自引用；当前服务不检查较长的 parent 环。 |
-| blocks / blocked_by | 有方向的阻塞关系；`blocked_by` 以反向 `blocks` 存储。 |
+| blocks / blocked_by | 有方向的阻塞关系；`blocked_by` 以反向 `blocks` 存储。Service 与 SQLite INSERT/UPDATE 触发器均禁止成环，依赖关系构成 DAG；`related` 与 parent 不参与此图。 |
 | related | 无方向关联，数据库规范化两端顺序以避免重复。与 parent 的归属含义不同。 |
 | link / pull_requests | 前者是人工附加的标题和 URL；后者是 GitHub 同步记录的 PR，有仓库、编号与状态。 |
 | linkback | 默认关闭的 GitHub 回写：把 issue 标题、描述作为评论发到关联的 open/draft PR。不是本地 link。 |
