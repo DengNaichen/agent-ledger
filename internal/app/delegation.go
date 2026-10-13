@@ -53,7 +53,7 @@ func validateExecutionContext(input *ExecutionContext) error {
 	return nil
 }
 
-// Delegate appends one participant without claiming a lock or altering the issue.
+// Delegate registers a participant and starts progress atomically, without claiming a lock.
 func (s *Service) Delegate(ctx context.Context, input DelegateIssue) (Delegation, error) {
 	if err := s.checkAccess(ctx); err != nil {
 		return Delegation{}, err
@@ -74,19 +74,27 @@ func (s *Service) Delegate(ctx context.Context, input DelegateIssue) (Delegation
 	}
 	defer tx.Rollback()
 	var assigned bool
-	if err = tx.QueryRowContext(ctx, `SELECT assignee_subject IS NOT NULL FROM issues WHERE id=?`, id).Scan(&assigned); err != nil {
+	var status Status
+	if err = tx.QueryRowContext(ctx, `SELECT assignee_subject IS NOT NULL, status FROM issues WHERE id=?`, id).Scan(&assigned, &status); err != nil {
 		return Delegation{}, err
 	}
 	if !assigned {
 		return Delegation{}, ErrDelegationRequiresAssignee
 	}
+	now := s.now().UTC().Format(time.RFC3339Nano)
 	c := input.ClientContext
 	_, err = tx.ExecContext(ctx, `INSERT INTO issue_delegations(issue_id,agent,session_id,agent_id,agent_type,hostname,actor_subject,created_at)
  VALUES(?,?,?,?,?,?,NULLIF(?,''),?) ON CONFLICT(issue_id,agent,session_id,agent_id,hostname) DO NOTHING`,
-		id, c.Agent, c.SessionID, c.AgentID, c.AgentType, c.Hostname, requestIdentity(ctx).Subject, s.now().UTC().Format(time.RFC3339Nano))
+		id, c.Agent, c.SessionID, c.AgentID, c.AgentType, c.Hostname, requestIdentity(ctx).Subject, now)
 	if err != nil {
 		return Delegation{}, err
 	}
+	if status != StatusInProgress {
+		if err := s.changeStatus(ctx, tx, input.Identifier, StatusInProgress, "", now); err != nil {
+			return Delegation{}, err
+		}
+	}
+
 	d, err := scanDelegation(tx.QueryRowContext(ctx, delegationColumns+` WHERE d.issue_id=? AND d.agent=? AND d.session_id=? AND d.agent_id=? AND d.hostname=?`,
 		id, c.Agent, c.SessionID, c.AgentID, c.Hostname))
 	if err != nil {

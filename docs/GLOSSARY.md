@@ -8,7 +8,7 @@
 | private team | 只有显式团队成员能读写其中任务；普通成员不可发现未加入的私有团队。Admin 可在设置目录发现并管理，确认加入后才有内容访问权。公开团队允许未加入的工作区成员协作。 |
 | suspended | 某人在某个工作区被停用，保留历史记录；后续 REST/MCP 请求失去访问权，邀请不能自行恢复。由活动 Admin 恢复，不能移除最后一个活动 Admin。 |
 | assignee | 单一人类负责人，可为空；代表责任归属，不是编辑锁。任何有任务写权限的活动成员可改派或清空。候选必须是活动工作区成员且可访问任务团队；停用保留历史显示。Agent 执行身份不写入此字段；委派要求已有人的负责人。 |
-| delegation / delegate_issue | 当前主或子 Agent 显式登记参与一张已有人类负责人的票，记录宿主 agent/session/subagent/hostname 与可信操作者。与 status 和人的 assignee 分别保存，不是编辑锁、任务调度或进程存活证明。相同执行身份去重，不同子 Agent 即使共享父 session 也各有记录；清空负责人保留历史。 |
+| delegation / delegate_issue | 当前主或子 Agent 显式登记参与一张已有人类负责人的票，记录宿主 agent/session/subagent/hostname 与可信操作者。认领成功时原子地设为 `in_progress`（含重复调用及从 `in_review`、`done`、`canceled` 重新开始）；已在进行中不刷新时间或追加状态事件。保留人的 assignee，不是编辑锁、任务调度或进程存活证明。相同执行身份去重，不同子 Agent 即使共享父 session 也各有记录；清空负责人保留历史。 |
 | Issue / ticket | 同一工作记录，标识符由服务端生成，形如 `<team key>-<number>`，编号由所属 team 依次分配，只在所属 workspace 内唯一。不能推测下一个编号。 |
 | team | 有自己票号前缀（key）和独立编号的 issue 归属，如本仓库的 `AL`。建票必须指定 team，没有默认值；key 在 workspace 内唯一，建好后不能改，显示名称可改，team 不能删除或换 workspace，票不能换 team。状态所有 workspace 共用，Project 显式关联同一 workspace 的一个或多个 team。不是 GitHub team 或 UC 用户组。 |
 | Project | 按交付结果组织 ticket 的具名记录，不是 Git 仓库或源码目录。名称在 workspace 内唯一，可通过稳定 id 改名；当前名称也可寻址，旧名称不是别名。内部 id、Team 关联和任务引用不随改名变化。显式关联同一 workspace 的一个或多个 Team，空项目也按关联出现在 Team 列表。历史无任务项目保留待归属，仅 workspace 列表可见；新建必须指定 Team。任务只能属于兼容 Team 的项目；归档后默认列表不展示且不接受新任务归属，已有任务可保留。 |

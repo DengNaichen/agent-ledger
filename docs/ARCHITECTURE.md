@@ -24,7 +24,7 @@ workspace 是云端成员访问边界：team、Project、标签和 PR 记录各�
 
 任务创建/编辑成功由所属页面显示结果与查看入口；创建后 `useIssues.ts` 重读筛选结果，不强插新票。详情的快捷状态、优先级、负责人、评论、标签和编辑器保存共享同票队列；编辑成功应用响应后重读详情。评论仅在提交后未再编辑时清空输入，后续草稿保留。列表乐观状态失败恢复最近确认的状态，不回滚整票，也不覆盖已保存的其它字段。编辑器项目目录独立读取同 Team 的含归档目录，失败保留草稿并提供重试。这些队列只协调当前页面发起的操作，不提供跨浏览器/跨客户端事务或冲突检测。
 
-Agent 接票由独立 MCP `delegate_issue` 调用 `Service.Delegate`，不通过 `Update` 的状态变化推断。`delegation.go` 校验客户端来源、沿用 issue 的 workspace/team 权限，在同一事务内检查人类 assignee 非空并插入 `issue_delegations`；详情 `delegations` 按 id 返回所有参与者。每次调用都要求负责人，包括重复调用；清空负责人保留历史，重新分配后可继续登记。唯一键为 issue/agent/session_id/agent_id/hostname，重复调用保留原 actor、类型和时间，不改变 issue 的 updated_at、status 或 assignee。`IssueDetail.tsx` 展示参与 Agent 和可选择复制的来源历史，不表示实时运行状态。仓库本地 hooks 注入工具参数，分发插件不含这些 hooks；配置见 [开发](DEVELOPMENT.md#仓库内-agent-接票)。
+Agent 接票由独立 MCP `delegate_issue` 调用 `Service.Delegate`，不通过 `Update` 的状态变化推断。`delegation.go` 校验客户端来源、沿用 issue 的 workspace/team 权限，在同一事务内检查人类 assignee 非空、插入 `issue_delegations` 并将状态设为 `in_progress`；详情 `delegations` 按 id 返回所有参与者。每次调用都要求负责人，包括重复调用；清空负责人保留历史，重新分配后可继续登记。唯一键为 issue/agent/session_id/agent_id/hostname，重复调用保留原 actor、类型和时间，每次成功调用（包括重复身份）都会把非 `in_progress` 状态改为 `in_progress`，同时更新 updated_at 和追加状态事件；已是 `in_progress` 时不刷新时间或增加事件，assignee 保持不变。`IssueDetail.tsx` 展示参与 Agent 和可选择复制的来源历史，不表示实时运行状态。仓库本地 hooks 注入工具参数，分发插件不含这些 hooks；配置见 [开发](DEVELOPMENT.md#仓库内-agent-接票)。
 
 增加 issue 字段时，先核对 `CreateIssue`、`UpdateIssue`、查询列和扫描，再判断是否需要 schema/迁移、MCP schema、HTTP 测试和前端类型/编辑器一起变更。REST 并未暴露 MCP 的全部能力，不因工具存在就假设有对应 HTTP endpoint。
 
