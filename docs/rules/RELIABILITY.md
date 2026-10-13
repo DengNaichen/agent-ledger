@@ -4,7 +4,7 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 13 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 14 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
@@ -29,6 +29,10 @@
 - 迁移 12 新建 `issue_delegations` 和 issue/id 查询索引，不重建原表、不回填来源。版本 11 升级前保存 `before-migration-12.db`；新库/升级库结构一致。旧二进制可忽略新增表继续既有操作，但不登记或展示 Agent 接票；停服务切回旧二进制时记录仍保留，恢复备份会丢失此后的写入。
 
 - 迁移 13 新建 `work_logs` 及票内倒序/决策查询索引，保留全部 comments、作者、业务字段、委派与引用，不猜测历史来源。版本 12 升级前保存 `before-migration-13.db`，新库和升级库结构一致。旧二进制可忽略新增表，停服换回旧版后记录仍在库中，但旧接口不会读写或展示；恢复升级前备份会丢失之后的数据。
+
+- 迁移 14 新建 `relations_blocks_insert` / `relations_blocks_update` 触发器，使用递归可达性检查保证 `blocks` 无环；不改表、引用、时间或其他关系类型。安装后在迁移事务中校验所有旧 blocks；发现旧环时报 `dependency cycle is not allowed`，回滚本项迁移及版本号，不删边。从版本 13 升级前保存 `before-migration-14.db`。新库/升级库结构一致。旧二进制仍受 SQL 约束保护，但不提供新的 Service 错误分类。停服务回滚二进制不会移除触发器；恢复备份会丢失之后写入。
+
+旧环导致升级失败时保留原库与失败前备份，先在隔离副本定位并确定要移除的关系；由维护者确认后停服务修复原库，不自动删边。重试前将同名迁移备份另存到受保护位置，避免现有 `VACUUM INTO` 因目标已存在而失败，再启动升级。
 
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 

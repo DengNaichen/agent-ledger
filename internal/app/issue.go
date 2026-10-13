@@ -9,6 +9,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"modernc.org/sqlite"
+	"modernc.org/sqlite/lib"
 )
 
 type Status string
@@ -709,10 +712,31 @@ func (s *Service) Relation(ctx context.Context, identifier, kind, other string, 
 	if kind == "related" && from > to {
 		from, to = to, from
 	}
+	if kind == "blocks" && !remove {
+		var cycle bool
+		// Traverse the complete dependency graph, including private intermediate
+		// issues, without exposing their identities in the error. UNION terminates
+		// even if a legacy database contains a cycle.
+		err := s.db.QueryRowContext(ctx, `WITH RECURSIVE reachable(id) AS (
+			SELECT ? UNION
+			SELECT r.other_id FROM relations r JOIN reachable p ON r.issue_id = p.id WHERE r.kind = 'blocks'
+		) SELECT EXISTS(SELECT 1 FROM reachable WHERE id = ?)`, to, from).Scan(&cycle)
+		if err != nil {
+			return err
+		}
+		if cycle {
+			return ErrRelationCycle
+		}
+	}
 	query := `INSERT INTO relations(issue_id, kind, other_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
 	if remove {
 		query = `DELETE FROM relations WHERE issue_id = ? AND kind = ? AND other_id = ?`
 	}
 	_, err := s.db.ExecContext(ctx, query, from, kind, to)
+	// The database also checks the edge atomically, covering concurrent writers.
+	var constraint *sqlite.Error
+	if errors.As(err, &constraint) && constraint.Code() == sqlite3.SQLITE_CONSTRAINT_TRIGGER && strings.Contains(err.Error(), ErrRelationCycle.Error()) {
+		return ErrRelationCycle
+	}
 	return err
 }
