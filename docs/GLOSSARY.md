@@ -22,6 +22,8 @@
 | related | 无方向关联，数据库规范化两端顺序以避免重复。与 parent 的归属含义不同。 |
 | link / pull_requests | 前者是人工附加的标题和 URL；后者是 GitHub 同步记录的 PR，有仓库、编号与状态。 |
 | linkback | 默认关闭的 GitHub 回写：把 issue 标题、描述作为评论发到关联的 open/draft PR。不是本地 link。 |
-| events / comments | events 记录创建与状态变化；comments 是用户或 Agent 追加的正文，不能编辑或删除；`author` 只有从 Linear 导入的评论才有，本地追加的为空。 |
+| events / comments | events 记录创建与状态变化；comments 用于人的讨论，Agent 仅在用户明确要求代发时使用。历史评论可能混有人与 Agent 的记录，保留且不推断来源。评论不能编辑或删除；`author` 只有从 Linear 导入的评论才有，本地追加的为空。 |
+| work log / work_logs | Agent 追加的工作记录，含简短摘要和详细正文，供追溯、验证和交接；与人的 comments 分开，不能编辑或删除。表示内容用途，不是命令输出、委派登记或可信 Agent 身份。 |
+| decision | work log 的一种：已确定的选择及其背景和理由，详情页单独提取决策摘要。提议、执行进展、测试结果使用 progress；decision 不是待决问题票或独立 ADR 文件。 |
 
 定义以 `internal/app` 的 `workspace.go`、`issue.go`、`project.go`、`team.go`、`schema.sql`、`github.go`、MCP 工具描述及 [ticket skill](../.agents/skills/ticket/SKILL.md) 为依据。

@@ -95,7 +95,7 @@ func New(service *app.Service) *mcp.Server {
 			issues, err := service.List(ctx, input)
 			return nil, listOutput{Issues: app.Summaries(issues)}, err
 		})
-	addTool(server, &mcp.Tool{Name: "get_issue", Description: "Get a complete issue with comments, links, linked GitHub pull requests, parent identifier, children summaries, and blocks, blocked_by, related summaries. " + statuses + types},
+	addTool(server, &mcp.Tool{Name: "get_issue", Description: "Get an issue with human comments, decision summaries and work_log_count (use list_work_logs and get_work_log for agent records), links, linked GitHub pull requests, parent identifier, children summaries, and blocks, blocked_by, related summaries. " + statuses + types},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input identifierInput) (*mcp.CallToolResult, app.IssueDetails, error) {
 			issue, err := service.Details(ctx, input.Identifier)
 			return nil, issue, err
@@ -110,10 +110,25 @@ func New(service *app.Service) *mcp.Server {
 			issue, err := service.Update(ctx, input)
 			return nil, issue, err
 		})
-	addTool(server, &mcp.Tool{Name: "add_comment", Description: "Append a comment to an issue. Comments cannot be edited or deleted."},
+	addTool(server, &mcp.Tool{Name: "add_comment", Description: "Append a human discussion comment, only when the user explicitly asks you to post one. Use add_work_log for agent progress, findings, verification and decisions. Comments cannot be edited or deleted."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input commentInput) (*mcp.CallToolResult, app.Comment, error) {
 			comment, err := service.AddComment(ctx, input.Identifier, input.Body)
 			return nil, comment, err
+		})
+	addTool(server, &mcp.Tool{Name: "add_work_log", Description: "Append an agent work record, separate from human comments. Use progress for findings, verification and handoff; decision for a settled choice and its reasons. Supply a concise summary and Markdown body. Append-only; classification does not establish agent identity or confer permissions."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.AddWorkLog) (*mcp.CallToolResult, app.WorkLog, error) {
+			log, err := service.AddWorkLog(ctx, input)
+			return nil, log, err
+		})
+	addTool(server, &mcp.Tool{Name: "list_work_logs", Description: "List agent work record summaries, newest first, with optional kind filter. Follow next_before for older pages; zero means the end. Use get_work_log to read a body."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.ListWorkLogs) (*mcp.CallToolResult, app.WorkLogPage, error) {
+			page, err := service.ListWorkLogs(ctx, input)
+			return nil, page, err
+		})
+	addTool(server, &mcp.Tool{Name: "get_work_log", Description: "Read one agent work record including its Markdown body. Both issue identifier and record id must match and be accessible."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input app.GetWorkLog) (*mcp.CallToolResult, app.WorkLog, error) {
+			log, err := service.GetWorkLog(ctx, input)
+			return nil, log, err
 		})
 	for _, operation := range []struct {
 		name, description string

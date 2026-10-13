@@ -383,6 +383,19 @@ CREATE INDEX IF NOT EXISTS issues_assignee_idx ON issues(workspace_id,assignee_s
 );
 CREATE INDEX IF NOT EXISTS issue_delegations_issue_idx ON issue_delegations(issue_id,id);
 `,
+	// Separate agent work records and decision summaries from comments.
+	`CREATE TABLE IF NOT EXISTS work_logs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+ kind TEXT NOT NULL CHECK(kind IN ('progress','decision')),
+ summary TEXT NOT NULL CHECK(length(summary) BETWEEN 1 AND 240),
+ body TEXT NOT NULL CHECK(length(CAST(body AS BLOB)) BETWEEN 1 AND 65536),
+ actor_subject TEXT REFERENCES users(subject),
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS work_logs_issue_idx ON work_logs(issue_id,id);
+CREATE INDEX IF NOT EXISTS work_logs_decisions_idx ON work_logs(issue_id,id) WHERE kind='decision';
+`,
 }
 
 func migrate(db *sql.DB, backupDir string, migrations []string) error {

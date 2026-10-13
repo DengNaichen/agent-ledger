@@ -16,7 +16,7 @@ workspace 是云端成员访问边界：team、Project、标签和 PR 记录各�
 
 `useResource.ts` 提供单资源的加载、错误、focus 刷新和版本门禁；团队由 workspace 外壳持有，项目目录和 by-id 详情由所属页面分别持有，`useLabels.ts` 拥有标签目录与筛选类型。`useIssues.ts` 只负责任务查询和写入，不加载团队或项目。`useRequestScope.ts` 统一挂载代际、最新读取与写入队列：同票操作按发起顺序执行，批量标签操作等待所选票的已有写入；写入使旧读取失效，期间触发的读取合并为最后一次，待写入结束再执行。离开页面后忽略已发出请求的结果，尚未发出的排队写入取消。查询门禁另外隔离切换筛选后的旧回调。
 
-`IssueViews.tsx` 的行内容按任务对象和单行选中/保存状态缓存，稳定事件入口转交最新已提交回调；超过 50 行的分组使用 TanStack Virtual 测量动态行高，计数和批选基于完整数据。`IssueFilters.tsx` 持有搜索草稿；`Dialogs.tsx` 提供新建 issue/team 与共用 Project 控件；`ProjectManagement.tsx` 提供项目表单及归档操作；`IssueDetail.tsx` 管详情展示、评论和编辑器。`web/vite.config.ts` 输出到 `internal/web/dist/app`，Go 嵌入 `internal/web/dist` 并提供 SPA 回退；构建输出不手改。
+`IssueViews.tsx` 的行内容按任务对象和单行选中/保存状态缓存，稳定事件入口转交最新已提交回调；超过 50 行的分组使用 TanStack Virtual 测量动态行高，计数和批选基于完整数据。`IssueFilters.tsx` 持有搜索草稿；`Dialogs.tsx` 提供新建 issue/team 与共用 Project 控件；`ProjectManagement.tsx` 提供项目表单及归档操作；`IssueDetail.tsx` 管详情展示、评论和编辑器；`WorkLogs.tsx` 管活动页签、决策展开和工作记录分页，正文复用 `MarkdownText.tsx`。`web/vite.config.ts` 输出到 `internal/web/dist/app`，Go 嵌入 `internal/web/dist` 并提供 SPA 回退；构建输出不手改。
 
 ## 从用户动作到写入
 
@@ -73,3 +73,9 @@ Settings 使用独立 team-directory 提供加入/退出、成员增删、owner 
 `issues.assignee_subject` 保存单一用户引用。事务内验证候选资格，并将实际变更写入 `issue_assignments`，包含 issue、可信 actor、from/to 用户引用及时间；相同值不重复记录历史。详情 `assignments` 按审计 id 排序，返回各人的当前显示资料及稳定 subject。本地内部操作的 actor 为 null，页面显示 System；请求正文不能提供 actor。停用或团队权限变化不抹除现有归属和历史，但后续显式分配必须重新通过候选资格校验。负责人不改变任务编辑权，不承载 Agent 会话。
 
 `Assignee.tsx` 复用 `useResource` 加载候选和筛选目录，创建时换 Team 清空负责人；详情改派走同票写入队列，成功后重读历史，失败保留原值。`shared.tsx` 的 IssueMeta 在列表/看板显示人名；IssuesPage 将自己、未分配和成员选择转换为同一列表查询。
+
+## Agent 工作记录
+
+`work_logs.go` 将工作记录独立存入 `work_logs`，不迁移或推断历史 comments。`get_issue` / REST 详情只返回 `decisions` 摘要与 `work_log_count`；MCP `list_work_logs` 和 `GET /api/w/{workspace}/issues/{identifier}/work-logs` 按 id 倒序分页返回摘要，kind 可筛 progress/decision，默认 20、最多 100，next_before=0 表示结束。MCP `get_work_log` 和上述 REST 路径加 `/{id}` 按票和记录 id 读取正文。MCP `add_work_log` 追加，网页只提供评论写入。可信 actor 来自请求上下文，不接收客户端作者，不建立新的 Agent 身份模型。
+
+列表在页签挂载时和窗口 focus 时重读最新页；展开的记录独立读取正文。读取失败保留自己的错误与重试，不影响评论草稿；离开页签后忽略旧响应。决策列表是同一记录的摘要视图，不另存重复的结论或自动生成摘要。
