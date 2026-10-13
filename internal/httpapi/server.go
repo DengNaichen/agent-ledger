@@ -18,6 +18,7 @@ type server struct{ service *app.Service }
 func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s := &server{service: service}
 	mux := http.NewServeMux()
+	s.workLogRoutes(mux)
 	s.labelRoutes(mux)
 	s.accessRoutes(mux)
 	s.teamAccessRoutes(mux)

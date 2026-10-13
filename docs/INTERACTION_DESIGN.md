@@ -100,3 +100,9 @@ Owner/Admin 可改可见性、添加工作区活动成员、升降 owner 和移�
 新建任务在 Team 后选择 Assignee，默认 Unassigned；换 Team 清空原负责人并重新加载候选。详情属性可改派或清空，保存等待服务端成功，错误保留原值；候选读取失败提供 Retry people。当前负责人失去资格时保留人名并标记 unavailable，不作为新候选。Assignment history 显示可信操作者、前后人名与时间。
 
 列表和看板显示负责人；Filter → Assignee 支持全部、自己、未分配、指定工作区成员（包含用于历史筛选的 suspended 成员）。筛选参与服务端查询，与其它条件相交；变更筛选清空批选。负责人不锁定任务，也不会替代 Agent 认领或会话字段。
+
+## 评论、工作记录与决策
+
+详情正文后的 Decisions 区只在有 decision 时出现，显示简短结论；展开单条才读取 Markdown 理由，失败显示 Retry record。Activity 默认 Comments，切换到 Agent work logs 才读取过程摘要，每页 20 条、倒序、Load older records 追加旧页。页签支持左右方向键、Home/End，Tab 进入当前页签；切换保留评论草稿及提交状态，不提供网页工作记录编辑器。
+
+工作记录显示 kind、稳定 id、时间和可信 Recorded by；这里的人表示请求操作者，不证明是哪一个 Agent 生成内容。空态明确显示没有工作记录；读取失败独立显示 Retry work logs，分页失败保留已有页。窗口重新获得焦点刷新当前最新页，详情页同步更新决策摘要和总数。历史评论保留原位置，不自动搬移或标成人写。

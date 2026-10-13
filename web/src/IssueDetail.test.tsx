@@ -186,3 +186,76 @@ it("clears previously loaded private content after access is revoked", async () 
   expect(screen.queryByText("Fixture issue")).toBeNull();
   expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
 });
+
+const decision = { id: 7, kind: "decision", summary: "Preserve historical comments", actor: { subject: "member", name: "Member", email: "" }, created_at: fixtureIssue.created_at };
+const progress = { ...decision, id: 8, kind: "progress", summary: "Verified the migration" };
+
+it("loads agent records on demand and preserves the human draft across tabs", async () => {
+  const fetcher = vi.fn((url) => {
+    const path = String(url);
+    if (path.endsWith("/work-logs/7")) return Promise.resolve(json({ ...decision, body: "We cannot reliably infer historical authors." }));
+    if (path.includes("/work-logs?")) return Promise.resolve(json({ work_logs: [progress, decision], next_before: 0 }));
+    return Promise.resolve(json({ ...fixtureIssue, work_log_count: 2, decisions: [decision] }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<IssueDetail {...props} />);
+  const textarea = await screen.findByRole("textbox", { name: "Comment" });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText("Verified the migration")).toBeNull();
+  fireEvent.change(textarea, { target: { value: "Human draft" } });
+  fireEvent.click(screen.getByRole("button", { name: decision.summary }));
+  await screen.findByText("We cannot reliably infer historical authors.");
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole("tab", { name: /Agent work logs/ }));
+  await screen.findByText(progress.summary);
+  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+  fireEvent.keyDown(screen.getByRole("tab", { name: /Agent work logs/ }), { key: "ArrowLeft" });
+  expect(screen.getByRole("tab", { name: /Comments/ }).getAttribute("aria-selected")).toBe("true");
+  expect((screen.getByRole("textbox", { name: "Comment" }) as HTMLTextAreaElement).value).toBe("Human draft");
+});
+
+it("retries a failed log page, loads older summaries and retries a failed body", async () => {
+  let failPage = true;
+  let failBody = true;
+  vi.stubGlobal("fetch", vi.fn((url) => {
+    const path = String(url);
+    if (path.endsWith("/work-logs/7")) return Promise.resolve(failBody ? json({ error: "Record offline" }, 503) : json({ ...decision, body: "Decision reasons" }));
+    if (path.includes("/work-logs?")) {
+      if (failPage) return Promise.resolve(json({ error: "Logs offline" }, 503));
+      return Promise.resolve(json(path.endsWith("before=8") ? { work_logs: [decision], next_before: 0 } : { work_logs: [progress], next_before: 8 }));
+    }
+    return Promise.resolve(json({ ...fixtureIssue, work_log_count: 2 }));
+  }));
+  render(<IssueDetail {...props} />);
+  fireEvent.click(await screen.findByRole("tab", { name: /Agent work logs/ }));
+  await screen.findByText("Logs offline");
+  failPage = false;
+  fireEvent.click(screen.getByRole("button", { name: "Retry work logs" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Load older records" }));
+  fireEvent.click(await screen.findByRole("button", { name: decision.summary }));
+  await screen.findByText("Record offline");
+  failBody = false;
+  fireEvent.click(screen.getByRole("button", { name: "Retry record" }));
+  await screen.findByText("Decision reasons");
+  expect(screen.getAllByText(progress.summary)).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Load older records" })).toBeNull();
+});
+
+it("ignores a log response after leaving the tab and reloads on return", async () => {
+  const delayed = deferred<Response>();
+  let first = true;
+  vi.stubGlobal("fetch", vi.fn((url) => {
+    if (String(url).includes("/work-logs?")) {
+      if (first) { first = false; return delayed.promise; }
+      return Promise.resolve(json({ work_logs: [progress], next_before: 0 }));
+    }
+    return Promise.resolve(json({ ...fixtureIssue, work_log_count: 1 }));
+  }));
+  render(<IssueDetail {...props} />);
+  fireEvent.click(await screen.findByRole("tab", { name: /Agent work logs/ }));
+  fireEvent.click(screen.getByRole("tab", { name: /Comments/ }));
+  await act(async () => delayed.resolve(json({ work_logs: [decision], next_before: 0 })));
+  fireEvent.click(screen.getByRole("tab", { name: /Agent work logs/ }));
+  await screen.findByText(progress.summary);
+  expect(screen.queryByText(decision.summary)).toBeNull();
+});

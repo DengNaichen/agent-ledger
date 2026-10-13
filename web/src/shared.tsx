@@ -70,7 +70,13 @@ export type Delegation = {
 };
 export const codingAgentName = (agent: Delegation["agent"]) => agent === "codex" ? "Codex" : "Claude";
 
+export type WorkLogSummary = { id: number; kind: "progress" | "decision"; summary: string; actor: Identity | null; created_at: string };
+export type WorkLog = WorkLogSummary & { body: string };
+export type WorkLogPage = { work_logs: WorkLogSummary[]; next_before: number };
+
 export type IssueDetails = Issue & {
+  work_log_count: number;
+  decisions: WorkLogSummary[];
   delegations: Delegation[];
   assignments: { actor: Identity | null; from: Identity | null; to: Identity | null; created_at: string }[];
   comments: Comment[];
