@@ -2,8 +2,8 @@ import { AssigneeSelect } from "./Assignee";
 import { codingAgentName, personName } from "./shared";
 import { Box, CornerUpLeft, Plus, Users, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownText } from "./MarkdownText";
+import { WorkLogEntry, WorkLogList, ActivityTabs } from "./WorkLogs";
 import { RequestError, api, apiPath, columns, Comment, Issue, IssueDetails, IssueSummary, ModalDialog, NavLink, pagePath, Status, StatusIcon, StatusSelect, Priority, PriorityIcon, PrioritySelect, Project, Team, issueTeamKey } from "./shared";
 
 import { LabelPicker } from "./Labels";
@@ -16,12 +16,11 @@ import { EntityEmoji } from "./EmojiPicker";
 import { useResource } from "./useResource";
 import { useRequestScope } from "./useRequestScope";
 
-const remarkPlugins = [remarkGfm];
-
 const timestamp = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export function IssueDetail({ catalog, teams, onSaved, identifier, setError, editing, closeEditor }: { catalog: Catalog; teams: Team[]; onSaved: (issue: Issue) => Promise<void>; identifier: string; setError: (message: string) => void; editing: boolean; closeEditor: () => void }) {
   const [issue, setIssue] = useState<IssueDetails | null>(null);
+  const [activityTab, setActivityTab] = useState<"comments" | "work-logs">("comments");
   const [comment, setComment] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
@@ -134,6 +133,11 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
         </section>
         <article className="detail-main">
           <MarkdownText text={issue.description} />
+          {issue.decisions.length > 0 && <section className="detail-section decision-section" aria-label="Decisions">
+            <h2>Decisions <span className="activity-count">{issue.decisions.length}</span></h2>
+            <p className="activity-hint">Settled choices and the reasons behind them.</p>
+            {issue.decisions.map((entry) => <WorkLogEntry key={entry.id} entry={entry} path={path} />)}
+          </section>}
           {issue.delegations.length > 0 && <section ref={delegationHistory} className="detail-section delegation-history" aria-label="Agent executions">
             <h2>Agent executions</h2>
             <p className="none">Recorded participation, not an edit lock or live process status.</p>
@@ -197,21 +201,27 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
             </section>
           )}
 
-          <section className="detail-section">
-            <h2>Comments</h2>
-            {issue.comments.map((item, index) => (
-              <article className="comment" key={index}>
-                <header className="comment-meta">
-                  {item.author && <span className="comment-author">{item.author}</span>}
-                  <time dateTime={item.created_at}>{timestamp(item.created_at)}</time>
-                </header>
-                <MarkdownText text={item.body} />
-              </article>
-            ))}
-            <form className="comment-form" onSubmit={postComment}>
-              <textarea rows={3} value={comment} onChange={(event) => { commentRevision.current++; setComment(event.target.value); }} placeholder="Leave a comment… (Markdown)" aria-label="Comment" required />
-              <button type="submit" className="button primary" disabled={posting}>{posting ? "Posting…" : "Comment"}</button>
-            </form>
+          <section className="detail-section issue-activity" aria-label="Activity">
+            <ActivityTabs value={activityTab} onChange={setActivityTab} comments={issue.comments.length} workLogs={issue.work_log_count} />
+            <div id="activity-comments" role="tabpanel" aria-labelledby="tab-comments" hidden={activityTab !== "comments"}>
+              {issue.comments.length === 0 && <p className="activity-hint">Questions and feedback from people belong here.</p>}
+              {issue.comments.map((item, index) => (
+                <article className="comment" key={index}>
+                  <header className="comment-meta">
+                    {item.author && <span className="comment-author">{item.author}</span>}
+                    <time dateTime={item.created_at}>{timestamp(item.created_at)}</time>
+                  </header>
+                  <MarkdownText text={item.body} />
+                </article>
+              ))}
+              <form className="comment-form" onSubmit={postComment}>
+                <textarea rows={3} value={comment} onChange={(event) => { commentRevision.current++; setComment(event.target.value); }} placeholder="Leave a comment… (Markdown)" aria-label="Comment" required />
+                <button type="submit" className="button primary" disabled={posting}>{posting ? "Posting…" : "Comment"}</button>
+              </form>
+            </div>
+            <div id="activity-work-logs" role="tabpanel" aria-labelledby="tab-work-logs" hidden={activityTab !== "work-logs"}>
+              {activityTab === "work-logs" && <WorkLogList key={identifier} path={path} />}
+            </div>
           </section>
         </article>
       </div>
@@ -224,10 +234,6 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
       }} />}
     </div>
   );
-}
-
-function MarkdownText({ text }: { text: string }) {
-  return <div className="markdown"><Markdown remarkPlugins={remarkPlugins}>{text}</Markdown></div>;
 }
 
 function IssueRows({ issues }: { issues: IssueSummary[] }) {

@@ -5,20 +5,20 @@ description: "Find, create, and update tickets on an InfTask board through the i
 
 # Ticket
 
-Tickets live on an InfTask board. Use the `inftask` MCP tools: `list_issues`, `get_issue`, `create_issue`, `update_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, `list_teams`, and `list_projects`. Labels have their own tools; reuse existing labels before creating one.
+Tickets live on an InfTask board. Use the `inftask` MCP tools: `list_issues`, `get_issue`, `create_issue`, `update_issue`, `add_work_log`, `list_work_logs`, `get_work_log`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, `list_teams`, and `list_projects`. Labels have their own tools; reuse existing labels before creating one.
 
 ## Team, workspace, and language
 
 - Take the team key and workspace from the current repository's `AGENTS.md`. When it does not name them, ask the user. Never guess a team.
 - The workspace is part of the MCP server URL (`/w/<slug>/mcp`); no tool takes a workspace argument. When `list_teams` does not list the repository's team, the server points at another workspace or instance: stop and tell the user instead of writing elsewhere.
 - `create_issue` requires `team` and has no default: always pass the repository's team key. Filter `list_issues` by it too, so results stay within the repository's team.
-- Write ticket titles, bodies, and comments in the language `AGENTS.md` asks for; when it names none, use the language the user writes in. Paths, commands, code identifiers, and `status` and `type` values stay as written.
+- Write ticket titles, bodies, work logs, and comments in the language `AGENTS.md` asks for; when it names none, use the language the user writes in. Paths, commands, code identifiers, and `status` and `type` values stay as written.
 - Follow the rest of `AGENTS.md` where it is stricter than this skill.
 
 ## Finding tickets
 
 - `list_issues` returns summaries without descriptions, 50 by default. Filter by `team`, `status`, `type`, `project`, `parent`, `query` (title and description text), and labels; pass `limit: -1` when the result must not be truncated.
-- Read a ticket with `get_issue` before acting on it. Its description, comments, relations, children, and linked pull requests are only there.
+- Read a ticket with `get_issue` before acting on it. It includes the description, human comments, decision summaries, work-log count, relations, children, and linked pull requests. Read relevant record bodies with `get_work_log`; use `list_work_logs` and `next_before` to page through earlier summaries when needed. Do not load all agent logs by default.
 
 ## New work without a ticket
 
@@ -32,7 +32,8 @@ Tickets live on an InfTask board. Use the `inftask` MCP tools: `list_issues`, `g
 ## Working a ticket
 
 - The description's scope, non-goals, and acceptance are the contract. Ask before going beyond scope.
-- Set `in_progress` when you start. Record lasting decisions, progress, and verification evidence with `add_comment`; comments cannot be edited or deleted.
+- Set `in_progress` when you start. Record agent progress, findings, verification, and handoff with `add_work_log`: a concise `summary`, a Markdown `body`, and `kind=progress` (default). Use `kind=decision` for a settled choice with its context and reasons. Both are append-only; omit routine command chatter and tentative thoughts.
+- Comments are for human discussion; use `add_comment` only when explicitly asked to post one. Historical comments remain unclassified. If work-log tools are missing, report the server version gap instead of silently putting agent logs back in comments.
 - Attach references other than pull requests with `add_link`.
 
 ## Project
@@ -51,7 +52,7 @@ Tickets live on an InfTask board. Use the `inftask` MCP tools: `list_issues`, `g
 - `in_progress`: being worked on.
 - `in_review`: its pull request can be reviewed. Set by GitHub sync.
 - `done`: its pull request merged. Set by GitHub sync.
-- `canceled`: superseded or narrowed away. Comment with the ticket that replaces it.
+- `canceled`: superseded or narrowed away. Record a work log naming the ticket that replaces it.
 - `priority`: `0` none (default), `1` urgent, `2` high, `3` medium, `4` low. On `update_issue`, omitting it keeps it and `0` clears it.
 
 ## agent_ready gate

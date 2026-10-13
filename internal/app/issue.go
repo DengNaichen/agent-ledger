@@ -65,8 +65,10 @@ type Issue struct {
 }
 
 type IssueDetails struct {
-	Delegations []Delegation       `json:"delegations"`
-	Assignments []AssignmentChange `json:"assignments"`
+	WorkLogCount int                `json:"work_log_count"`
+	Decisions    []WorkLogSummary   `json:"decisions"`
+	Delegations  []Delegation       `json:"delegations"`
+	Assignments  []AssignmentChange `json:"assignments"`
 	Issue
 	Comments     []Comment      `json:"comments"`
 	Links        []Link         `json:"links"`
@@ -582,6 +584,13 @@ func (s *Service) Details(ctx context.Context, identifier string) (IssueDetails,
 		return IssueDetails{}, err
 	}
 	detail := IssueDetails{Issue: issue, Comments: []Comment{}, Links: []Link{}, PullRequests: []PullRequest{}}
+	if err = s.db.QueryRowContext(ctx, `SELECT count(*) FROM work_logs WHERE issue_id=?`, id).Scan(&detail.WorkLogCount); err != nil {
+		return IssueDetails{}, err
+	}
+	detail.Decisions, err = s.workLogSummaries(ctx, ` WHERE w.issue_id=? AND w.kind='decision' ORDER BY w.id DESC`, id)
+	if err != nil {
+		return IssueDetails{}, err
+	}
 	detail.Delegations, err = s.delegations(ctx, id)
 	if err != nil {
 		return IssueDetails{}, err

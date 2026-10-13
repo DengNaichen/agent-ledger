@@ -1,7 +1,7 @@
 import { IssueDetails } from "../shared";
 
 export const fixtureIssue: IssueDetails = {
-  assignee: null, assignments: [], delegations: [], identifier: "AL-1", title: "Fixture issue", description: "Test description", status: "todo", priority: 0,
+  assignee: null, assignments: [], delegations: [], work_log_count: 0, decisions: [], identifier: "AL-1", title: "Fixture issue", description: "Test description", status: "todo", priority: 0,
   type: "bug", project: null, project_id: null, project_emoji: "", parent: null, labels: [],
   created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
   comments: [], links: [], pull_requests: [], children: [], blocks: [], blocked_by: [], related: [],

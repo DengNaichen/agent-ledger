@@ -10,7 +10,7 @@
 
 ## 工作策略
 
-领取 ticket 时先用 `get_issue` 阅读描述；scope、non-goals 和 acceptance 是合同，超出范围先询问。开始时设为 `in_progress`，长期有效的决定和证据用 `add_comment` 记录。
+领取 ticket 时先用 `get_issue` 阅读描述；scope、non-goals 和 acceptance 是合同，超出范围先询问。开始时设为 `in_progress`，Agent 进展与证据用 `add_work_log` 记录，已确定的选择用 `kind=decision`；人的讨论留在 comments。
 
 - 产品或共享 agent 行为、验证、安全、权限、外部写入、自动化副作用的变更先有 InfTask ticket。同一 outcome 沿用当前票；新任务无票时按 [ticket skill](.agents/skills/ticket/SKILL.md) 自动创建，不猜票号。只读分析与不改变这些边界的措辞、拼写、链接、示例和格式维护可无票处理。
 - 创建、更新 ticket 或进入 agent 队列：先读 [ticket skill](.agents/skills/ticket/SKILL.md)。用户已要求立即执行的工作，建票后直接设为 `in_progress`。

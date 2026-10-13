@@ -194,3 +194,15 @@ node scripts/browser/access.mjs <临时目录>/fixture.json <临时目录>/scree
 ```
 
 验证创建指定、另一成员改派/清空、可信历史、断网失败保留原值、自己/未分配/指定成员过滤、列表/看板展示，保存桌面与 390px 截图并检查窄屏溢出。不是生产 UC 或正式部署验收。
+
+## Agent 工作记录
+
+```sh
+go test ./internal/app -run 'TestWorkLog|TestWorkLogsUpgrade' -count=1
+go test ./internal/httpapi ./internal/mcpserver -run TestIssueWorkLogs -count=1
+npm --prefix web run test -- IssueDetail.test.tsx
+```
+
+覆盖评论分离、可信 actor、progress/decision、摘要和正文边界、倒序 cursor 分页（页间新插入）、工作区/私有团队/停用、失败写入、新旧 schema/升级前备份/历史评论作者保留、REST/MCP 严格输入和按票读记录。HTTP Red 在未改实现上请求工作记录入口为 404，新增测试实际失败后才实现。组件检查默认评论、工作记录按需加载、决策正文读取、失败重试、旧页追加、离开页签忽略旧响应和评论草稿保留。
+
+真实浏览器验证使用隔离空库，运行既有 seed 后，经本地 MCP 在 AL-2 写入 decision 和超过 20 条 progress，再运行 `node scripts/browser/work-logs.mjs http://127.0.0.1:<端口> AL-2 <仓库外截图目录>`。脚本检查桌面/1024/760/390px、明暗主题、键盘页签、决策展开、分页、断网读取重试以及评论草稿跨切换/失败保留和成功提交；只写隔离库，不用于正式实例。Chrome、Node 和截图环境同上。

@@ -5,7 +5,7 @@ description: "Create and update InfTask tickets: choose the Project by outcome, 
 
 # Ticket
 
-Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `get_issue`, `list_issues`, `delegate_issue`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
+Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: `create_issue`, `update_issue`, `get_issue`, `list_issues`, `delegate_issue`, `add_work_log`, `list_work_logs`, `get_work_log`, `add_comment`, `add_link`, `add_relation`, `remove_relation`, and `list_projects`. `create_issue` requires `team`, and there is no default: use the team the repository's `AGENTS.md` names (`AL` in this repository). Identifiers come only from `create_issue` results; never guess the next number.
 
 ## New work without an existing ticket
 
@@ -38,7 +38,7 @@ Tickets live in the InfTask instance. Manage them with the `inftask` MCP tools: 
 - `todo` means the work is committed to. It says nothing about the type or who executes it.
 - `agent_ready` admits a ticket to the agent queue once it passes the gate below. Work the user asked to do right now goes straight to `in_progress`.
 - `in_review` once the pull request can be reviewed; `done` after it is merged. GitHub sync sets both; see [git-workflow](../git-workflow/SKILL.md).
-- A ticket that is superseded or narrowed away becomes `canceled`, with a comment naming the ticket that replaces it.
+- A ticket that is superseded or narrowed away becomes `canceled`, with a work log naming the ticket that replaces it.
 
 ## agent_ready gate
 
@@ -59,13 +59,16 @@ Check every item before setting `agent_ready`:
 
 ## Body
 
-- Ticket titles, bodies, and comments are in Chinese. Paths, commands, code identifiers, and `status` and `type` values stay as written. See the Language section of [git-workflow](../git-workflow/SKILL.md#language).
+- Ticket titles, bodies, work logs, and comments are in Chinese. Paths, commands, code identifiers, and `status` and `type` values stay as written. See the Language section of [git-workflow](../git-workflow/SKILL.md#language).
 - Title: an imperative phrase naming the deliverable. Records start with `记录：`.
 - The body must be self-contained: the executor cannot see this conversation. Write the background, scope, non-goals, and acceptance; link documents instead of copying them.
 - For schema work, write “追加一个迁移” in the ticket and plan, without reserving a migration number. Its number comes from its position in `internal/app/migrate.go`'s `migrations` at merge time.
 - Decisions the user has not made stay open in the body; do not write a recommendation as if it were agreed.
 - When product details are still open, list them under `待定项和默认做法`, each with the default the executor follows. Leave nothing for the executor to guess.
-- Progress, evidence, and decisions go in comments with `add_comment`. Other references go in with `add_link`; GitHub sync records pull requests.
+- Agent progress, findings, verification, and handoff go in `add_work_log` with a short `summary` and a Markdown `body`; use `kind=progress` (default). Use `kind=decision` only for a settled choice, explaining the context, choice, and reasons. Both kinds are append-only. Do not record every command or tentative thought.
+- `get_issue` includes decision summaries and the work-log count. Read relevant bodies with `get_work_log`; use `list_work_logs` and its `next_before` cursor when earlier work is needed. Do not load every log by default.
+- Comments are for human discussion. Use `add_comment` only when the user explicitly asks you to post a comment. Historical comments remain unclassified. If the connected server lacks work-log tools, report the version gap; do not silently route agent logs back into comments.
+- Other references go in with `add_link`; GitHub sync records pull requests.
 
 agent_ready ticket:
 
