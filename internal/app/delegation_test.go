@@ -128,10 +128,12 @@ func TestIssueDelegationLifecycle(t *testing.T) {
 		t.Fatal(after.Delegations)
 	}
 	after.Delegations = before.Delegations
+	before.Status = StatusInProgress
+	before.UpdatedAt = first.CreatedAt
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("delegate changed business fields", after)
 	}
-	// Status is not a delegation trigger or restriction.
+	// Any status can be explicitly delegated.
 	for _, status := range Statuses {
 		if _, err = s.Update(admin, UpdateIssue{Identifier: issue.Identifier, Status: &status}); err != nil {
 			t.Fatal(err)

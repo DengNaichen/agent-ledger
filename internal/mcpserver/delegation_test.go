@@ -105,7 +105,7 @@ func TestIssueDelegationLifecycle(t *testing.T) {
 		Delegations []map[string]any `json:"delegations"`
 	}
 	call(t, session, "get_issue", map[string]any{"identifier": issue.Identifier}, &detail)
-	if len(detail.Delegations) != 3 || detail.Status != app.StatusTodo || detail.Assignee == nil || detail.Assignee.Subject != "member" || detail.UpdatedAt != issue.UpdatedAt {
+	if len(detail.Delegations) != 3 || detail.Status != app.StatusInProgress || detail.Assignee == nil || detail.Assignee.Subject != "member" || detail.UpdatedAt != first["created_at"] {
 		t.Fatal(detail)
 	}
 	call(t, session, "update_issue", map[string]any{"identifier": issue.Identifier, "assignee": ""}, &issue)

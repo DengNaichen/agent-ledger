@@ -37,7 +37,7 @@ func TestIssueDelegationREST(t *testing.T) {
 	if err = json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
 		t.Fatal(err)
 	}
-	if len(detail.Delegations) != 1 || detail.Delegations[0].ID != first.ID || detail.Delegations[0].AgentID != "child" || detail.Status != issue.Status || detail.Assignee != nil {
+	if len(detail.Delegations) != 1 || detail.Delegations[0].ID != first.ID || detail.Delegations[0].AgentID != "child" || detail.Status != app.StatusInProgress || detail.Assignee != nil {
 		t.Fatal(detail)
 	}
 }
