@@ -115,6 +115,16 @@ exit 0 并打印 `Skill is valid!` 表示通过。脚本只检查 frontmatter �
 
 记录实际命令、退出码、失败或跳过原因。定向测试通过只证明其执行范围；需要推送时仍完成全量要求。没有运行的浏览器检查明确写未运行，不能用构建输出代替。所有开发写入与测试均须隔离维护者数据。
 
+## 分组展开与收起的滚动定位
+
+前提：Node 22+、Chrome（可用 `CHROME_PATH` 指定），执行 `make build` 后按开发文档启动新的隔离临时数据库服务，端口不能为 8700。
+
+```sh
+node scripts/browser/group-scroll.mjs http://127.0.0.1:<端口> <临时截图目录>
+```
+
+脚本只向空服务写入专用 workspace 和 1,273 张虚构任务（其中 Done 1,000 张）；已有服务必须匹配专用 fixture 名称及各状态计数才能只读复跑，否则拒绝。不要对正式实例运行。脚本检查 1280px/390px 下普通与虚拟分组的吸顶收起、再展开、连续切换、鼠标与 Enter/Space、滚轮释放定位、第一帧与稳定后的标题位置，以及虚拟行挂载量和滚动后内容可见性。可用滚动空间充足时位移不超过 1px；最后分组收起受底部边界限制时标题完整可见，无额外占位。截图保存在指定目录。AL-74 的 Red 在旧实现上收起吸顶 Todo 时从 105px 跳至 -245px，脚本 exit 1；修复后应 exit 0。此检查不覆盖 Safari/Firefox 或生产部署。
+
 ## OAuth 自动刷新与网页登录
 
 `go test -race ./internal/ucauth ./cmd/inftask` 覆盖 `TestMCPRefreshTemporaryFailure`、`TestMCPReportsRemainingSignedLifetime`、`TestExpiredBearerChallenge`，以及 `TestWebSessionSurvivesRestart`、`TestWebSessionRefreshesAfterAccessExpiry`、`TestWebSessionRotationAndFailure`、`TestWebSessionStoreEncryptedAndBound`、`TestWebSessionLogoutDuringRefresh`。测试证明受控时钟下续期、轮换、临时失败恢复、撤销和重启保留；不能替代真实 UC/宿主验收。
