@@ -45,6 +45,8 @@ func TestMigrateRebuildsReferencedTable(t *testing.T) {
 	// Changing a CHECK constraint means rebuilding the table; issues references projects.
 	rebuild := `
  DROP TRIGGER project_teams_workspace;
+ DROP TRIGGER initiative_projects_workspace_insert;
+ DROP TRIGGER initiative_projects_workspace_update;
 		CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
@@ -52,10 +54,12 @@ func TestMigrateRebuildsReferencedTable(t *testing.T) {
 			description TEXT NOT NULL DEFAULT '',
 			emoji TEXT NOT NULL DEFAULT '',
 			archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
+			start_date TEXT,
+			target_date TEXT CHECK(start_date IS NULL OR target_date IS NULL OR start_date <= target_date),
 			color TEXT NOT NULL DEFAULT 'gray' CHECK (color IN ('gray', 'blue')),
 			UNIQUE (workspace_id, name)
 		);
-		INSERT INTO projects_new(id, workspace_id, name, description, emoji, archived) SELECT id, workspace_id, name, description, emoji, archived FROM projects;
+		INSERT INTO projects_new(id, workspace_id, name, description, emoji, archived, start_date, target_date) SELECT id, workspace_id, name, description, emoji, archived, start_date, target_date FROM projects;
 		DROP TABLE projects;
 		ALTER TABLE projects_new RENAME TO projects;`
 	backups := filepath.Join(dir, "backups")

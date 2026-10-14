@@ -184,7 +184,8 @@ func TestCycleUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	removeCycleSchema(t, root.db)
-	if _, err = root.db.Exec(fmt.Sprintf("PRAGMA user_version=%d", len(migrations)-1)); err != nil {
+	removeTimelineSchema(t, root.db)
+	if _, err = root.db.Exec(fmt.Sprintf("PRAGMA user_version=%d", len(migrations)-2)); err != nil {
 		t.Fatal(err)
 	}
 	root.Close()
@@ -201,7 +202,7 @@ func TestCycleUpgrade(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal(before, after, err)
 	}
-	if _, err = os.Stat(filepath.Join(filepath.Dir(path), "backups", fmt.Sprintf("before-migration-%d.db", len(migrations)))); err != nil {
+	if _, err = os.Stat(filepath.Join(filepath.Dir(path), "backups", fmt.Sprintf("before-migration-%d.db", len(migrations)-1))); err != nil {
 		t.Fatal(err)
 	}
 	fresh, err := Open(filepath.Join(t.TempDir(), "fresh.db"))

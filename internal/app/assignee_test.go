@@ -84,6 +84,7 @@ func TestAssigneeUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	removeAssignmentSchema(t, root.db)
+	removeTimelineSchema(t, root.db)
 	if _, err = root.db.Exec(`PRAGMA user_version=10`); err != nil {
 		t.Fatal(err)
 	}

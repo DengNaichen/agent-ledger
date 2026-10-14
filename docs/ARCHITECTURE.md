@@ -42,6 +42,14 @@ Agent 接票由独立 MCP `delegate_issue` 调用 `Service.Delegate`，不通过
 
 REST 提供项目 POST、GET、PATCH，当前名称入口为 `/projects/{name}`，稳定 id 入口为 `/projects/by-id/{id}`；MCP `get_project`/`update_project` 接受 `id`/`name`，双传必须一致。任务 create/update/list 同时支持 `project_id` 与当前名称 `project`。迁移根据现有任务回填关联，历史空项目保持待归属；`linear.go` 在原导入事务内维护任务形成的关联，历史归档项目仍可导入。所有查询在复用单连接前关闭 rows，不在持有事务时调用使用 `s.db` 的查询。
 
+## Project 排期与 Initiative
+
+`projects.start_date/target_date` 保存可空 YYYY-MM-DD 日期。Project 更新省略不改、空字符串清空；Service 校验日历日期与先后顺序，SQLite CHECK 保证两端存在时开始不晚于目标。历史项目不推断排期；创建后通过项目编辑或时间轴的日期入口设置。日期输出是可选新增字段，不改变旧 MCP 必填字段。
+
+`initiative.go` 管 Workspace 内的目标记录与 `initiative_projects` 多对多关联；两个关联触发器拒绝跨 Workspace 插入和更新。Initiative 的名称、说明和归档对活动 Workspace 成员可读写；关联读取在 SQL 中应用 Project 可见性，关联替换在事务中验证引用、只删除可见关联并保留隐藏部分。归档保留已有关联，归档 Initiative 或 Project 不接收新关联；恢复后可重新添加。
+
+REST `/initiatives` 与 `/initiatives/{id}`、MCP `list/get/create/update_initiative` 调用相同 Service。输出 `project_ids` 只含可见项目。页面 `/<slug>/initiatives` 为目录，`/<slug>/initiative/<id>` 为稳定详情；`InitiativesPage.tsx` 复用独立资源加载及弹窗保存门禁。`ProjectTimeline.tsx` 为 Workspace、Team、Initiative 项目集合共享时间轴，UTC 日历算术避免夏令时改变横条宽度；窗口日期范围有界，不按全部历史跨度生成无限网格。
+
 ## 标签
 
 `internal/app/labels.go` 管理 workspace 内的标签、单层互斥组、事务内增量批量关联、合并及筛选。`issue_labels` 连接 issue 和标签；SQLite trigger 阻止同组双选，Service 添加前删除旧组值。标签新增表由幂等 schema 在现有库启动时安装，不改写已有表。

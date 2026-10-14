@@ -169,6 +169,7 @@ func TestWorkLogsUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	removeCycleSchema(t, root.db)
+	removeTimelineSchema(t, root.db)
 	if _, err = root.db.Exec(`UPDATE comments SET author='Imported author'; DROP TABLE work_logs; PRAGMA user_version=12;`); err != nil {
 		t.Fatal(err)
 	}

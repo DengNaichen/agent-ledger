@@ -47,6 +47,10 @@ var (
 	ErrCycleClosed    = newError(KindConflict, "cannot assign an issue to a closed or disabled cycle")
 	ErrCycleReference = newError(KindInvalid, "cycle_id must be zero or a positive cycle id")
 
+	ErrProjectDates         = newError(KindInvalid, "use valid YYYY-MM-DD dates with start on or before target")
+	ErrInitiativeNotFound   = newError(KindNotFound, "initiative not found")
+	ErrInitiativeExists     = newError(KindConflict, "an initiative with this name already exists")
+	ErrInitiativeArchived   = newError(KindConflict, "restore the initiative and project before adding an association")
 	ErrNotFound             = newError(KindNotFound, "issue not found")
 	ErrInvalidName          = newError(KindInvalid, "name is required")
 	ErrProjectExists        = newError(KindConflict, "a project with this name already exists")

@@ -288,6 +288,7 @@ func TestDelegationUpgrade(t *testing.T) {
 	if _, err = root.db.Exec("DROP TABLE issue_delegations"); err != nil {
 		t.Fatal(err)
 	}
+	removeTimelineSchema(t, root.db)
 	if _, err = root.db.Exec("PRAGMA user_version = 11"); err != nil {
 		t.Fatal(err)
 	}
