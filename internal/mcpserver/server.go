@@ -137,7 +137,7 @@ func New(service *app.Service) *mcp.Server {
 		{"add_relation", "Add a relation; duplicate additions succeed without changing it.", false},
 		{"remove_relation", "Remove a relation; removing an absent relation succeeds.", true},
 	} {
-		addTool(server, &mcp.Tool{Name: operation.name, Description: operation.description + " Kinds: blocks (this issue blocks other), blocked_by (other blocks this issue), related (undirected). Self-relations are forbidden."},
+		addTool(server, &mcp.Tool{Name: operation.name, Description: operation.description + " Kinds: blocks (this issue blocks other), blocked_by (other blocks this issue), related (undirected). Self-relations are forbidden. Blocking dependencies must be acyclic; additions that create a cycle are rejected."},
 			func(ctx context.Context, _ *mcp.CallToolRequest, input relationInput) (*mcp.CallToolResult, struct{}, error) {
 				err := service.Relation(ctx, input.Identifier, input.Kind, input.Other, operation.remove)
 				return nil, struct{}{}, err

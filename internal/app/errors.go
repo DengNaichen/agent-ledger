@@ -56,6 +56,7 @@ var (
 	ErrInvalidSort          = newError(KindInvalid, "invalid sort: use priority or updated")
 	ErrInvalidType          = newError(KindInvalid, "invalid type: use "+joinOr(append(slices.Clone(Types), "an empty string")))
 	ErrInvalidKind          = newError(KindInvalid, "invalid relation kind: use blocks, blocked_by, or related")
+	ErrRelationCycle        = newError(KindInvalid, "dependency cycle is not allowed")
 	ErrTeamRequired         = newError(KindInvalid, "team is required")
 	ErrTeamNotFound         = newError(KindNotFound, "team not found")
 	ErrInvalidTeam          = newError(KindInvalid, "invalid team: key must be 2 to 6 uppercase letters or digits starting with a letter, name is required, and start_number must be at least 1")

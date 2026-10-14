@@ -225,3 +225,54 @@ func TestImportLinear(t *testing.T) {
 		t.Fatalf("after import: %#v, %v", created, err)
 	}
 }
+
+func TestImportLinearDependencyCycle(t *testing.T) {
+	root, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	s := inWorkspace(t, root, "default")
+	ctx := context.Background()
+	if _, err := s.CreateTeam(ctx, CreateTeam{Key: "LIN", Name: "Linear", StartNumber: new(20)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateProject(ctx, "Delta", "Local Delta", "LIN"); err != nil {
+		t.Fatal(err)
+	}
+	before := importedRows(t, s)
+	data, err := os.ReadFile("testdata/linear/issues.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var issues []map[string]any
+	if err := json.Unmarshal(data, &issues); err != nil {
+		t.Fatal(err)
+	}
+	for _, issue := range issues {
+		if issue["identifier"] == "LIN-3" {
+			issue["relations"] = []any{map[string]any{"type": "blocks", "relatedIssue": map[string]any{"identifier": "LIN-2"}}}
+		}
+	}
+	changed, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "issues.json"), changed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	projects, err := os.ReadFile("testdata/linear/projects.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "projects.json"), projects, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ImportLinear(ctx, "LIN", dir); err == nil || !strings.Contains(err.Error(), "dependency cycle") {
+		t.Fatal("expected cycle rejection", err)
+	}
+	if after := importedRows(t, s); after != before {
+		t.Fatal("cyclic import partially committed", before, after)
+	}
+}
