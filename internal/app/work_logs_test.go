@@ -168,6 +168,7 @@ func TestWorkLogsUpgrade(t *testing.T) {
 	if _, err = s.AddComment(ctx, issue.Identifier, "Legacy agent or human"); err != nil {
 		t.Fatal(err)
 	}
+	removeTimelineSchema(t, root.db)
 	if _, err = root.db.Exec(`UPDATE comments SET author='Imported author'; DROP TABLE work_logs; PRAGMA user_version=12;`); err != nil {
 		t.Fatal(err)
 	}

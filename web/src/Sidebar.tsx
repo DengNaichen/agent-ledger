@@ -1,4 +1,4 @@
-import { Box, ChevronDown, ChevronRight, List, Menu, Plus, Settings, Tag } from "lucide-react";
+import { Box, ChevronDown, ChevronRight, List, Menu, Plus, Settings, Tag, Target } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { EntityEmoji } from "./EmojiPicker";
 import { Session } from "./Session";
@@ -21,6 +21,7 @@ export function Sidebar({ route, visit, teams, onCreateTeam }: {
         <div className="sidebar-label">Workspace</div>
         <NavLink className={`nav-item ${active("issues") ? "active" : ""}`} to={pagePath("/")}><List className="icon" /><span className="nav-label">All issues</span></NavLink>
         <NavLink className={`nav-item ${active("projects") ? "active" : ""}`} to={pagePath("/projects")}><Box className="icon" /><span className="nav-label">All projects</span></NavLink>
+        <NavLink className={`nav-item ${route.kind === "initiatives" || route.kind === "initiative" ? "active" : ""}`} to={pagePath("/initiatives")}><Target className="icon" /><span className="nav-label">Initiatives</span></NavLink>
         <NavLink className={`nav-item ${route.kind === "labels" ? "active" : ""}`} to={pagePath("/labels")}><Tag className="icon" /><span className="nav-label">Labels</span></NavLink>
         <NavLink className={`nav-item ${route.kind === "settings" ? "active" : ""}`} to={pagePath("/settings")}><Settings className="icon" /><span className="nav-label">Settings</span></NavLink>
         <div className="sidebar-label sidebar-heading"><span>Teams</span><button type="button" className="ghost" aria-label="Create team" title="Create team" onClick={onCreateTeam}><Plus className="icon" /></button></div>

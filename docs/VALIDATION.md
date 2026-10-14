@@ -1,5 +1,17 @@
 # 验证与结果解释
 
+## Project 时间轴与 Initiative
+
+```sh
+go test ./internal/app -run 'TestProjectTimeline|TestInitiative' -count=1
+go test ./internal/httpapi ./internal/mcpserver -run TestInitiative -count=1
+npm --prefix web run test -- ProjectTimeline.test.tsx InitiativesPage.test.tsx
+```
+
+AL-78 的 Red：先添加 TestProjectTimelineDates，在旧实现以 JSON 提交日期并读取，实际得到 dates not persisted 的 FAIL。业务测试覆盖日期清空/省略/非法日期/逆序、Project 列表一致性、Initiative 生命周期/多对多/归档恢复、关联替换事务回滚、跨 Workspace SQL 插入/更新限制、私有项目过滤与隐藏关联保留、非成员拒绝、新旧库结构和数据保留。HTTP/MCP 测试覆盖输入输出和错误；组件测试覆盖完整/单端/无日期、尺度及窗口定位、保存失败草稿与关联移除、恢复归档和离开后响应隔离。jsdom 的 dialog API 使用测试替身，不证明真实浏览器视觉布局。
+
+这些自动化检查不覆盖桌面/窄屏视觉布局，不能用通过结果代替截图验收；需要视觉验收时使用隔离临时数据库。
+
 ## 聚合入口
 
 在工作树根目录先按 [开发](DEVELOPMENT.md) 安装前端依赖。推送前执行既有 git-workflow 要求：

@@ -5,6 +5,26 @@ import { navigate } from "./shared";
 import { fixtureIssue, json } from "./test/fixtures";
 
 let calls: string[];
+
+it("opens initiative routes through navigation and retains the scope on direct entry", async () => {
+  const original = window.fetch;
+  vi.stubGlobal("fetch", vi.fn((url, options) => {
+    const path = String(url);
+    const item = { id: 7, name: "Objective", description: "Outcome", archived: false, project_ids: [] };
+    if (path.endsWith("/initiatives/7")) return Promise.resolve(json(item));
+    if (path.includes("/initiatives?")) return Promise.resolve(json({ initiatives: [item] }));
+    return original(url, options);
+  }));
+  const first = render(<App />);
+  fireEvent.click(await screen.findByRole("link", { name: "Initiatives" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Objective" }));
+  await screen.findByRole("button", { name: "Edit initiative" });
+  expect(window.location.pathname).toBe("/default/initiative/7");
+  first.unmount();
+  render(<App />);
+  await screen.findByRole("button", { name: "Edit initiative" });
+  expect(screen.getByText("Outcome")).toBeTruthy();
+});
 beforeEach(() => {
   calls = [];
   window.history.replaceState(null, "", "/default/");

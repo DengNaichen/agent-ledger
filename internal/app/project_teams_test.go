@@ -117,6 +117,7 @@ func TestMigrateProjectTeams(t *testing.T) {
 	if _, err := s.db.Exec(`DROP TABLE IF EXISTS project_teams; INSERT INTO projects(workspace_id,name,description,emoji) VALUES (1,'Used','Outcome','🚀'),(1,'Empty','',''); INSERT INTO issues(workspace_id,identifier,team_id,number,title,status,project_id,created_at,updated_at) VALUES (1,'AL-9',1,9,'Keep','done',1,'created','updated'); UPDATE teams SET next_number=10;`); err != nil {
 		t.Fatal(err)
 	}
+	removeTimelineSchema(t, s.db)
 	if _, err := s.db.Exec(`PRAGMA user_version = 7`); err != nil {
 		t.Fatal(err)
 	}

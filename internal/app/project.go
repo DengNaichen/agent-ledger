@@ -8,9 +8,12 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 	"slices"
 	"strings"
+	"time"
 )
 
 type Project struct {
+	StartDate   *string  `json:"start_date,omitempty"`
+	TargetDate  *string  `json:"target_date,omitempty"`
 	ID          int64    `json:"id" jsonschema:"stable Project id"`
 	Teams       []string `json:"teams" jsonschema:"associated Team keys; empty only for historical unassigned Projects"`
 	Emoji       string   `json:"emoji" jsonschema:"emoji icon; empty uses the default icon"`
@@ -25,6 +28,8 @@ type ProjectRef struct {
 }
 
 type UpdateProject struct {
+	StartDate   *string   `json:"start_date,omitempty" jsonschema:"planned start YYYY-MM-DD; empty clears; omitted unchanged"`
+	TargetDate  *string   `json:"target_date,omitempty" jsonschema:"target YYYY-MM-DD; empty clears; omitted unchanged"`
 	NewName     *string   `json:"new_name,omitempty" jsonschema:"new Project name; trimmed, nonempty, and unique in this workspace; omitted leaves unchanged"`
 	ID          int64     `json:"id,omitempty" jsonschema:"stable Project id; provide id or name; both must match"`
 	Name        string    `json:"name,omitempty" jsonschema:"current Project name used for lookup; use new_name to rename"`
@@ -45,7 +50,7 @@ func (s *Service) ListProjects(ctx context.Context, includeArchived bool, teamFi
 	if _, err := s.teamID(ctx, team); err != nil {
 		return nil, err
 	}
-	query, args := viewerSQL(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji,t.key FROM projects p
+	query, args := viewerSQL(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji,p.start_date,p.target_date,t.key FROM projects p
  LEFT JOIN project_teams pt ON pt.project_id=p.id LEFT JOIN teams t ON t.id=pt.team_id AND t.id IN (`+visibleTeamIDs+`)
  WHERE p.workspace_id=? AND `+visibleProject+` AND (? OR NOT p.archived) AND (?='' OR EXISTS(SELECT 1 FROM project_teams f JOIN teams ft ON ft.id=f.team_id WHERE f.project_id=p.id AND ft.key=?))
  ORDER BY p.name,t.key`, s.workspace, includeArchived, team, team)
@@ -58,7 +63,7 @@ func (s *Service) ListProjects(ctx context.Context, includeArchived bool, teamFi
 	for rows.Next() {
 		var p Project
 		var key sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Archived, &p.Emoji, &key); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Archived, &p.Emoji, &p.StartDate, &p.TargetDate, &key); err != nil {
 			return nil, err
 		}
 		if len(projects) == 0 || projects[len(projects)-1].ID != p.ID {
@@ -80,8 +85,8 @@ func (s *Service) GetProject(ctx context.Context, ref ProjectRef) (Project, erro
 		return Project{}, ErrProjectReference
 	}
 	var p Project
-	query, args := viewerSQL(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji FROM projects p WHERE p.workspace_id=? AND ((?<>0 AND p.id=?) OR (?=0 AND p.name=?)) AND `+visibleProject, s.workspace, ref.ID, ref.ID, ref.ID, ref.Name)
-	err := s.db.QueryRowContext(ctx, query, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Archived, &p.Emoji)
+	query, args := viewerSQL(ctx, `SELECT p.id,p.name,p.description,p.archived,p.emoji,p.start_date,p.target_date FROM projects p WHERE p.workspace_id=? AND ((?<>0 AND p.id=?) OR (?=0 AND p.name=?)) AND `+visibleProject, s.workspace, ref.ID, ref.ID, ref.ID, ref.Name)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&p.ID, &p.Name, &p.Description, &p.Archived, &p.Emoji, &p.StartDate, &p.TargetDate)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, ErrProjectNotFound
 	}
@@ -228,8 +233,18 @@ func (s *Service) UpdateProject(ctx context.Context, input UpdateProject) (Proje
 	if err != nil {
 		return Project{}, err
 	}
-	query := `UPDATE projects SET name=COALESCE(?,name),description=COALESCE(?,description),archived=COALESCE(?,archived),emoji=COALESCE(?,emoji) WHERE id=? AND workspace_id=?`
-	args := []any{input.NewName, input.Description, input.Archived, input.Emoji, p.ID, s.workspace}
+	start, target := p.StartDate, p.TargetDate
+	if input.StartDate != nil {
+		start = input.StartDate
+	}
+	if input.TargetDate != nil {
+		target = input.TargetDate
+	}
+	if err := validateProjectDates(start, target); err != nil {
+		return Project{}, err
+	}
+	query := `UPDATE projects SET name=COALESCE(?,name),description=COALESCE(?,description),archived=COALESCE(?,archived),emoji=COALESCE(?,emoji),start_date=NULLIF(COALESCE(?,start_date),''),target_date=NULLIF(COALESCE(?,target_date),'') WHERE id=? AND workspace_id=?`
+	args := []any{input.NewName, input.Description, input.Archived, input.Emoji, input.StartDate, input.TargetDate, p.ID, s.workspace}
 	if input.Teams == nil {
 		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 			return Project{}, projectWriteError(err)
@@ -307,4 +322,19 @@ func projectWriteError(err error) error {
 		return ErrProjectExists
 	}
 	return err
+}
+
+func validateProjectDates(start, target *string) error {
+	for _, value := range []*string{start, target} {
+		if value != nil && *value != "" {
+			date, err := time.Parse("2006-01-02", *value)
+			if err != nil || date.Year() < 1 || date.Format("2006-01-02") != *value {
+				return ErrProjectDates
+			}
+		}
+	}
+	if start != nil && target != nil && *start != "" && *target != "" && *start > *target {
+		return ErrProjectDates
+	}
+	return nil
 }
