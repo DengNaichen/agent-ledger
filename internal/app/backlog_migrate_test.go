@@ -93,6 +93,12 @@ func TestMigrateBacklog(t *testing.T) {
 	after := snapshot(service.db)
 	for i, row := range after["issues"] {
 		if row[len(row)-1] != nil {
+			t.Fatal("existing issue gained cycle")
+		}
+		after["issues"][i] = row[:len(row)-1]
+	}
+	for i, row := range after["issues"] {
+		if row[len(row)-1] != nil {
 			t.Fatal("existing issue assigned")
 		}
 		after["issues"][i] = row[:len(row)-1]

@@ -57,6 +57,23 @@ func main() {
 	}
 	defer service.Close()
 
+	if err := service.AdvanceCycles(ctx); err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := service.AdvanceCycles(ctx); err != nil {
+					log.Printf("cycle advancement failed: %v", err)
+				}
+			}
+		}
+	}()
 	go backupDaily(ctx, service)
 	requests := service.ForRequests(auth != nil)
 	handler := httpapi.New(requests, webui.Handler(), mcpserver.Handler(requests))

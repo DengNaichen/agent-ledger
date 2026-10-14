@@ -64,6 +64,7 @@ func TestIssueAssigneeLifecycle(t *testing.T) {
 
 // Downgrade only test databases to their pre-assignment shape.
 func removeAssignmentSchema(t *testing.T, db *sql.DB) {
+	removeCycleSchema(t, db)
 	t.Helper()
 	if _, err := db.Exec(`DROP TABLE issue_assignments; DROP INDEX issues_assignee_idx; ALTER TABLE issues DROP COLUMN assignee_subject`); err != nil {
 		t.Fatal(err)

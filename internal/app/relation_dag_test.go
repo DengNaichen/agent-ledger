@@ -197,6 +197,7 @@ func TestRelationDAGUpgrade(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			removeCycleSchema(t, root.db)
 			root.Close()
 			upgraded, err := Open(path)
 			if cyclic {

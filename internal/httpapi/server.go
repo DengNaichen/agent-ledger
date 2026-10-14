@@ -18,6 +18,7 @@ type server struct{ service *app.Service }
 func New(service *app.Service, web, mcp http.Handler) http.Handler {
 	s := &server{service: service}
 	mux := http.NewServeMux()
+	s.cycleRoutes(mux)
 	s.workLogRoutes(mux)
 	s.labelRoutes(mux)
 	s.accessRoutes(mux)
@@ -135,6 +136,14 @@ func (s *server) listIssues(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Query().Has("project") {
 		input.Project = new(r.URL.Query().Get("project"))
+	}
+	if r.URL.Query().Has("cycle_id") {
+		id, err := strconv.ParseInt(r.URL.Query().Get("cycle_id"), 10, 64)
+		if err != nil {
+			writeError(w, app.ErrCycleReference)
+			return
+		}
+		input.CycleID = &id
 	}
 	if r.URL.Query().Has("project_id") {
 		id, err := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)

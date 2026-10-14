@@ -1,4 +1,4 @@
-import { Box, ChevronDown, ChevronRight, List, Menu, Plus, Settings, Tag } from "lucide-react";
+import { CalendarRange, Box, ChevronDown, ChevronRight, List, Menu, Plus, Settings, Tag } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { EntityEmoji } from "./EmojiPicker";
 import { Session } from "./Session";
@@ -45,6 +45,7 @@ function TeamNavigation({ team, route }: { team: Team; route: WorkspaceRoute }) 
       <div id={destinationsId} className="team-destinations" hidden={!expanded}>
         <NavLink className={`nav-item team-destination ${active("issues") ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(team.key)}/issues`)}><List className="icon" /><span className="nav-label">Issues</span></NavLink>
         <NavLink className={`nav-item team-destination ${active("projects") ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(team.key)}/projects`)}><Box className="icon" /><span className="nav-label">Projects</span></NavLink>
+        <NavLink className={`nav-item team-destination ${(route.kind === "cycles" || route.kind === "cycle") && route.team === team.key ? "active" : ""}`} to={pagePath(`/team/${encodeURIComponent(team.key)}/cycles`)}><CalendarRange className="icon" /><span className="nav-label">Cycles</span></NavLink>
       </div>
     </section>
   );

@@ -34,6 +34,7 @@ export type Identity = { subject: string; name: string; email: string };
 export const personName = (person: Identity) => person.name || person.email || person.subject;
 
 export type IssueSummary = {
+  cycle_id: number | null;
   assignee: Identity | null;
   labels: Label[];
   identifier: string;
@@ -101,6 +102,8 @@ export function workspaceSlug() {
 }
 
 export type WorkspaceRoute =
+  | { kind: "cycles"; team: string }
+  | { kind: "cycle"; team: string; id: number }
   | { kind: "issues"; team: string }
   | { kind: "projects"; team: string }
   | { kind: "project"; id: number }
@@ -115,11 +118,13 @@ export function workspaceRoute(path: string): WorkspaceRoute {
   if (route === "/projects") return { kind: "projects", team: "" };
   if (route === "/settings") return { kind: "settings" };
   if (route === "/labels") return { kind: "labels" };
-  const team = route.match(/^\/team\/([^/]+)\/(issues|projects)$/);
+  const team = route.match(/^\/team\/([^/]+)\/(issues|projects|cycles)$/);
   if (team) {
-    try { return { kind: team[2] as "issues" | "projects", team: decodeURIComponent(team[1]) }; }
+    try { return { kind: team[2] as "issues" | "projects" | "cycles", team: decodeURIComponent(team[1]) }; }
     catch { return { kind: "invalid" }; }
   }
+  const cycle = route.match(/^\/team\/([^/]+)\/cycles\/([1-9][0-9]*)$/);
+  if (cycle && Number.isSafeInteger(Number(cycle[2]))) { try { return {kind: "cycle", team: decodeURIComponent(cycle[1]), id: Number(cycle[2])}; } catch { return {kind: "invalid"}; } }
   const project = route.match(/^\/project\/([1-9][0-9]*)$/);
   if (project && Number.isSafeInteger(Number(project[1]))) return { kind: "project", id: Number(project[1]) };
   const issue = route.match(/^\/issue\/(.+)$/);

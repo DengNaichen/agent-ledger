@@ -5,6 +5,8 @@ import { fixtureIssue, deferred, json } from "./test/fixtures";
 
 vi.mock("./Assignee", () => ({ AssigneeSelect: ({ value, onChange, disabled, label }: { value: string; onChange: (value: string) => void; disabled: boolean; label: string }) => <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}><option value="">Unassigned</option><option value="member">Member</option></select> }));
 
+vi.mock("./Cycles", () => ({ CycleSelect: ({ value, onChange, disabled, label }: { value: number; onChange: (value: number) => void; disabled: boolean; label: string }) => <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))}><option value={0}>No cycle</option><option value={1}>Cycle 1</option></select> }));
+
 const catalog = { labels: [], groups: [], error: "", reload: async () => {} };
 const props = { catalog, teams: [], onSaved: async () => {}, identifier: "AL-1", setError: vi.fn(), editing: false, closeEditor: vi.fn() };
 const priorityControl = () => screen.getByRole("combobox", { name: "Change priority for AL-1" });
@@ -158,7 +160,7 @@ it.each(["spec", ""])("hides the type row while preserving labels (type=%s)", as
   const properties = await screen.findByRole("region", { name: "Properties" });
   const primary = properties.querySelector(".detail-property-list")!;
   expect(primary.textContent).not.toMatch(/Team|InfTask|Type|No type|spec/);
-  expect(Array.from(primary.querySelectorAll("dt"), (term) => term.textContent)).toEqual(["Status", "Priority", "Assignee"]);
+  expect(Array.from(primary.querySelectorAll("dt"), (term) => term.textContent)).toEqual(["Status", "Priority", "Assignee", "Cycle"]);
   expect(within(properties).getByText("spec")).toBeTruthy();
   expect(within(properties).getByRole("heading", { name: "Labels" })).toBeTruthy();
   expect(within(properties).getByRole("button", { name: "Edit labels" })).toBeTruthy();
