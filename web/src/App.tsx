@@ -8,6 +8,7 @@ import { Session } from "./Session";
 import { api, apiPath, IssueSort, navigate, NavLink, pagePath, RequestError, Team, Workspace, workspaceRoute, workspaceSlug } from "./shared";
 import { useResource } from "./useResource";
 
+const CyclesPage = lazy(() => import("./CyclesPage"));
 const IssuesPage = lazy(() => import("./IssuesPage"));
 const ProjectsPage = lazy(() => import("./ProjectsPage"));
 const IssuePage = lazy(() => import("./IssuePage"));
@@ -75,7 +76,7 @@ function WorkspaceView() {
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
   }, []);
-  const scopeTeam = route.kind === "issues" || route.kind === "projects" ? route.team : "";
+  const scopeTeam = "team" in route ? route.team : "";
   const invalidTeam = scopeTeam && !teams.loading && !teams.error && !teams.data.teams.some((team) => team.key === scopeTeam);
   return <div className="app-shell">
     <Sidebar route={route} visit={location.visit} teams={teams.data.teams} onCreateTeam={() => setCreatingTeam(true)} />
@@ -84,7 +85,8 @@ function WorkspaceView() {
       <PageBoundary key={location.visit}>
         <Suspense fallback={<p className="empty">Loading…</p>}>
           {invalidTeam || route.kind === "invalid" ? <div className="scope-message"><RequestError message={invalidTeam ? "Team not found." : "This page does not exist."} /><NavLink to={pagePath("/")}>Back to all issues</NavLink></div>
-            : route.kind === "issues" || route.kind === "project" ? <IssuesPage route={route} teams={teams.data.teams} teamsLoading={teams.loading} onCreateTeam={() => setCreatingTeam(true)} view={view} setView={setView} sort={sort} setSort={setSort} />
+            : route.kind === "issues" || route.kind === "project" || route.kind === "cycle" ? <IssuesPage route={route} teams={teams.data.teams} teamsLoading={teams.loading} onCreateTeam={() => setCreatingTeam(true)} view={view} setView={setView} sort={sort} setSort={setSort} />
+            : route.kind === "cycles" ? <CyclesPage team={route.team} teams={teams.data.teams} />
             : route.kind === "projects" ? <ProjectsPage team={route.team} teams={teams.data.teams} />
             : route.kind === "issue" ? <IssuePage identifier={route.identifier} teams={teams.data.teams} />
             : route.kind === "labels" ? <LabelsPage />

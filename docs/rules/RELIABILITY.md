@@ -4,7 +4,7 @@
 
 真实实例有数据，任何变更都不能要求删除数据库。`internal/app/schema.sql` 始终描述当前形状；新数据库直接使用它，`user_version` 设为迁移数量，不执行历史迁移。增加表使用 `CREATE TABLE IF NOT EXISTS`。
 
-修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 14 项：
+修改已有表时同时更新 schema，并向 `internal/app/migrate.go` 的 `migrations` 追加升级 SQL；已交付迁移不得编辑。当前有 15 项：
 
 - 迁移 1 新建 `teams`，重建 `issues` 并按 identifier 回填 `team` 和 `number`，每个前缀成为一个 team，`next_number` 是该前缀最大编号加一。迁移 1 之后，旧版二进制仍能读库，但建票会因缺 `team` 和 `number` 失败；回滚到旧版要恢复 `before-migration-1.db`，此后的写入会丢失。
 - 迁移 2 把表之间的引用从 identifier、Project 名称和 team key 改为整数 id：`teams`、`projects` 改用 `id` 主键（`key`、`name` 仍全实例唯一），`issues` 改存 `team_id`、`project_id`、`parent_id`，`relations` 改存 `issue_id`、`other_id`，`links`、`comments`、`issue_labels` 改存 `issue_id`。issue、链接和评论保留原 id；related 关系按 id 重排为 `issue_id < other_id`。`pull_requests.issue_identifier` 不变。迁移 2 之后，旧版二进制仍能启动，但读写 issue 会因旧列名不存在而失败；回滚到旧版要停服务并恢复 `before-migration-2.db`，此后的写入会丢失。
@@ -33,6 +33,8 @@
 - 迁移 14 新建 `relations_blocks_insert` / `relations_blocks_update` 触发器，使用递归可达性检查保证 `blocks` 无环；不改表、引用、时间或其他关系类型。安装后在迁移事务中校验所有旧 blocks；发现旧环时报 `dependency cycle is not allowed`，回滚本项迁移及版本号，不删边。从版本 13 升级前保存 `before-migration-14.db`。新库/升级库结构一致。旧二进制仍受 SQL 约束保护，但不提供新的 Service 错误分类。停服务回滚二进制不会移除触发器；恢复备份会丢失之后写入。
 
 旧环导致升级失败时保留原库与失败前备份，先在隔离副本定位并确定要移除的关系；由维护者确认后停服务修复原库，不自动删边。重试前将同名迁移备份另存到受保护位置，避免现有 `VACUUM INTO` 因目标已存在而失败，再启动升级。
+
+- 迁移 15 新建 team_cycle_settings/cycles，给 issues 追加可空 cycle_id 和索引、同 Team 插入/更新触发器；旧票保持无周期，所有原字段、引用和时间不变。版本 14 升级前保存 before-migration-15.db，新库和升级库结构一致。旧二进制不会执行周期滚动或维护快照，回滚前须停服务；恢复备份会丢失升级后写入。
 
 登记的迁移只覆盖这些历史形状，不代表能把任意旧结构自动转换。
 
@@ -73,3 +75,9 @@ Agent 接票在同一事务内检查任务的人类 assignee 非空，执行 `IN
 `internal/ucauth/sessions.go` 将有上限的会话集合加密后写入同目录 `0600` 临时文件，Sync、关闭、rename 后再 Sync 目录。业务 SQLite 备份不包含 `.sessions` 文件；它是可通过重新登录重建的凭据状态。正常重启读回同一文件；损坏或密钥不匹配时启动失败，运维保留后移走才能重新登录。不要恢复旧会话快照，以免重新激活已注销会话。单实例使用，不能共享给两个写进程。
 
 登录和注销在落盘失败时返回 503，不声称已完成。UC token rotation 与本地落盘不具备跨系统事务；刷新成功但落盘失败后仍保留进程内新 token，重启可能需要重新登录，不自动回滚或重放上游刷新请求。
+
+## Cycle 自动推进
+
+启动提供请求前、每分钟以及授权后的周期读取执行补算。每个 Team 在单事务内生成周期、按结束顺序保存快照并转移未完成任务；失败回滚整队，重复执行不重复结算。跨多轮停机按顺序追赶，空周期也形成历史。日期按 IANA 时区使用 AddDate 推进，不以固定小时数代替本地周；二进制嵌入 tzdata。
+
+停用先补算已过期周期，再结算已开始周期，清空未来周期的任务归属并删除未来计划。恰好在新周期起点停用时将零时长周期作为未开始计划移除。重新启用必须从今天或之后且不与历史重叠的日期开始；进行中的节奏不能直接变更，减少未来数量保留已生成计划。周期保存当时的时区，历史统计和边界不会随新配置变化。只有新周期分配/滚动会改变任务的 cycle_id，完成快照不随之后改票重算；未保存历史成员快照。

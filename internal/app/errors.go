@@ -41,6 +41,12 @@ func KindOf(err error) Kind {
 }
 
 var (
+	ErrCycleNotFound  = newError(KindNotFound, "cycle not found")
+	ErrCycleSettings  = newError(KindInvalid, "use a valid IANA timezone, start date, 1–8 weeks and 1–15 upcoming cycles")
+	ErrCycleSchedule  = newError(KindConflict, "disable cycles before changing the schedule; historical cycles are preserved")
+	ErrCycleClosed    = newError(KindConflict, "cannot assign an issue to a closed or disabled cycle")
+	ErrCycleReference = newError(KindInvalid, "cycle_id must be zero or a positive cycle id")
+
 	ErrNotFound             = newError(KindNotFound, "issue not found")
 	ErrInvalidName          = newError(KindInvalid, "name is required")
 	ErrProjectExists        = newError(KindConflict, "a project with this name already exists")

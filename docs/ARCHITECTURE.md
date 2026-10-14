@@ -79,3 +79,13 @@ Settings 使用独立 team-directory 提供加入/退出、成员增删、owner 
 `work_logs.go` 将工作记录独立存入 `work_logs`，不迁移或推断历史 comments。`get_issue` / REST 详情只返回 `decisions` 摘要与 `work_log_count`；MCP `list_work_logs` 和 `GET /api/w/{workspace}/issues/{identifier}/work-logs` 按 id 倒序分页返回摘要，kind 可筛 progress/decision，默认 20、最多 100，next_before=0 表示结束。MCP `get_work_log` 和上述 REST 路径加 `/{id}` 按票和记录 id 读取正文。MCP `add_work_log` 追加，网页只提供评论写入。可信 actor 来自请求上下文，不接收客户端作者，不建立新的 Agent 身份模型。
 
 列表在页签挂载时和窗口 focus 时重读最新页；展开的记录独立读取正文。读取失败保留自己的错误与重试，不影响评论草稿；离开页签后忽略旧响应。决策列表是同一记录的摘要视图，不另存重复的结论或自动生成摘要。
+
+## Team Cycle
+
+`cycles.go` 管周期配置、读取、编辑、任务归属校验及补算；`team_cycle_settings` 按 Team 保存时区、起始日期、1–8 周长度和 1–15 个未来周期，`cycles` 保存编号、UTC 边界及创建时的时区，`issues.cycle_id` 是可空引用。Service 和 SQLite trigger 同时保证任务与周期属于同一 Team；所有请求先通过 workspace 和 private team 权限。Team owner/Admin 管配置，可访问团队的成员可安排任务和编辑周期名称/说明。
+
+`cmd/inftask` 在提供请求前补算，再每分钟调用系统 Service 的 `AdvanceCycles`；周期列表/详情读取也在权限检查后补算该团队。每队单事务按本地日历生成未来周期，再按结束顺序结算过期周期，将 todo/agent_ready/in_progress/in_review 移入下一轮，不改 status。triage/backlog/done/canceled 保留原归属。完成时保存 total/done/canceled/rolled_over，后续票变化不改快照；列表仍查询当前归属，不能把它当历史成员名单。关闭后重新打开的任务不自动迁移，需明确重新安排 Cycle。
+
+新建/更新任务的 cycle_id 省略保持原语义、0 清空，正整数必须是同 Team 未关闭且启用的周期；列表省略表示全部、0 匹配未分配。保留原已关闭归属不阻止编辑其它字段。REST 的 Team cycles GET/PUT 与 cycles/{id} GET/PATCH、MCP list_cycles/configure_cycles/get_cycle/update_cycle 共用 Service。历史 timezone 随每个周期保存，后续改时区不重解释历史日期。
+
+`CyclesPage.tsx` 提供 Team 周期目录，`Cycles.tsx` 提供配置/名称编辑和选择器；`IssuesPage` 复用列表/看板展示周期任务。路径为 /<slug>/team/<key>/cycles 与 /<slug>/team/<key>/cycles/<id>。详情快捷归属走既有同票写入队列；配置及编辑用独立请求代际，失败保留草稿。cycles.css 复用共享 token。没有容量预测、冷却期、日历订阅或自动吸纳未分配任务。

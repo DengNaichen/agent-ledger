@@ -225,3 +225,21 @@ go test ./internal/mcpserver -run TestRelationDAG -count=1
 ```
 
 AL-75 的 Red：先新增 `TestRelationDAG` 和 `TestRelationDAGSQL`，在未改实现上执行，Service 的 blocks/blocked_by 和 SQL INSERT/UPDATE/批量写入均观察到真实 `--- FAIL`。测试覆盖服务层独立校验、两点与长环、自引用、合法菱形、重复/删除、related 排除、私有中间路径不外泄、直接 SQL UPDATE 和冲突写入策略、旧库升级/备份/结构一致、旧环失败回滚，以及 Linear 导入整体回滚和 MCP 错误。全部使用隔离临时库；不验证生产旧数据是否含环，不改变 parent 的既有语义。
+
+## Cycle 周期
+
+```sh
+go test ./internal/app ./internal/httpapi ./internal/mcpserver -run TestCycle -count=1
+npm --prefix web run test -- Cycles.test.tsx IssueDetail.test.tsx
+```
+
+覆盖周期参数、同 Team/工作区/私有权限、归属及清空筛选、DST 日历周、连续补算、重复执行、结算快照、失败事务回滚、旧库备份和新旧结构一致，以及 REST/MCP 严格输入。Red 是先添加 TestCycleLifecycle，在旧实现上观察未知 cycle_id 被静默忽略导致真实 --- FAIL。
+
+浏览器需要构建最新二进制、Chrome、Node 22+，在空临时数据库及空闲 loopback 端口启动服务，先运行既有 seed，再执行：
+
+```sh
+node scripts/browser/seed.mjs --url http://127.0.0.1:<端口>
+node scripts/browser/cycles.mjs http://127.0.0.1:<端口> <仓库外截图目录>
+```
+
+脚本向该临时 fixture 启用周期并创建任务，检查配置、新建预选、详情加入/清空/刷新、Team 筛选、断网保存保留、Escape 和 1280/1024/760/390px 明暗主题。每次完整重跑使用新的空库；不用于正式实例。页面截图不证明自动时间推进；时间推进由受控时钟 Service 测试覆盖。

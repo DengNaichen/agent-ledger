@@ -47,6 +47,7 @@ func joinOr(items []string) string {
 }
 
 type IssueSummary struct {
+	CycleID      *int64    `json:"cycle_id"`
 	Assignee     *Identity `json:"assignee"`
 	CreatedAt    string    `json:"created_at"`
 	ProjectEmoji string    `json:"project_emoji"`
@@ -83,6 +84,7 @@ type IssueDetails struct {
 }
 
 type ListIssues struct {
+	CycleID       *int64  `json:"cycle_id,omitempty" jsonschema:"filter by cycle id; zero matches unassigned; omitted means all cycles"`
 	Assignee      *string `json:"assignee,omitempty" jsonschema:"exact user subject; empty string matches unassigned; omitted means any"`
 	AssignedToMe  bool    `json:"assigned_to_me,omitempty" jsonschema:"filter to trusted current user; cannot combine with assignee"`
 	Priority      *int    `json:"priority,omitempty" jsonschema:"filter by priority: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low"`
@@ -101,6 +103,7 @@ type ListIssues struct {
 }
 
 type CreateIssue struct {
+	CycleID     *int64  `json:"cycle_id,omitempty" jsonschema:"same-team open cycle id; zero or omitted means no cycle"`
 	Assignee    string  `json:"assignee,omitempty" jsonschema:"active workspace user subject with team access; empty means unassigned"`
 	Priority    int     `json:"priority,omitempty" jsonschema:"0 no priority (default), 1 urgent, 2 high, 3 medium, 4 low"`
 	Team        string  `json:"team" jsonschema:"required key of an existing team, such as AL; the issue is numbered <key>-<n> in that team's sequence"`
@@ -114,6 +117,7 @@ type CreateIssue struct {
 }
 
 type UpdateIssue struct {
+	CycleID     *int64  `json:"cycle_id,omitempty" jsonschema:"same-team open cycle id; zero clears; omitted leaves unchanged"`
 	Assignee    *string `json:"assignee,omitempty" jsonschema:"user subject; empty string clears; omitted leaves unchanged"`
 	Priority    *int    `json:"priority,omitempty" jsonschema:"0 clears priority, 1 urgent, 2 high, 3 medium, 4 low; omitted leaves unchanged"`
 	Identifier  string  `json:"identifier" jsonschema:"issue identifier, such as AL-1"`
@@ -185,7 +189,7 @@ const issueColumns = `id, identifier, title, status, type,
 	(SELECT p.identifier FROM issues p WHERE p.id = issues.parent_id AND p.team_id IN (` + visibleTeamIDs + `)),
 	updated_at, description, created_at, priority, project_id,
 	COALESCE((SELECT emoji FROM projects WHERE projects.id = issues.project_id), ''),
- (SELECT json_object('subject',subject,'name',name,'email',email) FROM users WHERE subject=issues.assignee_subject)`
+ (SELECT json_object('subject',subject,'name',name,'email',email) FROM users WHERE subject=issues.assignee_subject), cycle_id`
 
 // scanIssue reads a row of issueColumns into an issue without its labels and
 // returns the issue's id with it.
@@ -193,7 +197,7 @@ func scanIssue(row interface{ Scan(...any) error }) (Issue, int64, error) {
 	var issue Issue
 	var assignee sql.NullString
 	var id int64
-	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID, &issue.ProjectEmoji, &assignee)
+	err := row.Scan(&id, &issue.Identifier, &issue.Title, &issue.Status, &issue.Type, &issue.Project, &issue.Parent, &issue.UpdatedAt, &issue.Description, &issue.CreatedAt, &issue.Priority, &issue.ProjectID, &issue.ProjectEmoji, &assignee, &issue.CycleID)
 	if err == nil && assignee.Valid {
 		err = json.Unmarshal([]byte(assignee.String), &issue.Assignee)
 	}
@@ -292,6 +296,18 @@ func (s *Service) List(ctx context.Context, input ListIssues) ([]Issue, error) {
 		return nil, err
 	}
 	where, args := `workspace_id = ?`, []any{s.workspace}
+	if input.CycleID != nil {
+		if *input.CycleID < 0 {
+			return nil, ErrCycleReference
+		}
+		if *input.CycleID > 0 {
+			if _, err := s.GetCycle(ctx, *input.CycleID); err != nil {
+				return nil, err
+			}
+		}
+		where += ` AND cycle_id IS NULLIF(?,0)`
+		args = append(args, *input.CycleID)
+	}
 	if input.AssignedToMe {
 		if input.Assignee != nil {
 			return nil, ErrInvalidAssigneeFilter
@@ -396,12 +412,15 @@ func (s *Service) Create(ctx context.Context, input CreateIssue) (Issue, error) 
 	if err := s.validateAssignee(ctx, tx, teamID, input.Assignee); err != nil {
 		return Issue{}, err
 	}
+	if err := s.validateIssueCycle(ctx, tx, input.CycleID, teamID, sql.NullInt64{}); err != nil {
+		return Issue{}, err
+	}
 	identifier := fmt.Sprintf("%s-%d", input.Team, number)
 	now := s.now().UTC().Format(time.RFC3339Nano)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at, priority, assignee_subject)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''))`,
-		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now, input.Priority, input.Assignee)
+		INSERT INTO issues(workspace_id, identifier, team_id, number, title, description, status, type, project_id, parent_id, created_at, updated_at, priority, assignee_subject, cycle_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?,0))`,
+		s.workspace, identifier, teamID, number, strings.TrimSpace(input.Title), input.Description, status, input.Type, projectID, parentID, now, now, input.Priority, input.Assignee, input.CycleID)
 	if err != nil {
 		return Issue{}, err
 	}
@@ -502,6 +521,10 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		sets = append(sets, `priority = ?`)
 		args = append(args, *input.Priority)
 	}
+	if input.CycleID != nil {
+		sets = append(sets, "cycle_id = NULLIF(?,0)")
+		args = append(args, *input.CycleID)
+	}
 	if len(sets) == 0 && input.Status == nil && input.Assignee == nil {
 		return s.Get(ctx, input.Identifier)
 	}
@@ -509,7 +532,7 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 	sets = append(sets, `updated_at = ?`)
 	args = append(args, now, s.workspace, input.Identifier)
 	query := `UPDATE issues SET ` + strings.Join(sets, ", ") + ` WHERE workspace_id = ? AND identifier = ?`
-	if input.Status == nil && input.Project == nil && input.ProjectID == nil && input.Assignee == nil {
+	if input.Status == nil && input.Project == nil && input.ProjectID == nil && input.Assignee == nil && input.CycleID == nil {
 		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 			return Issue{}, err
 		}
@@ -520,6 +543,16 @@ func (s *Service) Update(ctx context.Context, input UpdateIssue) (Issue, error) 
 		return Issue{}, err
 	}
 	defer tx.Rollback()
+	if input.CycleID != nil {
+		var team int64
+		var current sql.NullInt64
+		if err = tx.QueryRowContext(ctx, `SELECT team_id,cycle_id FROM issues WHERE workspace_id=? AND identifier=?`, s.workspace, input.Identifier).Scan(&team, &current); err != nil {
+			return Issue{}, err
+		}
+		if err = s.validateIssueCycle(ctx, tx, input.CycleID, team, current); err != nil {
+			return Issue{}, err
+		}
+	}
 	if input.Project != nil || input.ProjectID != nil {
 		var team int64
 		var current sql.NullInt64

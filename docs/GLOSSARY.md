@@ -13,6 +13,7 @@
 | team | 有自己票号前缀（key）和独立编号的 issue 归属，如本仓库的 `AL`。建票必须指定 team，没有默认值；key 在 workspace 内唯一，建好后不能改，显示名称可改，team 不能删除或换 workspace，票不能换 team。状态所有 workspace 共用，Project 显式关联同一 workspace 的一个或多个 team。不是 GitHub team 或 UC 用户组。 |
 | Project | 按交付结果组织 ticket 的具名记录，不是 Git 仓库或源码目录。名称在 workspace 内唯一，可通过稳定 id 改名；当前名称也可寻址，旧名称不是别名。内部 id、Team 关联和任务引用不随改名变化。显式关联同一 workspace 的一个或多个 Team，空项目也按关联出现在 Team 列表。历史无任务项目保留待归属，仅 workspace 列表可见；新建必须指定 Team。任务只能属于兼容 Team 的项目；归档后默认列表不展示且不接受新任务归属，已有任务可保留。 |
 | triage / backlog / todo | triage 是新进来、还没决定要不要的票；backlog 是决定保留、但还没承诺什么时候做的票；todo 是已承诺要做的工作，本身不表示可直接由 Agent 执行。 |
+| Cycle | Team 的时间规划维度，与 Project、status、agent_ready 独立；每票最多一个同 Team 周期。按配置时区的日历周重复，结束时已承诺未完成任务自动滚入下一轮；结束统计是快照，当前票列表可继续变化。不等于发布版本或依赖图中的环。 |
 | agent_ready | 通过仓库 ticket skill 的执行门槛后进入 Agent 队列。门槛是贡献流程，不能宣称 Service 自动审核 ticket 描述。 |
 | in_progress / in_review / done / canceled | 正在处理、PR 可审阅、合并后完成、取消或被替代。GitHub 同步仅按源码中的特定规则自动推进。 |
 | type | 可选分类：`spec`、`feature`、`bug`、`improvement`、`chore`；与 status 相互独立。 |

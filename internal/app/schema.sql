@@ -32,6 +32,33 @@ CREATE TABLE IF NOT EXISTS teams (
 );
 
 -- workspace_id is the team's workspace; identifiers are unique within it.
+CREATE TABLE IF NOT EXISTS team_cycle_settings (
+ team_id INTEGER PRIMARY KEY REFERENCES teams(id),
+ enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+ timezone TEXT NOT NULL,
+ start_date TEXT NOT NULL,
+ duration_weeks INTEGER NOT NULL CHECK(duration_weeks BETWEEN 1 AND 8),
+ upcoming_count INTEGER NOT NULL CHECK(upcoming_count BETWEEN 1 AND 15)
+);
+CREATE TABLE IF NOT EXISTS cycles (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ team_id INTEGER NOT NULL REFERENCES teams(id),
+ number INTEGER NOT NULL,
+ name TEXT NOT NULL DEFAULT '',
+ description TEXT NOT NULL DEFAULT '',
+ timezone TEXT NOT NULL,
+ starts_at TEXT NOT NULL,
+ ends_at TEXT NOT NULL,
+ completed_at TEXT,
+ total INTEGER NOT NULL DEFAULT 0,
+ done INTEGER NOT NULL DEFAULT 0,
+ canceled INTEGER NOT NULL DEFAULT 0,
+ rolled_over INTEGER NOT NULL DEFAULT 0,
+ UNIQUE(team_id,number),
+ CHECK(starts_at < ends_at)
+);
+CREATE INDEX IF NOT EXISTS cycles_team_dates_idx ON cycles(team_id,starts_at);
+
 CREATE TABLE IF NOT EXISTS issues (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
@@ -48,6 +75,7 @@ CREATE TABLE IF NOT EXISTS issues (
     updated_at TEXT NOT NULL,
     priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3, 4)),
     assignee_subject TEXT REFERENCES users(subject),
+    cycle_id INTEGER REFERENCES cycles(id),
     UNIQUE (workspace_id, identifier)
 );
 
@@ -255,3 +283,15 @@ CREATE TABLE IF NOT EXISTS work_logs (
 );
 CREATE INDEX IF NOT EXISTS work_logs_issue_idx ON work_logs(issue_id,id);
 CREATE INDEX IF NOT EXISTS work_logs_decisions_idx ON work_logs(issue_id,id) WHERE kind='decision';
+
+CREATE INDEX IF NOT EXISTS issues_cycle_idx ON issues(cycle_id);
+CREATE TRIGGER IF NOT EXISTS issues_cycle_insert BEFORE INSERT ON issues
+WHEN NEW.cycle_id IS NOT NULL
+BEGIN
+ SELECT RAISE(ABORT, 'cycle must belong to the issue team') WHERE NOT EXISTS(SELECT 1 FROM cycles WHERE id=NEW.cycle_id AND team_id=NEW.team_id);
+END;
+CREATE TRIGGER IF NOT EXISTS issues_cycle_update BEFORE UPDATE OF cycle_id,team_id ON issues
+WHEN NEW.cycle_id IS NOT NULL
+BEGIN
+ SELECT RAISE(ABORT, 'cycle must belong to the issue team') WHERE NOT EXISTS(SELECT 1 FROM cycles WHERE id=NEW.cycle_id AND team_id=NEW.team_id);
+END;

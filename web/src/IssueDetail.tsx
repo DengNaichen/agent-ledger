@@ -1,6 +1,8 @@
+import { CycleSelect } from "./Cycles";
+import "./cycles.css";
 import { AssigneeSelect } from "./Assignee";
 import { codingAgentName, personName } from "./shared";
-import { Box, CornerUpLeft, Plus, Users, X } from "lucide-react";
+import { ArrowUpRight, Box, CornerUpLeft, Plus, Users, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownText } from "./MarkdownText";
 import { WorkLogEntry, WorkLogList, ActivityTabs } from "./WorkLogs";
@@ -24,6 +26,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
   const [comment, setComment] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
+  const [savingCycle, setSavingCycle] = useState(false);
   const [savingAssignee, setSavingAssignee] = useState(false);
   const [posting, setPosting] = useState(false);
   const requests = useRequestScope(identifier);
@@ -61,6 +64,12 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
     }, (cause) => { setError(cause.message); setSavingPriority(false); });
   }
 
+  async function changeCycle(cycle_id: number) {
+    setSavingCycle(true); setError("");
+    await requests.write(identifier, () => api<Issue>(path, "PATCH", {cycle_id}),
+      (updated) => { setIssue((current) => ({...current!, ...updated})); setSavingCycle(false); },
+      (cause) => { setError(cause.message); setSavingCycle(false); });
+  }
   async function changeAssignee(assignee: string) {
     setSavingAssignee(true); setError("");
     const saved = await requests.write(identifier, () => api<Issue>(path, "PATCH", { assignee }),
@@ -109,6 +118,7 @@ export function IssueDetail({ catalog, teams, onSaved, identifier, setError, edi
                 <dd><AssigneeSelect key={identifier} team={teamKey} value={issue.assignee?.subject ?? ""} current={issue.assignee} disabled={savingAssignee} onChange={(value) => void changeAssignee(value)} label={`Change assignee for ${identifier}`} /></dd>
                 {agents.length > 0 && <dd className="detail-property-child"><button className="delegation-link" onClick={() => delegationHistory.current!.scrollIntoView({ block: "start" })}>{agents.map((agent) => <AgentMark key={agent} agent={agent} />)}<span>{agents.map(codingAgentName).join(", ")} · {issue.delegations.length} {issue.delegations.length === 1 ? "execution" : "executions"}</span></button></dd>}
               </div>
+              <div><dt className="detail-property-term">Cycle</dt><dd className="detail-cycle-value"><CycleSelect key={identifier} team={teamKey} value={issue.cycle_id ?? 0} disabled={savingCycle} onChange={(id) => void changeCycle(Number(id))} label={`Change cycle for ${identifier}`} />{issue.cycle_id && <NavLink to={pagePath(`/team/${encodeURIComponent(teamKey)}/cycles/${issue.cycle_id}`)}><ArrowUpRight className="icon" role="img" aria-label="View cycle" /></NavLink>}</dd></div>
             </dl>
           </div>
           <div className="detail-property-group">

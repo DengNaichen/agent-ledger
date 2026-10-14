@@ -284,6 +284,7 @@ func TestDelegationUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	removeCycleSchema(t, root.db)
 	if _, err = root.db.Exec("DROP TABLE issue_delegations"); err != nil {
 		t.Fatal(err)
 	}

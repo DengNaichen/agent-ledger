@@ -246,3 +246,9 @@ make test
 ## License
 
 [Apache-2.0](LICENSE)
+
+## Cycles
+
+Teams can enable repeating 1–8 week cycles under **Cycles → Cycle settings**, choosing an IANA timezone, first day and 1–15 upcoming cycles. An issue has at most one cycle from its own team, independent of its Project and status. Create/edit issues with `cycle_id` (0 clears); list with `cycle_id` (0 means unassigned). MCP tools are `list_cycles`, `configure_cycles`, `get_cycle`, and `update_cycle`.
+
+At each boundary, committed unfinished work (`todo`, `agent_ready`, `in_progress`, `in_review`) rolls into the next cycle. Other statuses stay in the closing cycle. Completion counts are saved snapshots; the issue list shows current assignments. Startup and periodic maintenance catch up missed boundaries atomically. Disabling closes the current cycle, removes upcoming plans and clears their assignments while preserving completed history. Disable before changing cadence; a new schedule must not overlap history. Capacity forecasting, cooldowns, calendar feeds and Linear cycle import are not included.
