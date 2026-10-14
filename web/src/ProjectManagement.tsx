@@ -5,6 +5,8 @@ import { api, apiPath, ModalDialog, Project, RequestError, Team } from "./shared
 export function ProjectDialog({ project, initialTeam, teams, onClose, onSaved }: { project?: Project; initialTeam?: string; teams: Team[]; onClose: () => void; onSaved: (project: Project) => Promise<void> }) {
   const [name, setName] = useState(project?.name ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
+  const [startDate, setStartDate] = useState(project?.start_date ?? "");
+  const [targetDate, setTargetDate] = useState(project?.target_date ?? "");
   const [selected, setSelected] = useState(project?.teams ?? (initialTeam ? [initialTeam] : []));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -19,7 +21,7 @@ export function ProjectDialog({ project, initialTeam, teams, onClose, onSaved }:
     setError("");
     try {
       const saved = project
-        ? await api<Project>(apiPath(`/projects/by-id/${project.id}`), "PATCH", { new_name: name, description, ...(teamsChanged ? { teams: selected } : {}) })
+        ? await api<Project>(apiPath(`/projects/by-id/${project.id}`), "PATCH", { new_name: name, description, start_date: startDate, target_date: targetDate, ...(teamsChanged ? { teams: selected } : {}) })
         : await api<Project>(apiPath("/projects"), "POST", { name, description, teams: selected });
       if (mounted.current) await onSaved(saved);
     } catch (cause) {
@@ -34,6 +36,7 @@ export function ProjectDialog({ project, initialTeam, teams, onClose, onSaved }:
       <header><h2 id="project-dialog-title">{project ? "Edit project" : "New project"}</h2><button type="button" className="ghost" aria-label="Close" disabled={saving} onClick={onClose}><X className="icon" /></button></header>
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} required disabled={saving} /></label>
       <label>Description<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} /></label>
+      {project && <div className="project-date-fields"><label>Start date<input type="date" value={startDate} max={targetDate || "9999-12-31"} min="0001-01-01" onChange={(event) => setStartDate(event.target.value)} disabled={saving} /></label><label>Target date<input type="date" value={targetDate} min={startDate || "0001-01-01"} max="9999-12-31" onChange={(event) => setTargetDate(event.target.value)} disabled={saving} /></label></div>}
       <fieldset className="project-teams" disabled={saving}><legend>Teams</legend>
         {teams.map((team) => <label key={team.key}><input type="checkbox" checked={selected.includes(team.key)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, team.key] : current.filter((key) => key !== team.key))} />{team.name} ({team.key})</label>)}
       </fieldset>
@@ -64,6 +67,7 @@ export function ProjectOverview({ project, teams, onEdit, onSaved }: { project: 
   }
   return <section className="scope-description" aria-label="Project details">
     <p>{project.description || "No description yet."}</p>
+    <p>Schedule: {project.start_date || "No start date"} → {project.target_date || "No target date"}</p>
     <p>{project.teams.length === 0 ? "This historical project has no assigned teams yet." : `Teams: ${project.teams.map((key) => teams.find((team) => team.key === key)?.name ?? key).join(", ")}`}</p>
     {project.archived && <p>Archived project. Existing issues remain available. Restore it before adding new issues.</p>}
     <div className="project-actions"><button type="button" className="button" disabled={saving} onClick={onEdit}>{project.teams.length === 0 ? "Assign teams / Edit project" : "Edit project"}</button><button type="button" className="button" disabled={saving} onClick={() => void changeArchive()}>{saving ? "Saving…" : project.archived ? "Restore project" : "Archive project"}</button></div>

@@ -11,6 +11,7 @@ import { useResource } from "./useResource";
 const CyclesPage = lazy(() => import("./CyclesPage"));
 const IssuesPage = lazy(() => import("./IssuesPage"));
 const ProjectsPage = lazy(() => import("./ProjectsPage"));
+const InitiativesPage = lazy(() => import("./InitiativesPage"));
 const IssuePage = lazy(() => import("./IssuePage"));
 const LabelsPage = lazy(() => import("./LabelsPage"));
 const SettingsPage = lazy(() => import("./SettingsPage"));
@@ -88,6 +89,7 @@ function WorkspaceView() {
             : route.kind === "issues" || route.kind === "project" || route.kind === "cycle" ? <IssuesPage route={route} teams={teams.data.teams} teamsLoading={teams.loading} onCreateTeam={() => setCreatingTeam(true)} view={view} setView={setView} sort={sort} setSort={setSort} />
             : route.kind === "cycles" ? <CyclesPage team={route.team} teams={teams.data.teams} />
             : route.kind === "projects" ? <ProjectsPage team={route.team} teams={teams.data.teams} />
+            : route.kind === "initiatives" || route.kind === "initiative" ? <InitiativesPage id={route.kind === "initiative" ? route.id : undefined} teams={teams.data.teams} />
             : route.kind === "issue" ? <IssuePage identifier={route.identifier} teams={teams.data.teams} />
             : route.kind === "labels" ? <LabelsPage />
             : <SettingsPage teams={teams.data.teams} loading={teams.loading} onSaved={(updated) => teams.update((data) => ({ teams: data.teams.map((team) => team.key === updated.key ? updated : team) }))} />}

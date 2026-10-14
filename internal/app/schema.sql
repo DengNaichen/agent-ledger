@@ -15,8 +15,30 @@ CREATE TABLE IF NOT EXISTS projects (
     description TEXT NOT NULL DEFAULT '',
     archived BOOLEAN NOT NULL DEFAULT FALSE CHECK (archived IN (0, 1)),
     emoji TEXT NOT NULL DEFAULT '',
+    start_date TEXT,
+    target_date TEXT CHECK(start_date IS NULL OR target_date IS NULL OR start_date <= target_date),
     UNIQUE (workspace_id, name)
 );
+CREATE TABLE IF NOT EXISTS initiatives (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+    name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+    description TEXT NOT NULL DEFAULT '',
+    archived BOOLEAN NOT NULL DEFAULT FALSE CHECK(archived IN (0,1)),
+    UNIQUE(workspace_id,name)
+);
+CREATE TABLE IF NOT EXISTS initiative_projects (
+    initiative_id INTEGER NOT NULL REFERENCES initiatives(id),
+    project_id INTEGER NOT NULL REFERENCES projects(id),
+    PRIMARY KEY(initiative_id,project_id)
+);
+CREATE INDEX IF NOT EXISTS initiative_projects_project ON initiative_projects(project_id);
+CREATE TRIGGER IF NOT EXISTS initiative_projects_workspace_insert BEFORE INSERT ON initiative_projects
+WHEN (SELECT workspace_id FROM initiatives WHERE id=NEW.initiative_id) <> (SELECT workspace_id FROM projects WHERE id=NEW.project_id)
+BEGIN SELECT RAISE(ABORT, 'initiative and project must share a workspace'); END;
+CREATE TRIGGER IF NOT EXISTS initiative_projects_workspace_update BEFORE UPDATE ON initiative_projects
+WHEN (SELECT workspace_id FROM initiatives WHERE id=NEW.initiative_id) <> (SELECT workspace_id FROM projects WHERE id=NEW.project_id)
+BEGIN SELECT RAISE(ABORT, 'initiative and project must share a workspace'); END;
 
 -- Each team numbers its own issues. A key is fixed once created, because it
 -- is the prefix of every identifier the team has issued.

@@ -89,7 +89,8 @@ export type IssueDetails = Issue & {
   related: IssueSummary[];
 };
 
-export type Project = { id: number; teams: string[]; name: string; description: string; archived: boolean; emoji: string };
+export type Project = { id: number; teams: string[]; name: string; description: string; archived: boolean; emoji: string; start_date?: string; target_date?: string };
+export type Initiative = { id: number; name: string; description: string; archived: boolean; project_ids: number[] };
 
 export type Team = { private: boolean; joined: boolean; accessible: boolean; can_manage: boolean; membership_enabled: boolean; key: string; name: string; next_number: number; emoji: string };
 
@@ -104,6 +105,8 @@ export function workspaceSlug() {
 export type WorkspaceRoute =
   | { kind: "cycles"; team: string }
   | { kind: "cycle"; team: string; id: number }
+  | { kind: "initiatives" }
+  | { kind: "initiative"; id: number }
   | { kind: "issues"; team: string }
   | { kind: "projects"; team: string }
   | { kind: "project"; id: number }
@@ -116,6 +119,9 @@ export function workspaceRoute(path: string): WorkspaceRoute {
   const route = "/" + path.split("/").slice(2).join("/");
   if (route === "/") return { kind: "issues", team: "" };
   if (route === "/projects") return { kind: "projects", team: "" };
+  if (route === "/initiatives") return { kind: "initiatives" };
+  const initiative = route.match(/^\/initiative\/([1-9][0-9]*)$/);
+  if (initiative && Number.isSafeInteger(Number(initiative[1]))) return { kind: "initiative", id: Number(initiative[1]) };
   if (route === "/settings") return { kind: "settings" };
   if (route === "/labels") return { kind: "labels" };
   const team = route.match(/^\/team\/([^/]+)\/(issues|projects|cycles)$/);

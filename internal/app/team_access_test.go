@@ -268,6 +268,7 @@ func TestTeamAccessUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	removeAssignmentSchema(t, root.db)
+	removeTimelineSchema(t, root.db)
 	if _, err = root.db.Exec(`DROP TRIGGER team_members_workspace;DROP TABLE team_members;ALTER TABLE teams DROP COLUMN private;PRAGMA user_version=9`); err != nil {
 		t.Fatal(err)
 	}

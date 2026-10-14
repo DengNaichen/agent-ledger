@@ -184,6 +184,7 @@ func TestRelationDAGUpgrade(t *testing.T) {
 				}
 			}
 			// Version 13 is the shipped schema immediately before dependency constraints.
+			removeTimelineSchema(t, root.db)
 			if _, err := root.db.Exec(`DROP TRIGGER relations_blocks_insert; DROP TRIGGER relations_blocks_update; PRAGMA user_version=13;
     INSERT INTO relations VALUES (1,'blocks',2),(2,'blocks',3),(1,'related',3)`); err != nil {
 				t.Fatal(err)
